@@ -15,6 +15,7 @@ class PortfolioHandler(object):
 
     def on_bar(self,event):
         self.portfolio.update_position(event.time,event.ticker,event.close)
+        self.portfolio.log()
 
     def on_tick(self,event):
         pass

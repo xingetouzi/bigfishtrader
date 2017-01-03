@@ -26,8 +26,9 @@ class Portfolio(object):
         self.equity=self.cash
         for position in self.positions.values():
             self.equity+=position.deposit+position.profit
-        self.history.append({'datetime':self.__time,'equity':self.equity})
 
+    def log(self):
+        self.history.append({'datetime':self.__time,'equity':self.equity,'cash':self.cash})
 
     def open_position(self,ticker,price,quantity,open_time,commission=0,**kwargs):
         position=Position(ticker,price,quantity,open_time,commission,**kwargs)

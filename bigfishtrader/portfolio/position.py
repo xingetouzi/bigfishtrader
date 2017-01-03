@@ -68,5 +68,6 @@ class Position(object):
             'quantity':self.quantity,
             'profit':self.profit,
             'deposit':self.deposit,
+            'close_time':self.close_time,
             'close_price':self.close_price
         }
