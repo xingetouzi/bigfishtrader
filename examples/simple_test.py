@@ -21,10 +21,9 @@ def run_backtest(collection,ticker,start,end):
     portfolio=backTest.run(start,end)
     import pandas as pd
 
-    print(
-        pd.DataFrame(portfolio.history)
-    )
-
+    # print(
+    #     pd.DataFrame(portfolio.history)
+    # )
 
     positions=pd.DataFrame(
             [position.show() for position in portfolio.closed_positions]

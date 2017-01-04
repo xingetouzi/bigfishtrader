@@ -1,6 +1,6 @@
 from bigfishtrader.price_handler.base import AbstractPriceHandler
 import pandas as pd
-from bigfishtrader.event import BarEvent
+from bigfishtrader.event import BarEvent,ExitEvent
 
 class MongoHandler(AbstractPriceHandler):
     '''
@@ -12,11 +12,12 @@ class MongoHandler(AbstractPriceHandler):
     it into a BarEvent then put the BarEvent into the event_queue
     '''
 
-    def __init__(self,collection,ticker,event_queue):
+    def __init__(self,collection,ticker,event_queue,trader=None):
         self.collection=collection
         self.event_queue=event_queue
         self.ticker=ticker
         self._instance_data=pd.DataFrame()
+        self.trader=trader
         self.running=False
 
     def initialize(self,start=None,end=None):
@@ -47,6 +48,9 @@ class MongoHandler(AbstractPriceHandler):
         try:
             bar=next(self.cursor)
         except StopIteration:
+            self.event_queue.put(
+                ExitEvent()
+            )
             self.running=False
             return
 
@@ -59,7 +63,9 @@ class MongoHandler(AbstractPriceHandler):
         )
         self.last_time=bar['datetime']
         self.event_queue.put(barEvent)
+        self.trader.on_bar(barEvent)
         self._instance_data=self._instance_data.append(bar,ignore_index=True)
+
 
     def get_instance(self):
         return self._instance_data

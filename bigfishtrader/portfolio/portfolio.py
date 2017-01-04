@@ -56,6 +56,9 @@ class Portfolio(object):
                 self.closed_positions.append(position)
 
             elif abs(quantity)<abs(position.quantity):
+                if quantity*position.quantity<0:
+                    raise QuantityException(quantity,position.quantity,2)
+
                 new=position.separate(quantity,price)
                 new.close(price,close_time)
                 self.cash+=new.deposit+new.profit

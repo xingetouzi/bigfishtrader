@@ -23,6 +23,7 @@ class Position(object):
         self.deposit=abs(self.open_price*self.quantity*lever*deposit_rate)
         self.profit=0
         self.close_price=None
+        self.close_time=None
 
     def update(self,price):
         self.price=price
@@ -36,7 +37,7 @@ class Position(object):
     def merge(self,other):
 
         quantity=self.quantity+other.quantity
-        self.open_price=(self.open_price*self.quantity*+other.quantity*other.open_price)/quantity
+        self.open_price=(self.open_price*self.quantity+other.quantity*other.open_price)/quantity
         self.commission=self.commission+other.commission
         self.deposit=self.deposit+other.deposit
         self.quantity=quantity

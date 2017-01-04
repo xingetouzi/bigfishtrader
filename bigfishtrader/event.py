@@ -3,8 +3,13 @@ TICK=0
 BAR=1
 ORDER=2
 FILL=3
+LIMIT=4
+STOP=5
+CANCEL=6
+EXIT=999
 OPEN_ORDER=1
 CLOSE_ORDER=0
+
 
 class Event(object):
     '''
@@ -61,14 +66,26 @@ class OrderEvent(Event):
     will be handled by Simulation or Trade section
     '''
 
-    def __init__(self,timestamp,ticker,action,quantity,price):
-        self.type=ORDER
+    def __init__(self,timestamp,ticker,action,quantity,price,order_type=ORDER):
+        self.type=order_type
         self.time=timestamp
         self.price=price
         self.ticker=ticker
         self.set_priority(0)
         self.action=action
         self.quantity=quantity
+
+class CancelEvent(Event):
+    '''
+    CancelEvent is created by a strategy when it wants to cancel an limit or stop order
+    and it will be handled by Simulation or Trade section
+    '''
+
+    def __init__(self,**conditions):
+        self.type=CANCEL
+        self.set_priority(0)
+        self.conditions=conditions
+
 
 class FillEvent(Event):
     '''
@@ -90,3 +107,12 @@ class FillEvent(Event):
         self.commission=commission
         self.lever=lever
         self.deposit_rate=deposit_rate
+
+class ExitEvent(Event):
+
+    def __init__(self):
+        self.type=EXIT
+        self.set_priority(999)
+
+
+

@@ -1,5 +1,5 @@
 from queue import Empty
-from bigfishtrader.event import BAR,ORDER,FILL
+from bigfishtrader.event import BAR,ORDER,FILL,EXIT,LIMIT,STOP,CANCEL
 
 class BackTest(object):
 
@@ -10,20 +10,28 @@ class BackTest(object):
         self.portfolio_handler=portfolio_handler
         self.portfolio=portfolio_handler.portfolio
         self.trader=trader
+
+        if self.price_handler.trader is None:
+            self.price_handler.trader=trader
+
         self.handle={
             BAR:self._handle_bar,
             ORDER:self._handle_order,
-            FILL:self._handle_fill
+            FILL:self._handle_fill,
+            LIMIT:self.trader.on_limit,
+            STOP:self.trader.on_stop,
+            CANCEL:self.trader.on_cancel,
+            EXIT:self._exit
         }
 
 
     def run(self,start=None,end=None):
         self.price_handler.initialize(start,end)
         self.strategy.initialize_operation(
-            self.event_queue,self.price_handler,self.portfolio
+            self.event_queue,self.price_handler
         )
 
-        while self.price_handler.running:
+        while self.price_handler.running or self.event_queue.qsize():
             try:
                 event=self.event_queue.get(timeout=0)
             except Empty:
@@ -31,14 +39,16 @@ class BackTest(object):
             else:
                 self.handle[event.type](event)
 
+        return self.portfolio
+
+    def _exit(self,event):
+
         for position in self.portfolio.positions.copy().values():
             self.portfolio.close_position(
                 position.ticker,position.price,
                 position.quantity,self.portfolio.current_time()
             )
 
-
-        return self.portfolio
 
     def _handle_bar(self,event):
         self.portfolio_handler.on_bar(event)
