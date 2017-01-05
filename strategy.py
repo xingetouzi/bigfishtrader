@@ -10,5 +10,6 @@ def handle_data(account,data):
                     data.get_value(index,'closeMid'),
                     position=position
                 )
+
         open_position(data.get_value(index,'highMid')*0.98,ticker(),-1000,STOP)
 

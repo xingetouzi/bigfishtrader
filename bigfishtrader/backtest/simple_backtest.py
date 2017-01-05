@@ -11,24 +11,23 @@ class BackTest(object):
         self.portfolio=portfolio_handler.portfolio
         self.trader=trader
 
-        if self.price_handler.trader is None:
-            self.price_handler.trader=trader
-
         self.handle={
             BAR:self._handle_bar,
             ORDER:self._handle_order,
             FILL:self._handle_fill,
-            LIMIT:self.trader.on_limit,
-            STOP:self.trader.on_stop,
+            LIMIT:self._handle_order,
+            STOP:self._handle_order,
             CANCEL:self.trader.on_cancel,
             EXIT:self._exit
         }
 
 
+
+
     def run(self,start=None,end=None):
         self.price_handler.initialize(start,end)
         self.strategy.initialize_operation(
-            self.event_queue,self.price_handler
+            self.event_queue,self.price_handler,self.portfolio
         )
 
         while self.price_handler.running or self.event_queue.qsize():

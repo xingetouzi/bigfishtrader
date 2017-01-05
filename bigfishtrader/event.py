@@ -28,6 +28,7 @@ class Event(object):
     def __gt__(self, other):
         return self.priority>other.priority
 
+
 class TickEvent(Event):
     '''
     TickEvent is created when a tick data arrived
@@ -66,7 +67,7 @@ class OrderEvent(Event):
     will be handled by Simulation or Trade section
     '''
 
-    def __init__(self,timestamp,ticker,action,quantity,price,order_type=ORDER):
+    def __init__(self,timestamp,ticker,action,quantity,price,order_type=ORDER,tag=None):
         self.type=order_type
         self.time=timestamp
         self.price=price
@@ -74,6 +75,15 @@ class OrderEvent(Event):
         self.set_priority(0)
         self.action=action
         self.quantity=quantity
+        self.tag=tag
+
+    def match(self,**conditions):
+        for key,value in conditions.items():
+            if getattr(self,key,None)!=value:
+                return False
+
+        return True
+
 
 class CancelEvent(Event):
     '''

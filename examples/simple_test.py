@@ -1,7 +1,7 @@
 import strategy
 from bigfishtrader.portfolio.portfolio_handler import PortfolioHandler
 from bigfishtrader.price_handler.mongo_handler import MongoHandler
-from bigfishtrader.trader.simulation import Simulation
+from bigfishtrader.trader.dummy_exchange import DummyExchange
 from bigfishtrader.backtest.simple_backtest import BackTest
 from queue import PriorityQueue
 from pymongo import MongoClient
@@ -10,8 +10,9 @@ from datetime import datetime
 def run_backtest(collection,ticker,start,end):
     event_queue=PriorityQueue()
     portfolioHandler=PortfolioHandler(event_queue)
-    priceHandler=MongoHandler(collection,ticker,event_queue)
-    trader=Simulation(event_queue,priceHandler)
+    trader=DummyExchange(event_queue)
+    priceHandler=MongoHandler(collection,ticker,event_queue,trader)
+
     backTest=BackTest(
         event_queue,strategy,
         priceHandler,portfolioHandler,trader
@@ -21,9 +22,9 @@ def run_backtest(collection,ticker,start,end):
     portfolio=backTest.run(start,end)
     import pandas as pd
 
-    # print(
-    #     pd.DataFrame(portfolio.history)
-    # )
+    print(
+        pd.DataFrame(portfolio.history)
+    )
 
     positions=pd.DataFrame(
             [position.show() for position in portfolio.closed_positions]

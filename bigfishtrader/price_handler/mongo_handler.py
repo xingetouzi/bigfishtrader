@@ -42,7 +42,8 @@ class MongoHandler(AbstractPriceHandler):
     def get_last_time(self):
         return self.last_time
 
-
+    def get_last_price(self,ticker):
+        return self._instance_data['closeMid'].values[-1]
 
     def next_stream(self):
         try:
@@ -63,8 +64,8 @@ class MongoHandler(AbstractPriceHandler):
         )
         self.last_time=bar['datetime']
         self.event_queue.put(barEvent)
-        self.trader.on_bar(barEvent)
         self._instance_data=self._instance_data.append(bar,ignore_index=True)
+        self.trader.on_bar(barEvent)
 
 
     def get_instance(self):

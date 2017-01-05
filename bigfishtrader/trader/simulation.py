@@ -5,7 +5,6 @@ class Simulation(object):
 
     def __init__(self,event_queue,price_handler,exchange=None,**ticker_information):
         self.event_queue=event_queue
-        self.price_handler=price_handler
         self.ticker_info=ticker_information
         self.exchange=exchange
         self.limits=[]
