@@ -1,4 +1,4 @@
-import strategy
+# coding=utf-8
 from bigfishtrader.portfolio.portfolio_handler import PortfolioHandler
 from bigfishtrader.price_handler.mongo_handler import MongoHandler
 from bigfishtrader.trader.dummy_exchange import DummyExchange
@@ -6,6 +6,7 @@ from bigfishtrader.backtest.simple_backtest import BackTest
 from queue import PriorityQueue
 from pymongo import MongoClient
 from datetime import datetime
+from example import strategy
 
 def run_backtest(collection,ticker,start,end):
     event_queue=PriorityQueue()
