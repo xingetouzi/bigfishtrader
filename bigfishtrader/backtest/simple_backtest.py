@@ -22,13 +22,17 @@ class BackTest(object):
         }
 
 
+    def init_params(self,**params):
+        for key,value in params.items():
+            setattr(self.strategy,key,value)
 
 
-    def run(self,start=None,end=None):
+    def run(self,start=None,end=None,**params):
         self.price_handler.initialize(start,end)
         self.strategy.initialize_operation(
             self.event_queue,self.price_handler,self.portfolio
         )
+        self.init_params(**params)
 
         while self.price_handler.running or self.event_queue.qsize():
             try:

@@ -19,7 +19,7 @@ def run_backtest(collection,ticker,start,end):
     )
 
 
-    portfolio=backTest.run(start,end)
+    portfolio=backTest.run(start,end,period=100)
     import pandas as pd
 
     print(
