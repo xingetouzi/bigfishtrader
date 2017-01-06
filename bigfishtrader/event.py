@@ -7,8 +7,11 @@ class EVENTS(Enum):
     BAR = 1
     ORDER = 2
     FILL = 3
-    FINAL = 4
-
+    LIMIT = 4
+    STOP = 5
+    CANCEL = 6
+    FINAL = 7
+    EXIT = 999
 
 OPEN_ORDER = 1
 CLOSE_ORDER = 0
@@ -89,9 +92,9 @@ class OrderEvent(Event):
     OrderEvent is created by a strategy when it wants to open an order and
     will be handled by Simulation or Trade section
     """
-    __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status"]
+    __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag"]
 
-    def __init__(self, timestamp, ticker, action, quantity, price):
+    def __init__(self, timestamp, ticker, action, quantity, price, order_type=ORDER, tag=None):
         super(OrderEvent, self).__init__()
         self.type = EVENTS.ORDER
         self.time = timestamp
@@ -100,9 +103,27 @@ class OrderEvent(Event):
         self.set_priority(0)
         self.action = action
         self.quantity = quantity
+        self.tag = tag
         self.local_id = None
         self.status = ORDER_STATUS.UNFILL
 
+    def match(self,**conditions):
+        for key,value in conditions.items():
+            if getattr(self,key,None)!=value:
+                return False
+
+        return True
+
+class CancelEvent(Event):
+    """
+    CancelEvent is created by a strategy when it wants to cancel an limit or stop order
+    and it will be handled by Simulation or Trade section
+    """
+
+    def __init__(self,**conditions):
+        self.type=CANCEL
+        self.set_priority(0)
+        self.conditions=conditions
 
 class FillEvent(Event):
     """
@@ -136,3 +157,12 @@ class FinalEvent(Event):
         super(FinalEvent, self).__init__()
         self.set_priority(-1)
         self.type = EVENTS.FINAL
+
+class ExitEvent(Event):
+
+    def __init__(self):
+        self.type=EXIT
+        self.set_priority(999)
+
+
+

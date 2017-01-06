@@ -1,0 +1,10 @@
+{
+  "host":"localhost",
+  "port":27017,
+  "user":{
+    "admin": {
+      "id": "your id",
+      "password": "your password"
+    }
+  }
+}
