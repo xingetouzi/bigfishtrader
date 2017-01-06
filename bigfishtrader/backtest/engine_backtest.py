@@ -51,6 +51,7 @@ class EngineBackTest(object):
         return self.portfolio
 
     def _handle_bar(self, event, kwargs):
+        self.trader.on_bar(event)
         self.portfolio_handler.on_bar(event)
         self.strategy.handle_data(self.portfolio, self.price_handler.get_instance())
 

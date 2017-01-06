@@ -1,12 +1,13 @@
 from bigfishtrader.event import *
 
 
-def initialize_operation(queue,handler,portfolio):
-    global event_queue,price_handler,default_ticker,account
-    event_queue=queue
-    price_handler=handler
-    default_ticker=handler.ticker
-    account=portfolio
+def initialize_operation(queue, handler, portfolio):
+    global event_queue, price_handler, default_ticker, account
+    event_queue = queue
+    price_handler = handler
+    default_ticker = handler.ticker
+    account = portfolio
+
 
 def ticker():
     return default_ticker
@@ -15,11 +16,12 @@ def ticker():
 def current_time():
     return price_handler.get_last_time()
 
-def open_position(price,ticker,quantity,order_type=ORDER):
+
+def open_position(price, ticker, quantity, order_type=EVENTS.ORDER, ORDER=None):
     event_queue.put(
         OrderEvent(
             price_handler.get_last_time(),
-            ticker,OPEN_ORDER,quantity,price,order_type
+            ticker, OPEN_ORDER, quantity, price, order_type
         )
     )
 
@@ -29,7 +31,8 @@ def cancel_order(**conditions):
         CancelEvent(**conditions)
     )
 
-def close_position(price,ticker=None,quantity=None,order_type=ORDER,position=None):
+
+def close_position(price, ticker=None, quantity=None, order_type=EVENTS.ORDER, position=None):
     if position:
         event_queue.put(
             OrderEvent(

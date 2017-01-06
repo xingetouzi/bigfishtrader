@@ -1,5 +1,5 @@
 import pandas as pd
-from bigfishtrader.event import BarEvent,ExitEvent
+from bigfishtrader.event import BarEvent, ExitEvent
 from bigfishtrader.price_handler.base import AbstractPriceHandler
 
 
@@ -13,13 +13,14 @@ class MongoHandler(AbstractPriceHandler):
     it into a BarEvent then put the BarEvent into the event_queue
     """
 
-    def __init__(self,collection,ticker,event_queue,trader=None):
-        self.collection=collection
-        self.event_queue=event_queue
-        self.ticker=ticker
-        self._instance_data=pd.DataFrame()
-        self.trader=trader
-        self.running=False
+    def __init__(self, collection, ticker, event_queue, trader=None):
+        self.collection = collection
+        self.event_queue = event_queue
+        self.ticker = ticker
+        self._instance_data = pd.DataFrame()
+        self.last_time = None
+        self.trader = trader
+        self.running = False
         self.cursor = None
 
     def initialize(self, start=None, end=None):
@@ -44,7 +45,7 @@ class MongoHandler(AbstractPriceHandler):
     def get_last_time(self):
         return self.last_time
 
-    def get_last_price(self,ticker):
+    def get_last_price(self, ticker):
         return self._instance_data['closeMid'].values[-1]
 
     def next_stream(self):
@@ -54,7 +55,7 @@ class MongoHandler(AbstractPriceHandler):
             self.event_queue.put(
                 ExitEvent()
             )
-            self.running=False
+            self.running = False
             return
 
         bar.pop('_id')
@@ -64,11 +65,9 @@ class MongoHandler(AbstractPriceHandler):
             bar['highMid'], bar['lowMid'],
             bar['closeMid'], bar['volume']
         )
-        self.last_time=bar['datetime']
-        self.event_queue.put(barEvent)
-        self._instance_data=self._instance_data.append(bar,ignore_index=True)
-        self.trader.on_bar(barEvent)
-
+        self.last_time = bar['datetime']
+        self._instance_data = self._instance_data.append(bar, ignore_index=True)
+        self.event_queue.put(bar_event)
 
     def get_instance(self):
         return self._instance_data

@@ -1,35 +1,38 @@
-from queue import Empty
+# encoding: utf-8
+
+try:
+    from Queue import Empty
+except ImportError:
+    from queue import Empty
+
 from bigfishtrader.event import EVENTS
 
 
 class BackTest(object):
+    def __init__(self, event_queue, strategy, price_handler, portfolio_handler, trader):
+        self.event_queue = event_queue
+        self.strategy = strategy
+        self.price_handler = price_handler
+        self.portfolio_handler = portfolio_handler
+        self.portfolio = portfolio_handler.portfolio
+        self.trader = trader
 
-    def __init__(self,event_queue,strategy,price_handler,portfolio_handler,trader):
-        self.event_queue=event_queue
-        self.strategy=strategy
-        self.price_handler=price_handler
-        self.portfolio_handler=portfolio_handler
-        self.portfolio=portfolio_handler.portfolio
-        self.trader=trader
-
-        self.handle={
-            BAR:self._handle_bar,
-            ORDER:self._handle_order,
-            FILL:self._handle_fill,
-            LIMIT:self._handle_order,
-            STOP:self._handle_order,
-            CANCEL:self.trader.on_cancel,
-            EXIT:self._exit
+        self.handle = {
+            EVENTS.BAR: self._handle_bar,
+            EVENTS.ORDER: self._handle_order,
+            EVENTS.FILL: self._handle_fill,
+            EVENTS.LIMIT: self._handle_order,
+            EVENTS.STOP: self._handle_order,
+            EVENTS.CANCEL: self.trader.on_cancel,
+            EVENTS.EXIT: self._exit
         }
 
+    def init_params(self, **params):
+        for key, value in params.items():
+            setattr(self.strategy, key, value)
 
-    def init_params(self,**params):
-        for key,value in params.items():
-            setattr(self.strategy,key,value)
-
-
-    def run(self,start=None,end=None,**params):
-        self.price_handler.initialize(start,end)
+    def run(self, start=None, end=None, **params):
+        self.price_handler.initialize(start, end)
         self.strategy.initialize_operation(
             self.event_queue, self.price_handler, self.portfolio
         )
@@ -45,7 +48,7 @@ class BackTest(object):
 
         return self.portfolio
 
-    def _exit(self,event):
+    def _exit(self, event):
 
         for position in self.portfolio.positions.copy().values():
             self.portfolio.close_position(
@@ -53,8 +56,8 @@ class BackTest(object):
                 position.quantity, self.portfolio.current_time()
             )
 
-
-    def _handle_bar(self,event):
+    def _handle_bar(self, event):
+        self.trader.on_bar(event)
         self.portfolio_handler.on_bar(event)
         self.strategy.handle_data(self.portfolio, self.price_handler.get_instance())
 

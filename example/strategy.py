@@ -1,6 +1,6 @@
 from bigfishtrader.operation import *
 
-gap=0.02
+gap = 0.02
 
 
 def handle_data(account, data):
@@ -13,4 +13,4 @@ def handle_data(account, data):
                     position=position
                 )
 
-        open_position(data.get_value(index,'highMid')*(1-0.02),ticker(),-1000,STOP)
+        open_position(data.get_value(index, 'highMid') * (1 - 0.02), ticker(), -1000, EVENTS.STOP)

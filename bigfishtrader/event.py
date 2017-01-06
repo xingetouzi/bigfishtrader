@@ -13,6 +13,7 @@ class EVENTS(Enum):
     FINAL = 7
     EXIT = 999
 
+
 OPEN_ORDER = 1
 CLOSE_ORDER = 0
 
@@ -94,7 +95,7 @@ class OrderEvent(Event):
     """
     __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag"]
 
-    def __init__(self, timestamp, ticker, action, quantity, price, order_type=ORDER, tag=None):
+    def __init__(self, timestamp, ticker, action, quantity, price, order_type=EVENTS.ORDER, tag=None):
         super(OrderEvent, self).__init__()
         self.type = EVENTS.ORDER
         self.time = timestamp
@@ -107,12 +108,13 @@ class OrderEvent(Event):
         self.local_id = None
         self.status = ORDER_STATUS.UNFILL
 
-    def match(self,**conditions):
-        for key,value in conditions.items():
-            if getattr(self,key,None)!=value:
+    def match(self, **conditions):
+        for key, value in conditions.items():
+            if getattr(self, key, None) != value:
                 return False
 
         return True
+
 
 class CancelEvent(Event):
     """
@@ -120,10 +122,12 @@ class CancelEvent(Event):
     and it will be handled by Simulation or Trade section
     """
 
-    def __init__(self,**conditions):
-        self.type=CANCEL
+    def __init__(self, **conditions):
+        super(CancelEvent, self).__init__()
+        self.type = EVENTS.CANCEL
         self.set_priority(0)
-        self.conditions=conditions
+        self.conditions = conditions
+
 
 class FillEvent(Event):
     """
@@ -158,11 +162,11 @@ class FinalEvent(Event):
         self.set_priority(-1)
         self.type = EVENTS.FINAL
 
+
 class ExitEvent(Event):
+    __slots__ = []
 
     def __init__(self):
-        self.type=EXIT
+        super(ExitEvent, self).__init__()
+        self.type = EVENTS.EXIT
         self.set_priority(999)
-
-
-

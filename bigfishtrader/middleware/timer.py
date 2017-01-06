@@ -5,28 +5,25 @@ import numpy
 import statsd
 
 from bigfishtrader.event import EVENTS
+from bigfishtrader.core import HandlerCompose, Handler
 
 
-class BaseTimer(object):
+class BaseTimer(HandlerCompose):
     def __init__(self, tick_timing=False):
         """
         :param tick_timing: flag to enable tick timing, default False
         :type tick_timing: bool
         """
+        super(BaseTimer, self).__init__()
         self._cache_order_time = None
         self._tick_timing = tick_timing
-
-    def register(self, engine):
-        """
-        :param engine: engine
-        :type engine: bigfishtrader.engine.core.Engine
-        """
-        engine.register(self.on_bar_start, EVENTS.BAR, topic="", priority=100)
-        engine.register(self.on_bar_end, EVENTS.BAR, topic=".", priority=-100)
-        engine.register(self.on_order, EVENTS.ORDER, topic="", priority=-100)
-        engine.register(self.on_fill, EVENTS.ORDER, topic=".", priority=100)
-        engine.register(self.on_tick_start, EVENTS.TICK, topic="", priority=100)
-        engine.register(self.on_tick_end, EVENTS.TICK, topic="", priority=-100)
+        self._handlers["on_bar_start"] = Handler(self.on_bar_start, EVENTS.BAR, topic="", priority=100)
+        self._handlers["on_bar_end"] = Handler(self.on_bar_end, EVENTS.BAR, topic=".", priority=-100)
+        self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic="", priority=100)
+        self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.ORDER, topic=".", priority=-100)
+        if self._tick_timing:
+            self._handlers["on_tick_start"] = Handler(self.on_tick_start, EVENTS.TICK, topic="", priority=100)
+            self._handlers["on_tick_end"] = Handler(self.on_tick_end, EVENTS.TICK, topic="", priority=-100)
 
     def on_bar_start(self, bar, kwargs):
         kwargs["timestamp_bar_start"] = time.clock()
