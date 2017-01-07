@@ -8,10 +8,10 @@ from datetime import datetime
 
 from pymongo import MongoClient
 
-from strategies import strategy
-from bigfishtrader.portfolio.portfolio_handler import PortfolioHandler
-from bigfishtrader.price_handler.mongo_handler import MongoHandler
-from bigfishtrader.trader.dummy_exchange import DummyExchange
+import strategy
+from bigfishtrader.portfolio.handlers import PortfolioHandler
+from bigfishtrader.quotation.handlers import MongoHandler
+from bigfishtrader.router.exchange import DummyExchange
 from bigfishtrader.backtest.simple_backtest import BackTest
 
 
