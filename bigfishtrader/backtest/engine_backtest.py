@@ -2,14 +2,15 @@ from bigfishtrader.event import EVENTS, FinalEvent
 
 
 class EngineBackTest(object):
-    def __init__(self, event_queue, engine, strategy, price_handler, portfolio_handler, trader):
+    def __init__(self, event_queue, engine, strategy, price_handler, portfolio_handler, router):
         """
         :param event_queue:
         :param engine:
         :param strategy:
         :param price_handler:
         :param portfolio_handler:
-        :param trader:
+        :param router:
+        :type router: bigfishtrader.core.HandlerCompose
         :return:
         """
         self.event_queue = event_queue
@@ -17,11 +18,11 @@ class EngineBackTest(object):
         self.price_handler = price_handler
         self.portfolio_handler = portfolio_handler
         self.portfolio = portfolio_handler.portfolio
-        self.trader = trader
+        self.router = router
         self.engine = engine
+        self.router.register(engine)
         self.engine.register(self._handle_bar, stream=EVENTS.BAR, topic=".", priority=0)
         self.engine.register(self._handle_fill, stream=EVENTS.FILL, topic=".", priority=0)
-        self.engine.register(self._handle_order, stream=EVENTS.ORDER, topic=".", priority=0)
 
     def run(self, start=None, end=None):
         import time
@@ -51,12 +52,8 @@ class EngineBackTest(object):
         return self.portfolio
 
     def _handle_bar(self, event, kwargs):
-        self.trader.on_bar(event)
         self.portfolio_handler.on_bar(event)
         self.strategy.handle_data(self.portfolio, self.price_handler.get_instance())
-
-    def _handle_order(self, event, kwargs):
-        self.trader.on_order(event)
 
     def _handle_fill(self, event, kwargs):
         self.portfolio_handler.on_fill(event)

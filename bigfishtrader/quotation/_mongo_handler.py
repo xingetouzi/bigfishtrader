@@ -1,6 +1,6 @@
 import pandas as pd
 from bigfishtrader.event import BarEvent, ExitEvent
-from bigfishtrader.price_handler.base import AbstractPriceHandler
+from bigfishtrader.quotation.base import AbstractPriceHandler
 
 
 class MongoHandler(AbstractPriceHandler):
@@ -14,6 +14,7 @@ class MongoHandler(AbstractPriceHandler):
     """
 
     def __init__(self, collection, ticker, event_queue, trader=None):
+        super(MongoHandler, self).__init__()
         self.collection = collection
         self.event_queue = event_queue
         self.ticker = ticker
@@ -75,6 +76,7 @@ class MongoHandler(AbstractPriceHandler):
 
 class MultipleHandler(AbstractPriceHandler):
     def __init__(self, client, event_queue, **collections):
+        super(MultipleHandler, self).__init__()
         self.client = client
         self.event_queue = event_queue
         self._generate_collections(**collections)

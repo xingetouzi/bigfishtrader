@@ -22,7 +22,7 @@ def print_data(event):
     print(position)
 
 
-class VnCtpTrader(object):
+class VnCtpRouter(object):
     def __init__(self, event_queue):
         self._event_queue = event_queue()
         self._event_engine = EventEngine()

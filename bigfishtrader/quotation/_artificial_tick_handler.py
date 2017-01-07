@@ -5,7 +5,7 @@ import time
 import pandas as pd
 
 from bigfishtrader.event import TickEvent
-from bigfishtrader.price_handler.base import AbstractPriceHandler
+from bigfishtrader.quotation.base import AbstractPriceHandler
 
 
 class ArtificialTickHandler(AbstractPriceHandler):

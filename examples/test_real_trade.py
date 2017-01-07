@@ -5,11 +5,11 @@ except ImportError:
 
 from bigfishtrader.operation import *
 from bigfishtrader.core import BigFishTrader
-from bigfishtrader.price_handler.artificial_tick_handler import ArtificialTickHandler
-from bigfishtrader.portfolio.portfolio_handler import PortfolioHandler
-from bigfishtrader.trader.simulation import Simulation
+from bigfishtrader.quotation.handlers import ArtificialTickHandler
+from bigfishtrader.portfolio.handlers import PortfolioHandler
+from bigfishtrader.router.exchange import DummyExchange
 from bigfishtrader.engine.core import Engine
-from bigfishtrader.order.handler import OrderHandler
+from bigfishtrader.order.handlers import OrderHandler
 from bigfishtrader.middleware.timer import StatsdTimer
 
 
@@ -45,7 +45,7 @@ def run():
     symbol = "rb1701"
     portfolio_handler = PortfolioHandler(event_queue)
     price_handler = ArtificialTickHandler(event_queue, symbol)
-    trade_handler = Simulation(event_queue, price_handler)
+    trade_handler = DummyExchange(event_queue, price_handler)
     order_handler = OrderHandler()
     engine = Engine(event_queue=event_queue)
     timer = StatsdTimer(host="192.168.1.201")

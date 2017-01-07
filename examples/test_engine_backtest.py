@@ -2,16 +2,16 @@
 try:
     from Queue import PriorityQueue
 except ImportError:
-    from queue import ProrityQueue
+    from queue import PriorityQueue
 
 from datetime import datetime
 from pymongo import MongoClient
 import pandas as pd
 
-from example import strategy
-from bigfishtrader.portfolio.portfolio_handler import PortfolioHandler
-from bigfishtrader.price_handler.mongo_handler import MongoHandler
-from bigfishtrader.trader.dummy_exchange import DummyExchange
+from examples import strategy
+from bigfishtrader.portfolio.handlers import PortfolioHandler
+from bigfishtrader.quotation.handlers import MongoHandler
+from bigfishtrader.router.exchange import DummyExchange
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.backtest.engine_backtest import EngineBackTest
 from bigfishtrader.middleware.timer import CountTimer
@@ -21,13 +21,13 @@ def run_backtest(collection, ticker, start, end):
     event_queue = PriorityQueue()
     portfolio_handler = PortfolioHandler(event_queue)
     price_handler = MongoHandler(collection, ticker, event_queue)
-    trader = DummyExchange(event_queue, price_handler)
+    router = DummyExchange(event_queue, price_handler)
     engine = Engine(event_queue=event_queue)
     timer = CountTimer()
     timer.register(engine)
     backtest = EngineBackTest(
         event_queue, engine, strategy,
-        price_handler, portfolio_handler, trader
+        price_handler, portfolio_handler, router
     )
 
     portfolio = backtest.run(start, end)

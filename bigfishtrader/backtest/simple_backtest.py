@@ -9,21 +9,20 @@ from bigfishtrader.event import EVENTS
 
 
 class BackTest(object):
-    def __init__(self, event_queue, strategy, price_handler, portfolio_handler, trader):
+    def __init__(self, event_queue, strategy, price_handler, portfolio_handler, router):
         self.event_queue = event_queue
         self.strategy = strategy
         self.price_handler = price_handler
         self.portfolio_handler = portfolio_handler
         self.portfolio = portfolio_handler.portfolio
-        self.trader = trader
-
+        self.router = router
         self.handle = {
             EVENTS.BAR: self._handle_bar,
             EVENTS.ORDER: self._handle_order,
             EVENTS.FILL: self._handle_fill,
             EVENTS.LIMIT: self._handle_order,
             EVENTS.STOP: self._handle_order,
-            EVENTS.CANCEL: self.trader.on_cancel,
+            EVENTS.CANCEL: self.router.on_cancel,
             EVENTS.EXIT: self._exit
         }
 
@@ -57,12 +56,12 @@ class BackTest(object):
             )
 
     def _handle_bar(self, event):
-        self.trader.on_bar(event)
+        self.router.on_bar(event)
         self.portfolio_handler.on_bar(event)
         self.strategy.handle_data(self.portfolio, self.price_handler.get_instance())
 
     def _handle_order(self, event):
-        self.trader.on_order(event)
+        self.router.on_order(event)
 
     def _handle_fill(self, event):
         self.portfolio_handler.on_fill(event)

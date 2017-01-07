@@ -1,7 +1,8 @@
+from bigfishtrader.core import Handler, HandlerCompose
 from bigfishtrader.event import FillEvent, EVENTS
 
 
-class DummyExchange(object):
+class DummyExchange(HandlerCompose):
     """
     DummyExchange if a simulation of a real exchange.
     It handles OrderEvent(ORDER,LIMIT,STOP) and
@@ -15,10 +16,15 @@ class DummyExchange(object):
         :param ticker_information: ticker={'lever':10000,'deposit_rate':0.02}
         :return:
         """
+        super(DummyExchange, self).__init__()
         self.event_queue = event_queue
         self.ticker_info = ticker_information
         self.exchange_name = exchange_name
         self.orders = []
+        self._handlers = {
+            "on_bar": Handler(self.on_bar, EVENTS.BAR, topic="", priority=100),
+            "on_order": Handler(self.on_order, EVENTS.ORDER, topic=".", priority=0)
+        }
         self.handle_order = {
             EVENTS.ORDER: self._fill_order,
             EVENTS.LIMIT: self._fill_limit,
@@ -74,20 +80,20 @@ class DummyExchange(object):
         else:
             self._fill_limit(order, bar)
 
-    def on_order(self, event):
+    def on_order(self, event, kwargs=None):
         """
         When an order arrives put it into self.orders
         :param event:
+        :param kwargs:
         :return:
         """
         self.orders.append(event)
 
-    def on_bar(self, bar_event):
+    def on_bar(self, bar_event, kwargs=None):
         """
-        When a bar arrive, execute orders that satisfy the fulfilled condition
         :param bar_event:
+        :param kwargs:
         :return:
         """
-
         for order in self.orders:
             self.handle_order[order.type](order, bar_event)

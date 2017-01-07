@@ -1,7 +1,7 @@
 from bigfishtrader.event import FillEvent, EVENTS
 
 
-class Simulation(object):
+class SimulatingExchange(object):
     def __init__(self, event_queue, price_handler, exchange=None, **ticker_information):
         self.event_queue = event_queue
         self.ticker_info = ticker_information

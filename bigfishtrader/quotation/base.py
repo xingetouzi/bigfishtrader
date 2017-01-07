@@ -1,8 +1,7 @@
-from abc import abstractmethod
+from bigfishtrader.core import HandlerCompose
 
 
-class AbstractPriceHandler(object):
-
+class AbstractPriceHandler(HandlerCompose):
     def next_stream(self):
         raise NotImplementedError("Should implement next_stream()")
 

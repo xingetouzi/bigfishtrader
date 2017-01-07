@@ -10,7 +10,6 @@ class EVENTS(Enum):
     LIMIT = 4
     STOP = 5
     CANCEL = 6
-    FINAL = 7
     EXIT = 999
 
 
@@ -160,7 +159,7 @@ class FinalEvent(Event):
     def __init__(self):
         super(FinalEvent, self).__init__()
         self.set_priority(-1)
-        self.type = EVENTS.FINAL
+        self.type = EVENTS.EXIT
 
 
 class ExitEvent(Event):

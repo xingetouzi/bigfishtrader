@@ -15,7 +15,7 @@ class Engine(object):
         self._stream_manager = StreamManager()
         self._running = False
         self._thread = None
-        self.register(self._stop, EVENTS.FINAL, topic=".", priority=0)
+        self.register(self._stop, EVENTS.EXIT, topic=".", priority=0)
 
     def run(self):
         self._running = True
