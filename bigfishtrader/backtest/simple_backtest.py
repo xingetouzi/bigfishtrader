@@ -33,9 +33,12 @@ class BackTest(object):
     def run(self, start=None, end=None, **params):
         self.price_handler.initialize(start, end)
         self.strategy.initialize_operation(
-            self.event_queue, self.price_handler, self.portfolio
+            self.event_queue, self.price_handler,
+            self.portfolio, self.router
         )
         self.init_params(**params)
+
+        self.strategy.initialize()
 
         while self.price_handler.running or self.event_queue.qsize():
             try:

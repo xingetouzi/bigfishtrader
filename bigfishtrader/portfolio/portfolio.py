@@ -1,5 +1,6 @@
 from .position import Position
 from ..exception import QuantityException
+import logging
 
 
 class Portfolio(object):
@@ -31,6 +32,12 @@ class Portfolio(object):
 
     def open_position(self, ticker, price, quantity, open_time, commission=0, **kwargs):
         position = Position(ticker, price, quantity, open_time, commission, **kwargs)
+        self.cash -= (position.deposit + commission)
+
+        if self.cash < 0:
+            logging.info('Cash lower than required deposit and commission, unable to open position.')
+            return
+
         if ticker not in self.positions:
             self.positions[ticker] = position
         else:
@@ -39,10 +46,9 @@ class Portfolio(object):
                 old.merge(position)
             else:
                 raise QuantityException(old.quantity, position.quantity, 2)
-        self.cash -= (position.deposit + commission)
         self.update_position(open_time, ticker, price)
 
-    def close_position(self, ticker, price, quantity, close_time):
+    def close_position(self, ticker, price, quantity, close_time, commission=0):
         position = self.positions.get(ticker, None)
 
         if position:
@@ -50,17 +56,17 @@ class Portfolio(object):
             if quantity == position.quantity:
                 position = self.positions.pop(ticker)
                 position.close(price, close_time)
-                self.cash += position.deposit + position.profit
+                self.cash += position.deposit + position.profit - commission
                 self.calculate_portfolio()
                 self.closed_positions.append(position)
 
-            elif abs(quantity)<abs(position.quantity):
-                if quantity*position.quantity<0:
-                    raise QuantityException(quantity,position.quantity,2)
+            elif abs(quantity) < abs(position.quantity):
+                if quantity*position.quantity < 0:
+                    raise QuantityException(quantity, position.quantity, 2)
 
-                new=position.separate(quantity,price)
-                new.close(price,close_time)
-                self.cash+=new.deposit+new.profit
+                new=position.separate(quantity, price)
+                new.close(price, close_time)
+                self.cash += new.deposit + new.profit - commission
                 self.calculate_portfolio()
                 self.closed_positions.append(new)
 

@@ -38,7 +38,11 @@ class PortfolioHandler(HandlerCompose):
             self.portfolio.close_position(
                 event.ticker, event.price,
                 event.quantity, event.time,
+                event.commission
             )
+
+    def on_order(self, order, kwargs=None):
+        pass
 
     def on_confirm(self, event, kwargs=None):
         pass

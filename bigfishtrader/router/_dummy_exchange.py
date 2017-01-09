@@ -32,14 +32,19 @@ class DummyExchange(HandlerCompose):
         }
 
     @staticmethod
-    def calculate_commission(order):
+    def calculate_commission(order, price):
         return 1
+
+    @staticmethod
+    def calculate_slippage(order, price):
+        return 0
 
     def _put_fill(self, order, price, timestamp):
         fill = FillEvent(
-            timestamp, order.ticker, order.action,
-            order.quantity, price,
-            self.calculate_commission(order),
+            timestamp, order.ticker,
+            order.action, order.quantity,
+            price + self.calculate_slippage(order, price),
+            self.calculate_commission(order, price),
             **self.ticker_info.get(order.ticker, {})
         )
         self.orders.remove(order)
