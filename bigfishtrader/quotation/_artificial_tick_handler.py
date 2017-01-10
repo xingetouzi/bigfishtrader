@@ -11,6 +11,7 @@ from bigfishtrader.quotation.base import AbstractPriceHandler
 class ArtificialTickHandler(AbstractPriceHandler):
     def __init__(self, event_queue, symbol, interval=100):
         super(ArtificialTickHandler, self).__init__()
+        self.ticker = symbol
         self._instance = pd.DataFrame()
         self._event_queue = event_queue
         self._symbol = symbol

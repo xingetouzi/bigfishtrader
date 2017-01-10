@@ -1,4 +1,4 @@
-from bigfishtrader.event import EVENTS, FinalEvent
+from bigfishtrader.event import EVENTS
 
 
 class EngineBackTest(object):
@@ -9,6 +9,7 @@ class EngineBackTest(object):
         :param strategy:
         :param price_handler:
         :param portfolio_handler:
+        :type portfolio_handler: bigfishtrader.portfolio.handlers.PortfolioHandler
         :param router:
         :type router: bigfishtrader.core.HandlerCompose
         :return:
@@ -21,8 +22,8 @@ class EngineBackTest(object):
         self.router = router
         self.engine = engine
         self.router.register(engine)
+        self.portfolio_handler.register(engine)
         self.engine.register(self._handle_bar, stream=EVENTS.BAR, topic=".", priority=0)
-        self.engine.register(self._handle_fill, stream=EVENTS.FILL, topic=".", priority=0)
 
     def run(self, start=None, end=None):
         import time
@@ -40,7 +41,6 @@ class EngineBackTest(object):
             total += time.clock() - st
         print("Fetch data count: %s" % count)
         print("Fetch data average time: %f seconds" % (total / count))
-        self.event_queue.put(FinalEvent())
         self.engine.join()
         self.engine.stop()
         # close all position when backtest end
@@ -52,8 +52,4 @@ class EngineBackTest(object):
         return self.portfolio
 
     def _handle_bar(self, event, kwargs):
-        self.portfolio_handler.on_bar(event)
         self.strategy.handle_data(self.portfolio, self.price_handler.get_instance())
-
-    def _handle_fill(self, event, kwargs):
-        self.portfolio_handler.on_fill(event)

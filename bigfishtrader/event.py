@@ -143,7 +143,7 @@ class FillEvent(Event):
         self.type = EVENTS.FILL
         self.time = timestamp
         self.ticker = ticker
-        self.set_priority(0)
+        self.set_priority(-1)
         self.action = action
         self.quantity = quantity
         self.price = price
@@ -151,15 +151,6 @@ class FillEvent(Event):
         self.lever = lever
         self.deposit_rate = deposit_rate
         self.local_id = None
-
-
-class FinalEvent(Event):
-    __slots__ = []
-
-    def __init__(self):
-        super(FinalEvent, self).__init__()
-        self.set_priority(-1)
-        self.type = EVENTS.EXIT
 
 
 class ExitEvent(Event):

@@ -10,6 +10,7 @@ class Portfolio(object):
         self.positions = {}
         self.closed_positions = []
         self.history = []
+        self.__time = None
 
     def current_time(self):
         return self.__time
@@ -54,13 +55,13 @@ class Portfolio(object):
                 self.calculate_portfolio()
                 self.closed_positions.append(position)
 
-            elif abs(quantity)<abs(position.quantity):
-                if quantity*position.quantity<0:
-                    raise QuantityException(quantity,position.quantity,2)
+            elif abs(quantity) < abs(position.quantity):
+                if quantity * position.quantity < 0:
+                    raise QuantityException(quantity, position.quantity, 2)
 
-                new=position.separate(quantity,price)
-                new.close(price,close_time)
-                self.cash+=new.deposit+new.profit
+                new = position.separate(quantity, price)
+                new.close(price, close_time)
+                self.cash += new.deposit + new.profit
                 self.calculate_portfolio()
                 self.closed_positions.append(new)
 

@@ -1,7 +1,7 @@
 # encoding: utf-8
 
 class Position(object):
-    '''
+    """
     This class presents the position of a single ticker
 
     update() is called when a new price data (Tick or Bar) arrives
@@ -10,21 +10,21 @@ class Position(object):
     separate() is called when the portfolio handler has to
     close part of this position.
 
-    '''
+    """
 
-    def __init__(self,ticker,price,quantity,open_time,commission=0,lever=1,deposit_rate=1):
-        self.ticker=ticker
-        self.open_price=price
-        self.price=price
-        self.quantity=quantity
-        self.commission=commission
-        self.open_time=open_time
-        self.lever=lever
-        self.deposit_rate=deposit_rate
-        self.deposit=abs(self.open_price*self.quantity*lever*deposit_rate)
-        self.profit=0
-        self.close_price=None
-        self.close_time=None
+    def __init__(self, ticker, price, quantity, open_time, commission=0, lever=1, deposit_rate=1):
+        self.ticker = ticker
+        self.open_price = price
+        self.price = price
+        self.quantity = quantity
+        self.commission = commission
+        self.open_time = open_time
+        self.lever = lever
+        self.deposit_rate = deposit_rate
+        self.deposit = abs(self.open_price * self.quantity * lever * deposit_rate)
+        self.profit = 0
+        self.close_price = None
+        self.close_time = None
 
     def update(self, price):
         self.price = price

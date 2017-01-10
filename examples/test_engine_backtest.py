@@ -15,6 +15,7 @@ from bigfishtrader.router.exchange import DummyExchange
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.backtest.engine_backtest import EngineBackTest
 from bigfishtrader.middleware.timer import CountTimer
+from bigfishtrader.performance import WindowFactorPerformance
 
 
 def run_backtest(collection, ticker, start, end):
@@ -31,10 +32,12 @@ def run_backtest(collection, ticker, start, end):
     )
 
     portfolio = backtest.run(start, end)
-    print(
-        pd.DataFrame(portfolio.history)
-    )
-
+    history = pd.DataFrame(portfolio.history)
+    performance = WindowFactorPerformance()
+    performance.set_equity(pd.Series(history["equity"].values, index=history["datetime"]))
+    print(performance.ar_window_simple)
+    print(performance.volatility_window_simple)
+    print(performance.sharpe_ratio_window_simple)
     positions = pd.DataFrame(
         [position.show() for position in portfolio.closed_positions]
     )
