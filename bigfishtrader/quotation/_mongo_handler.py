@@ -70,8 +70,11 @@ class MongoHandler(AbstractPriceHandler):
         self._instance_data = self._instance_data.append(bar, ignore_index=True)
         self.event_queue.put(bar_event)
 
-    def get_instance(self):
+    def get_instance(self, ticker):
         return self._instance_data
+
+    def get_ticker(self):
+        return self.ticker
 
 
 class MultipleHandler(AbstractPriceHandler):
@@ -90,7 +93,7 @@ class MultipleHandler(AbstractPriceHandler):
     def next_stream(self):
         pass
 
-    def get_instance(self):
+    def get_instance(self, ticker):
         pass
 
 

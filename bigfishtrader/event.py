@@ -92,9 +92,9 @@ class OrderEvent(Event):
     OrderEvent is created by a strategy when it wants to open an order and
     will be handled by Simulation or Trade section
     """
-    __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag"]
+    __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag", "order_type"]
 
-    def __init__(self, timestamp, ticker, action, quantity, price, order_type=EVENTS.ORDER, tag=None):
+    def __init__(self, timestamp, ticker, action, quantity, price=None, order_type=EVENTS.ORDER, tag=None, local_id=0):
         super(OrderEvent, self).__init__()
         self.type = EVENTS.ORDER
         self.time = timestamp
@@ -104,8 +104,9 @@ class OrderEvent(Event):
         self.action = action
         self.quantity = quantity
         self.tag = tag
-        self.local_id = None
+        self.local_id = local_id
         self.status = ORDER_STATUS.UNFILL
+        self.order_type = order_type
 
     def match(self, **conditions):
         for key, value in conditions.items():

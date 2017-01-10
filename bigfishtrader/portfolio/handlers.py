@@ -1,9 +1,11 @@
 from bigfishtrader.portfolio.portfolio import Portfolio
-from bigfishtrader.core import HandlerCompose, Handler
+from bigfishtrader.portfolio.base import AbstractPortfolioHandler
+from bigfishtrader.core import Handler
 from bigfishtrader.event import OPEN_ORDER, CLOSE_ORDER, EVENTS
 
 
-class PortfolioHandler(HandlerCompose):
+
+class PortfolioHandler(AbstractPortfolioHandler):
     """
     This class is to handle Portfolio,
     including updating portfolio when a BAR, a TICK
@@ -40,9 +42,6 @@ class PortfolioHandler(HandlerCompose):
                 event.quantity, event.time,
                 event.commission
             )
-
-    def on_order(self, order, kwargs=None):
-        pass
 
     def on_confirm(self, event, kwargs=None):
         pass

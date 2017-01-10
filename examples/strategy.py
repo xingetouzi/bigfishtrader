@@ -11,8 +11,9 @@ def initialize():
 def handle_data(account, data):
     index = data.index[-1]
     if index % 10 == 0:
-        if len(account.positions):
-            for position in account.positions.copy().values():
+        positions = account.get_positions()
+        if len(positions):
+            for position in positions.values():
                 close_limit(data.get_value(index, 'highMid') * (1 - gap), position=position)
 
-        open_limit(ticker(), -1000, data.get_value(index, 'highMid') * (1 + gap))
+        open_limit(get_ticker(), -1000, data.get_value(index, 'highMid') * (1 + gap))

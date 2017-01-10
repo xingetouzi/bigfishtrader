@@ -52,7 +52,7 @@ class BackTest(object):
 
     def _exit(self, event):
 
-        for position in self.portfolio.positions.copy().values():
+        for position in self.portfolio.get_positions().values():
             self.portfolio.close_position(
                 position.ticker, position.price,
                 position.quantity, self.portfolio.current_time()
@@ -61,7 +61,7 @@ class BackTest(object):
     def _handle_bar(self, event):
         self.router.on_bar(event)
         self.portfolio_handler.on_bar(event)
-        self.strategy.handle_data(self.portfolio, self.price_handler.get_instance())
+        self.strategy.handle_data(self.portfolio, self.price_handler.get_instance(event.ticker))
 
     def _handle_order(self, event):
         self.router.on_order(event)

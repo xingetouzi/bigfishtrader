@@ -1,5 +1,6 @@
 # encoding: utf-8
 
+
 class Position(object):
     """
     This class presents the position of a single ticker
@@ -30,14 +31,15 @@ class Position(object):
         self.price = price
         self.profit = (price - self.open_price) * self.quantity * self.lever
 
-    def close(self, price, timestamp):
+    def close(self, price, timestamp, commission=0):
+        self.commission += commission
         self.close_time = timestamp
         self.close_price = price
         self.update(price)
 
     def merge(self, other):
         quantity = self.quantity + other.quantity
-        self.open_price = (self.open_price * self.quantity * +other.quantity * other.open_price) / quantity
+        self.open_price = (self.open_price * self.quantity + other.quantity * other.open_price) / quantity
         self.commission = self.commission + other.commission
         self.deposit = self.deposit + other.deposit
         self.quantity = quantity
@@ -53,11 +55,14 @@ class Position(object):
         :return:
         """
 
-        new_position = Position(self.ticker, self.open_price, quantity, self.open_time, 0, self.lever,
+        new_position = Position(self.ticker, self.open_price,
+                                quantity, self.open_time,
+                                self.commission*quantity/self.quantity, self.lever,
                                 self.deposit_rate)
         new_position.update(price)
         self.quantity -= quantity
         self.deposit -= new_position.deposit
+        self.commission -= new_position.commission
         self.update(price)
         return new_position
 
@@ -70,5 +75,6 @@ class Position(object):
             'profit': self.profit,
             'deposit': self.deposit,
             'close_time': self.close_time,
-            'close_price': self.close_price
+            'close_price': self.close_price,
+            'commission': self.commission
         }
