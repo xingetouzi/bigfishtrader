@@ -21,7 +21,7 @@ from bigfishtrader.performance import WindowFactorPerformance
 def run_backtest(collection, ticker, start, end):
     event_queue = PriorityQueue()
     portfolio_handler = PortfolioHandler(event_queue)
-    price_handler = MongoHandler(collection, ticker, event_queue)
+    price_handler = MongoHandler(collection, ticker, event_queue, fetchall=True)
     router = DummyExchange(event_queue, price_handler)
     engine = Engine(event_queue=event_queue)
     timer = CountTimer()

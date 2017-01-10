@@ -17,24 +17,24 @@ class ArtificialTickHandler(AbstractPriceHandler):
         self._symbol = symbol
         self._interval = interval
         self._last_time = time.time()
-        self._running = False
+        self._is_running = False
 
     def run(self):
         """
         start to subscriber market data
         :return: None
         """
-        if self._running:
+        if self._is_running:
             return
-        self._running = True
-        while self._running:
+        self._is_running = True
+        while self._is_running:
             self.next_stream()
             time.sleep(self._interval / 1000)
 
     def stop(self):
-        if not self._running:
-            self._running = False
-        self._running = False
+        if not self._is_running:
+            self._is_running = False
+        self._is_running = False
 
     def get_last_time(self):
         return self._last_time

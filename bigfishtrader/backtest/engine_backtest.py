@@ -27,18 +27,15 @@ class EngineBackTest(object):
 
     def run(self, start=None, end=None):
         import time
+        st = time.time()
         self.price_handler.initialize(start, end)
         self.strategy.initialize_operation(
             self.event_queue, self.price_handler, self.portfolio
         )
         self.engine.start()
-        total = 0
-        count = 0
-        while self.price_handler.running:
-            st = time.clock()
-            count += 1
-            self.price_handler.next_stream()
-            total += time.clock() - st
+        self.price_handler.run()
+        count = len(self.price_handler.get_instance())
+        total = time.time() - st
         print("Fetch data count: %s" % count)
         print("Fetch data average time: %f seconds" % (total / count))
         self.engine.join()

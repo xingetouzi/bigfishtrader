@@ -151,12 +151,12 @@ class WindowFactorPerformance(Performance):
             dict(rate=x['rate'],
                  rate_square=(x['rate'] * x['rate']),
                  trade_days=x['trade_days']))
-              .resample('MS', how='sum'))(sample)
+              .resample('MS').sum())(sample)
         result = DataFrameExtended([], index=ts.index.rename('time'))
         # TODO numpy.sqrt np自带有开根号运算
         for key, value in self._column_names['M'].items():
             # XXX 开根号运算会将精度缩小一半，必须在此之前就处理先前浮点运算带来的浮点误差
-            result[value[0]] = _deal_float_error(pd.rolling_sum(ts, key).apply(calculator, axis=1)) ** 0.5
+            result[value[0]] = _deal_float_error(ts.rolling(key).sum().apply(calculator, axis=1)) ** 0.5
         result.total = (lambda x: int(abs(x) > FLOAT_ERR) * x)(calculator(ts.sum())) ** 0.5
         return _deal_float_error(result)
 
@@ -171,7 +171,7 @@ class WindowFactorPerformance(Performance):
                 (lambda x, y: (pd.DataFrame({x.name: x, 'trade_days': y}).dropna(), x.index))(
                     *(lambda x, y: (x - x.shift(1).fillna(method='ffill').fillna(y), x.notnull().astype('int')))(
                         *(lambda x: (x, x[0]))(
-                            result['R'].resample('D', how='last', label='left') * 0
+                            result['R'].resample('D', label='left').last() * 0
                         )
                     )
                 )
@@ -182,12 +182,12 @@ class WindowFactorPerformance(Performance):
                 (lambda x, y: (pd.DataFrame({x.name: x, 'trade_days': y}).dropna(), x.index))(
                     *(lambda x, y: (x - x.shift(1).fillna(method='ffill').fillna(y), x.notnull().astype('int')))(
                         *(lambda x: (x, x[0]))(
-                            result['R'].resample('D', how='last', label='left').apply(math.log)
+                            result['R'].resample('D', label='left').last().apply(math.log)
                         )
                     )
                 )
-        result['W'] = result['D'].resample('W-MON', how='sum').dropna()
-        result['M'] = result['D'].resample('MS', how='sum').dropna()
+        result['W'] = result['D'].resample('W-MON').sum().dropna()
+        result['M'] = result['D'].resample('MS').sum().dropna()
         return result
 
     @property
@@ -203,8 +203,8 @@ class WindowFactorPerformance(Performance):
                  'trade_days': x['trade_days']}))(
                 self.pnl_log_window_compound['D']
             )
-        result['W'] = result['D'].resample('W-MON', how='sum').dropna()
-        result['M'] = result['D'].resample('MS', how='sum').dropna()
+        result['W'] = result['D'].resample('W-MON').sum().dropna()
+        result['M'] = result['D'].resample('MS').sum().dropna()
         return result
 
     @property
@@ -218,7 +218,7 @@ class WindowFactorPerformance(Performance):
                 (lambda x, y: (pd.DataFrame({x.name: x, 'trade_days': y}).dropna(), x.index))(
                     *(lambda x, y: (x - x.shift(1).fillna(method='ffill').fillna(y), x.notnull().astype('int')))(
                         *(lambda x: (x, x[0]))(
-                            result['R'].resample('D', how='last', label='left') * 0
+                            result['R'].resample('D', label='left').last() * 0
                         )
                     )
                 )
@@ -228,12 +228,12 @@ class WindowFactorPerformance(Performance):
                 (lambda x, y: (pd.DataFrame({x.name: x, 'trade_days': y}).dropna(), x.index))(
                     *(lambda x, y: (x - x.shift(1).fillna(method='ffill').fillna(y), x.notnull().astype('int')))(
                         *(lambda x: (x, x[0]))(
-                            result['R'].resample('D', how='last', label='left') * 100 - 100
+                            result['R'].resample('D', label='left').last() * 100 - 100
                         )
                     )
                 )
-        result['W'] = result['D'].resample('W-MON', how='sum').dropna()
-        result['M'] = result['D'].resample('MS', how='sum').dropna()
+        result['W'] = result['D'].resample('W-MON').sum().dropna()
+        result['M'] = result['D'].resample('MS').sum().dropna()
         return result
 
     @property
@@ -243,7 +243,7 @@ class WindowFactorPerformance(Performance):
         ts = self.pnl_ratio_window_simple['M']
         result = DataFrameExtended([], index=ts.index.rename('time'))
         for key, value in self._column_names['M'].items():
-            result[value[0]] = pd.rolling_sum(ts, key).apply(calculator, axis=1)
+            result[value[0]] = ts.rolling(key).sum().apply(calculator, axis=1)
         result.total = calculator(ts.sum())
         return result
 
