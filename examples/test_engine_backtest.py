@@ -45,9 +45,9 @@ def run_backtest(collection, ticker, start, end):
     print(positions)
     print('Total_profit ', positions['profit'].sum())
     print("Count of BAR %s" % timer.bar_counts)
-    print("AVHT of BAR: %f seconds" % timer.avht_bar)
+    print("AVHT of BAR: %f nanoseconds" % timer.avht_bar)
     print("Count of ORDER %s" % timer.order_counts)
-    print("AVHT of ORDER: %f seconds" % timer.avht_order)
+    print("AVHT of ORDER: %f nanoseconds" % timer.avht_order)
 
 if __name__ == '__main__':
     import time

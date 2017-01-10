@@ -1,4 +1,4 @@
-import time
+import nanotime
 from collections import deque
 
 import numpy
@@ -26,25 +26,25 @@ class BaseTimer(HandlerCompose):
             self._handlers["on_tick_end"] = Handler(self.on_tick_end, EVENTS.TICK, topic="", priority=-100)
 
     def on_bar_start(self, bar, kwargs):
-        kwargs["timestamp_bar_start"] = time.clock()
+        kwargs["timestamp_bar_start"] = nanotime.now()
 
     def on_bar_end(self, bar, kwargs):
-        kwargs["timestamp_bar_end"] = time.clock()
-        self.count_bar(kwargs["timestamp_bar_end"] - kwargs["timestamp_bar_start"])
+        kwargs["timestamp_bar_end"] = nanotime.now()
+        self.count_bar((kwargs["timestamp_bar_end"] - kwargs["timestamp_bar_start"]).nanoseconds())
 
     def on_tick_start(self, tick, kwargs):
-        kwargs["timestamp_tick_start"] = time.clock()
+        kwargs["timestamp_tick_start"] = nanotime.now()
 
     def on_tick_end(self, tick, kwargs):
-        kwargs["timestamp_tick_end"] = time.clock()
+        kwargs["timestamp_tick_end"] = nanotime.now()
         self.count_tick(kwargs["timestamp_tick_end"] - kwargs["timestamp_tick_start"])
 
     def on_order(self, order, kwargs):
         # TODO this is a temporary method
-        self._cache_order_time = time.clock()
+        self._cache_order_time = nanotime.now()
 
     def on_fill(self, order, kwargs):
-        self.count_order(time.clock() - self._cache_order_time)
+        self.count_order((nanotime.now() - self._cache_order_time).nanoseconds())
 
     def count_bar(self, t):
         pass
