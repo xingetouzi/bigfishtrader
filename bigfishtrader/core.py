@@ -56,10 +56,14 @@ class BigFishTrader(object):
         self.trade_handler = trade_handler
         if self.order_handler:
             self.order_handler.register(self.engine)
+        if self.price_handler:
+            self.price_handler.register(self.engine)
+        if self.portfolio_handler:
+            self.portfolio_handler.register(self.engine)
+        if self.trade_handler:
+            self.trade_handler.register(self.engine)
         initialize_operation(self.event_queue, self.price_handler, self.portfolio)
         self.engine.register(self.on_tick, stream=EVENTS.TICK, topic=".", priority=0)
-        self.engine.register(self.on_order, stream=EVENTS.ORDER, topic=".", priority=0)
-        self.engine.register(self.on_fill, stream=EVENTS.FILL, topic=".", priority=0)
 
     def run(self):
         self.engine.start()
@@ -72,9 +76,3 @@ class BigFishTrader(object):
 
     def on_tick(self, event, kwargs):
         pass
-
-    def on_order(self, event, kwargs):
-        self.trade_handler.on_order(event)
-
-    def on_fill(self, event, kwargs):
-        self.portfolio_handler.on_fill(event)

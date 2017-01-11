@@ -15,12 +15,13 @@ from bigfishtrader.router.exchange import DummyExchange
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.backtest.engine_backtest import EngineBackTest
 from bigfishtrader.middleware.timer import CountTimer
+from bigfishtrader.performance import WindowFactorPerformance
 
 
 def run_backtest(collection, ticker, start, end):
     event_queue = PriorityQueue()
     portfolio_handler = PortfolioHandler(event_queue)
-    price_handler = MongoHandler(collection, ticker, event_queue)
+    price_handler = MongoHandler(collection, ticker, event_queue, fetchall=True)
     router = DummyExchange(event_queue, price_handler)
     engine = Engine(event_queue=event_queue)
     timer = CountTimer()
@@ -31,10 +32,12 @@ def run_backtest(collection, ticker, start, end):
     )
 
     portfolio = backtest.run(start, end)
-    print(
-        pd.DataFrame(portfolio.history)
-    )
-
+    history = pd.DataFrame(portfolio.history)
+    performance = WindowFactorPerformance()
+    performance.set_equity(pd.Series(history["equity"].values, index=history["datetime"]))
+    print(performance.ar_window_simple)
+    print(performance.volatility_window_simple)
+    print(performance.sharpe_ratio_window_simple)
     positions = pd.DataFrame(
         [position.show() for position in portfolio.closed_positions]
     )
@@ -42,9 +45,9 @@ def run_backtest(collection, ticker, start, end):
     print(positions)
     print('Total_profit ', positions['profit'].sum())
     print("Count of BAR %s" % timer.bar_counts)
-    print("AVHT of BAR: %f seconds" % timer.avht_bar)
+    print("AVHT of BAR: %f nanoseconds" % timer.avht_bar)
     print("Count of ORDER %s" % timer.order_counts)
-    print("AVHT of ORDER: %f seconds" % timer.avht_order)
+    print("AVHT of ORDER: %f nanoseconds" % timer.avht_order)
 
 if __name__ == '__main__':
     import time

@@ -11,6 +11,7 @@ class Portfolio(AbstractPortfolio):
         self.__positions = {}
         self.closed_positions = []
         self.history = []
+        self.__time = None
 
     def current_time(self):
         return self.__time
@@ -67,6 +68,7 @@ class Portfolio(AbstractPortfolio):
                 new = position.separate(quantity, price)
                 new.close(price, close_time, commission)
                 self.__cash += new.deposit + new.profit - commission
+
                 self.calculate_portfolio()
                 self.closed_positions.append(new)
 

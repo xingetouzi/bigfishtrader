@@ -22,7 +22,7 @@ class Position(object):
         self.open_time = open_time
         self.lever = lever
         self.deposit_rate = deposit_rate
-        self.deposit = abs(self.open_price*self.quantity*lever*deposit_rate)
+        self.deposit = abs(self.open_price * self.quantity * lever * deposit_rate)
         self.profit = 0
         self.close_price = None
         self.close_time = None
