@@ -1,6 +1,6 @@
 from enum import Enum
 from bigfishtrader.const import *
-
+import nanotime
 
 class EVENTS(Enum):
     TICK = 0
@@ -24,21 +24,33 @@ class Event(object):
     which compares its own priority and other event's priority
     Other events that extends from this class must set the 'priority' attribution
     """
-    __slots__ = ["type", "priority", "topic"]
+    __slots__ = ["type", "priority", "topic", "time", "local_time"]
 
-    def __init__(self):
-        self.type = None
-        self.priority = 0
-        self.topic = ""
+    def __init__(self, _type, priority, timestamp, topic=""):
+        self.type = _type
+        self.priority = priority
+        self.topic = topic
+        self.time = timestamp
+        self.local_time = nanotime.now()
 
-    def set_priority(self, p=1):
-        self.priority = p
+    def lt_time(self, other):
+        if self.__eq__(other):
+            return self.time < other.time or self.local_time < other.local_time
+        else:
+            return False
+
+    def lt_local_time(self, other):
+        if self.time == other.time:
+            return self.local_time < other.local_time
+        else:
+            return False
+
 
     def __eq__(self, other):
         return self.priority == other.priority
 
     def __lt__(self, other):
-        return self.priority < other.priority
+        return self.priority < other.priority or self.lt_time(other)
 
     def __le__(self, other):
         return self.priority <= other.priority
@@ -58,11 +70,8 @@ class TickEvent(Event):
     __slots__ = ["ticker", "time", "ask", "bid"]
 
     def __init__(self, ticker, timestamp, ask, bid):
-        super(TickEvent, self).__init__()
-        self.type = EVENTS.TICK
-        self.set_priority(1)
+        super(TickEvent, self).__init__(EVENTS.TICK, 1, timestamp)
         self.ticker = ticker
-        self.time = timestamp
         self.ask = ask
         self.bid = bid
 
@@ -75,9 +84,7 @@ class BarEvent(Event):
     __slots__ = ["ticker", "time", "open", "high", "low", "close", "volume"]
 
     def __init__(self, ticker, timestamp, openPrice, highPrice, lowPrice, closePrice, volume):
-        super(BarEvent, self).__init__()
-        self.type = EVENTS.BAR
-        self.set_priority(1)
+        super(BarEvent, self).__init__(EVENTS.BAR, 1, timestamp)
         self.ticker = ticker
         self.time = timestamp
         self.open = openPrice
@@ -95,12 +102,9 @@ class OrderEvent(Event):
     __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag", "order_type"]
 
     def __init__(self, timestamp, ticker, action, quantity, price=None, order_type=EVENTS.ORDER, tag=None, local_id=0):
-        super(OrderEvent, self).__init__()
-        self.type = EVENTS.ORDER
-        self.time = timestamp
+        super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp)
         self.price = price
         self.ticker = ticker
-        self.set_priority(0)
         self.action = action
         self.quantity = quantity
         self.tag = tag
@@ -123,9 +127,7 @@ class CancelEvent(Event):
     """
 
     def __init__(self, **conditions):
-        super(CancelEvent, self).__init__()
-        self.type = EVENTS.CANCEL
-        self.set_priority(0)
+        super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, nanotime.now())
         self.conditions = conditions
 
 
@@ -140,11 +142,8 @@ class FillEvent(Event):
     __slots__ = ["time", "ticker", "action", "quantity", "price", "commission", "lever", "deposit_rate", "local_id"]
 
     def __init__(self, timestamp, ticker, action, quantity, price, commission=0, lever=1, deposit_rate=1):
-        super(FillEvent, self).__init__()
-        self.type = EVENTS.FILL
-        self.time = timestamp
+        super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp)
         self.ticker = ticker
-        self.set_priority(-1)
         self.action = action
         self.quantity = quantity
         self.price = price
@@ -158,6 +157,4 @@ class ExitEvent(Event):
     __slots__ = []
 
     def __init__(self):
-        super(ExitEvent, self).__init__()
-        self.type = EVENTS.EXIT
-        self.set_priority(999)
+        super(ExitEvent, self).__init__(EVENTS.EXIT, 999, nanotime.now())

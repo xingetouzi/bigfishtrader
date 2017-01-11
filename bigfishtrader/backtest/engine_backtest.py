@@ -23,6 +23,7 @@ class EngineBackTest(object):
         self.engine = engine
         self.router.register(engine)
         self.portfolio_handler.register(engine)
+        self.price_handler.register(engine)
         self.engine.register(self._handle_bar, stream=EVENTS.BAR, topic=".", priority=0)
 
     def run(self, start=None, end=None):
@@ -32,6 +33,7 @@ class EngineBackTest(object):
         self.strategy.initialize_operation(
             self.event_queue, self.price_handler, self.portfolio, self.router
         )
+        self.strategy.initialize()
         self.engine.start()
         self.price_handler.run()
         count = len(self.price_handler.get_instance())
@@ -49,4 +51,4 @@ class EngineBackTest(object):
         return self.portfolio
 
     def _handle_bar(self, event, kwargs):
-        self.strategy.handle_data(self.portfolio, self.price_handler.get_instance())
+        self.strategy.handle_data(self.portfolio, self.price_handler.get_instance(self.price_handler.get_ticker()))

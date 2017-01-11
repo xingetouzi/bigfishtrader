@@ -1,6 +1,7 @@
 import pandas as pd
-from bigfishtrader.event import BarEvent, ExitEvent
+from bigfishtrader.event import BarEvent, ExitEvent, EVENTS
 from bigfishtrader.quotation.base import AbstractPriceHandler
+from bigfishtrader.core import Handler
 
 
 class MongoHandler(AbstractPriceHandler):
@@ -24,6 +25,7 @@ class MongoHandler(AbstractPriceHandler):
         self.last_time = None
         self.trader = trader
         self.cursor = None
+        self._handlers["on_bar"] = Handler(self.on_bar, EVENTS.BAR, topic="", priority=100)
 
     def initialize(self, start=None, end=None):
         dt_filter = {}
@@ -66,24 +68,28 @@ class MongoHandler(AbstractPriceHandler):
             self._current_index += 1
         else:
             bar.pop('_id')
-            self._instance_data = self._instance_data.append(bar)
+            self._instance_data = self._instance_data.append(bar, ignore_index=True)
+
         bar_event = BarEvent(
             self.ticker,
             bar['datetime'], bar['openMid'],
             bar['highMid'], bar['lowMid'],
-            bar['closeMid'], bar['volume']
+            bar['closeMid'], bar['volume'],
         )
-        self.last_time = bar['datetime']
+        # self.last_time = bar['datetime']
         self.event_queue.put(bar_event)
 
-    def get_instance(self):
+    def get_instance(self, ticker=None):
         if self._fetchall:
-            return self._instance_data[:self._current_index + 1]
+            return self._instance_data[self._instance_data['datetime'] <= self.last_time]
         else:
             return self._instance_data
 
     def get_ticker(self):
         return self.ticker
+
+    def on_bar(self, event, kwargs=None):
+        self.last_time = event.time
 
 
 class MultipleHandler(AbstractPriceHandler):
@@ -104,6 +110,8 @@ class MultipleHandler(AbstractPriceHandler):
 
     def get_instance(self, ticker):
         pass
+
+
 
 
 if __name__ == '__main__':

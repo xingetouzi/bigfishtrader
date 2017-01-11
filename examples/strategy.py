@@ -4,16 +4,21 @@ gap = 0.02
 
 
 def initialize():
-    set_commission(0.0001, 0.0001, 'value')
-    set_slippage(0.0001, 'pct')
+    set_commission(0.001, 0.001, 'value')
+    set_slippage(0.001, 'pct')
+
+
+def commission(order, price):
+    print('commission = 3')
+    return 3
 
 
 def handle_data(account, data):
-    index = data.index[-1]
-    if index % 10 == 0:
+    now_time = current_time()
+    if now_time.day == 5:
         positions = account.get_positions()
         if len(positions):
             for position in positions.values():
-                close_limit(data.get_value(index, 'highMid') * (1 - gap), position=position)
+                close_limit(data['highMid'].values[-1] * (1 - gap), position=position)
 
-        open_limit(get_ticker(), -1000, data.get_value(index, 'highMid') * (1 + gap))
+        open_limit(get_ticker(), -1000, data['highMid'].values[-1] * (1 + gap))
