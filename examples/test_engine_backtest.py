@@ -8,7 +8,7 @@ from datetime import datetime
 from pymongo import MongoClient
 import pandas as pd
 
-from examples import strategy
+import strategy
 from bigfishtrader.portfolio.handlers import PortfolioHandler
 from bigfishtrader.quotation.handlers import MongoHandler
 from bigfishtrader.router.exchange import DummyExchange

@@ -83,3 +83,7 @@ class Portfolio(AbstractPortfolio):
 
     def confirm_position(self, confirmation):
         pass
+
+    @property
+    def positions(self):
+        return self.__positions

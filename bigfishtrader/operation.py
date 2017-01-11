@@ -5,14 +5,14 @@ from bigfishtrader.event import *
 class APIs(object):
     def __init__(self, queue, handler, portfolio, router=None):
         self.event_queue = queue
-        self.price_handler = handler
+        self.quotation = handler
         self.portfolio = portfolio
-        self.router = router
-        self.__local_id = 0
+        self.order = router
+        self.__id = 0
 
     def next_id(self):
-        self.__local_id += 1
-        return self.__local_id
+        self.__id += 1
+        return self.__id
 
 
 def initialize_operation(queue, handler, portfolio, router=None):
@@ -21,11 +21,11 @@ def initialize_operation(queue, handler, portfolio, router=None):
 
 
 def get_ticker():
-    return api.price_handler.get_ticker()
+    return api.quotation.get_ticker()
 
 
 def current_time():
-    return api.price_handler.get_last_time()
+    return api.quotation.get_last_time()
 
 
 def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
@@ -42,7 +42,7 @@ def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
 
     api.event_queue.put(
         OrderEvent(
-            api.price_handler.get_last_time(),
+            api.quotation.get_last_time(),
             ticker, OPEN_ORDER, quantity, price,
             order_type=order_type,
             local_id=api.next_id()
@@ -83,7 +83,7 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
         if available_quantity:
             api.event_queue.put(
                 OrderEvent(
-                    api.price_handler.get_last_time(),
+                    api.quotation.get_last_time(),
                     position.ticker, CLOSE_ORDER,
                     available_quantity, price,
                     order_type=order_type,
@@ -101,7 +101,7 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
 
         api.event_queue.put(
             OrderEvent(
-                api.price_handler.get_last_time(),
+                api.quotation.get_last_time(),
                 ticker, CLOSE_ORDER, quantity, price,
                 order_type=order_type,
                 local_id=api.next_id()
@@ -132,7 +132,7 @@ def set_commission(buy_cost=None, sell_cost=None, unit=None, calculate_function=
             return price * 0.0001
     :return:
     """
-    exchange = api.router
+    exchange = api.order
     if exchange:
         if buy_cost and sell_cost and unit:
             global BUY_COST, SELL_COST
@@ -181,7 +181,7 @@ def set_slippage(value=None, unit=None, function=None):
                 return -price * 0.0001
     :return:
     """
-    exchange = api.router
+    exchange = api.order
     if exchange:
         if value and unit:
             global SLIPPAGE
@@ -215,7 +215,7 @@ def slippage_pct(order, price):
 
 
 def set_ticker_info(**ticker):
-    exchange = api.router
+    exchange = api.order
     if exchange:
         ticker_info = getattr(exchange, 'ticker_info', {})
         for key, value in ticker:
@@ -251,7 +251,7 @@ def get_available_security(*tickers):
     :return: {ticker: quantity}
     """
     security = get_security(*tickers)
-    orders = api.router.get_orders()
+    orders = api.order.get_orders()
     for ticker in security:
         security[ticker] -= sum(
             [
