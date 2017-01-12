@@ -5,7 +5,7 @@ from bigfishtrader.event import *
 class APIs(object):
     def __init__(self, queue, data, portfolio, router=None):
         self.event_queue = queue
-        self.quotation = data
+        self.data = data
         self.portfolio = portfolio
         self.order = router
         self.__id = 0
@@ -18,14 +18,6 @@ class APIs(object):
 def initialize_operation(queue, handler, portfolio, router=None):
     global api
     api = APIs(queue, handler, portfolio, router)
-
-
-def get_ticker():
-    return api.quotation.get_ticker()
-
-
-def current_time():
-    return api.quotation.get_last_time()
 
 
 def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
@@ -42,7 +34,7 @@ def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
 
     api.event_queue.put(
         OrderEvent(
-            api.quotation.get_last_time(),
+            api.data.current_time,
             ticker, OPEN_ORDER, quantity, price,
             order_type=order_type,
             local_id=api.next_id()
@@ -83,7 +75,7 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
         if available_quantity:
             api.event_queue.put(
                 OrderEvent(
-                    api.quotation.get_last_time(),
+                    api.data.current_time,
                     position.ticker, CLOSE_ORDER,
                     available_quantity, price,
                     order_type=order_type,
@@ -101,7 +93,7 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
 
         api.event_queue.put(
             OrderEvent(
-                api.quotation.get_last_time(),
+                api.data.current_time,
                 ticker, CLOSE_ORDER, quantity, price,
                 order_type=order_type,
                 local_id=api.next_id()

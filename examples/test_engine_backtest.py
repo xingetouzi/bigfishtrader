@@ -26,13 +26,15 @@ def run_backtest(collection, ticker, start, end, period='D'):
     data_support = MongoDataSupport(**{'.'.join([ticker, period]): collection})
     price_handler = MongoHandler(collection, ticker, event_queue, fetchall=True, data_support=data_support)
     router = DummyExchange(event_queue, price_handler)
+    context = Context()
+    context.ticker = ticker
     engine = Engine(event_queue=event_queue)
     timer = CountTimer()
     timer.register(engine)
     backtest = EngineBackTest(
         event_queue, engine, strategy,
         price_handler, portfolio_handler,
-        router, data_support, Context()
+        router, data_support, context
     )
 
     portfolio = backtest.run(start, end)

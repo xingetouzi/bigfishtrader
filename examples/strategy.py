@@ -14,12 +14,12 @@ def commission(order, price):
 
 
 def handle_data(context, data):
-    now_time = current_time()
+    now_time = data.current_time
     if now_time.day == 5:
         positions = get_positions()
 
         if len(positions):
             for position in positions.values():
-                close_limit(data.current(get_ticker()).high * (1 - gap), position=position)
+                close_limit(data.current(context.ticker).high * (1 - gap), position=position)
 
-        open_limit(get_ticker(), -1000, data.current(get_ticker()).high * (1 + gap))
+        open_limit(context.ticker, -1000, data.current(context.ticker).high * (1 + gap))

@@ -33,15 +33,15 @@ class MongoDataSupport(AbstractDataSupport):
             ticker_type=None
     ):
         ticker_period = '.'.join([ticker, period])
-        instance = self.__instance.get(ticker_period, None)
-        if instance is not None:
-            return self._get_from_instance(
-                instance, filed, start, end, length
-            )
-        else:
-            return self._get_from_database(
-                ticker_period, filed, ticker_type, start, end, length
-            )
+        # instance = self.__instance.get(ticker_period, None)
+        # if instance is not None:
+        #     return self._get_from_instance(
+        #         instance, filed, start, end, length
+        #     )
+        # else:
+        return self._get_from_database(
+            ticker_period, filed, ticker_type, start, end, length
+        )
 
     def _get_from_instance(
             self, instance, filed,
@@ -103,11 +103,18 @@ class MongoDataSupport(AbstractDataSupport):
         self.__collections[col_name] = self.__client[db][col_name]
 
     def set_instance(self, ticker_period, frame_data=None):
-        self.__instance[ticker_period] = frame_data if frame_data is not None else pd.DataFrame()
+        if frame_data is not None:
+            self.__instance[ticker_period] = frame_data
+        else:
+            self.__instance[ticker_period] = pd.DataFrame
 
     def on_bar(self, event, kwargs=None):
         self.__time = event.time
         self.__current[event.ticker] = event
+
+    @property
+    def current_time(self):
+        return self.__time
 
 if __name__ == '__main__':
     pass
