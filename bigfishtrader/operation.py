@@ -1,23 +1,32 @@
 # encoding=utf-8
 from bigfishtrader.event import *
+from core import HandlerCompose, Handler
 
 
-class APIs(object):
-    def __init__(self, queue, data, portfolio, router=None):
+class APIs(HandlerCompose):
+    def __init__(self, queue, data, portfolio, engine, router=None):
+        super(APIs, self).__init__()
         self.event_queue = queue
         self.data = data
         self.portfolio = portfolio
         self.order = router
+        self.register(engine)
         self.__id = 0
+        self.buy_cost = 0
+        self.sell_cost = 0
+        self.slippage = 0
+
+    def put_handler(self, name, func, event_type, topic='.', priority=10):
+        self._handlers[name] = Handler(func, event_type, topic, priority)
 
     def next_id(self):
         self.__id += 1
         return self.__id
 
 
-def initialize_operation(queue, handler, portfolio, router=None):
+def initialize_operation(queue, handler, portfolio, engine, router=None):
     global api
-    api = APIs(queue, handler, portfolio, router)
+    api = APIs(queue, handler, portfolio, engine, router)
 
 
 def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
@@ -109,7 +118,7 @@ def close_stop(price, ticker=None, quantity=None, position=None):
     close_position(ticker, quantity, price, EVENTS.STOP, position)
 
 
-def set_commission(buy_cost=None, sell_cost=None, unit=None, calculate_function=None):
+def set_commission(buy_cost=None, sell_cost=None, unit=None, min_cost=0, calculate_function=None):
     """
     佣金设置
     :param buy_cost: 买入(开仓)佣金
@@ -127,8 +136,7 @@ def set_commission(buy_cost=None, sell_cost=None, unit=None, calculate_function=
     exchange = api.order
     if exchange:
         if buy_cost and sell_cost and unit:
-            global BUY_COST, SELL_COST
-            BUY_COST, SELL_COST = buy_cost, sell_cost
+            api.buy_cost, api.sell_cost = buy_cost, sell_cost
             if unit == 'value':
                 setattr(exchange, "calculate_commission", commission_value)
             elif unit == 'share':
@@ -140,16 +148,16 @@ def set_commission(buy_cost=None, sell_cost=None, unit=None, calculate_function=
 
 def commission_value(order, price):
     if order.action:
-        return abs(order.quantity) * price * BUY_COST
+        return abs(order.quantity) * price * api.buy_cost
     else:
-        return abs(order.quantity) * price * SELL_COST
+        return abs(order.quantity) * price * api.sell_cost
 
 
 def commission_share(order, price):
     if order.action:
-        return abs(order.quantity) * BUY_COST
+        return abs(order.quantity) * api.buy_cost
     else:
-        return abs(order.quantity) * SELL_COST
+        return abs(order.quantity) * api.sell_cost
 
 
 def initialize():
@@ -176,8 +184,7 @@ def set_slippage(value=None, unit=None, function=None):
     exchange = api.order
     if exchange:
         if value and unit:
-            global SLIPPAGE
-            SLIPPAGE = value
+            api.slippage = value
             if unit == 'pct':
                 setattr(exchange, 'calculate_slippage', slippage_pct)
             elif unit == 'value':
@@ -191,9 +198,9 @@ def slippage_value(order, price):
     # 开空和平多，滑点为负
     if (order.quantity > 0 and order.action) or \
             (order.quantity < 0 and order.action == 0):
-        return SLIPPAGE
+        return api.slippage
     else:
-        return -SLIPPAGE
+        return api.slippage
 
 
 def slippage_pct(order, price):
@@ -201,9 +208,9 @@ def slippage_pct(order, price):
     # 开空和平多，滑点为负
     if (order.quantity > 0 and order.action) or \
             (order.quantity < 0 and order.action == 0):
-        return SLIPPAGE * price
+        return api.slippage * price
     else:
-        return -SLIPPAGE * price
+        return -api.slippage * price
 
 
 def set_ticker_info(**ticker):

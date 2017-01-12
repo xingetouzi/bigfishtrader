@@ -34,7 +34,7 @@ class EngineBackTest(object):
         st = time.time()
         self.price_handler.initialize(start, end)
         self.strategy.initialize_operation(
-            self.event_queue, self.data_support, self.portfolio, self.router
+            self.event_queue, self.data_support, self.portfolio, self.engine, self.router
         )
         self.strategy.initialize(self.context, self.data_support)
         self.engine.start()
