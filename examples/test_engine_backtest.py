@@ -16,19 +16,23 @@ from bigfishtrader.engine.core import Engine
 from bigfishtrader.backtest.engine_backtest import EngineBackTest
 from bigfishtrader.middleware.timer import CountTimer
 from bigfishtrader.performance import WindowFactorPerformance
+from bigfishtrader.data_support.mongo_data_support import MongoDataSupport
+from bigfishtrader.portfolio.context import Context
 
 
-def run_backtest(collection, ticker, start, end):
+def run_backtest(collection, ticker, start, end, period='D'):
     event_queue = PriorityQueue()
     portfolio_handler = PortfolioHandler(event_queue)
-    price_handler = MongoHandler(collection, ticker, event_queue, fetchall=True)
+    data_support = MongoDataSupport(**{'.'.join([ticker, period]): collection})
+    price_handler = MongoHandler(collection, ticker, event_queue, fetchall=True, data_support=data_support)
     router = DummyExchange(event_queue, price_handler)
     engine = Engine(event_queue=event_queue)
     timer = CountTimer()
     timer.register(engine)
     backtest = EngineBackTest(
         event_queue, engine, strategy,
-        price_handler, portfolio_handler, router
+        price_handler, portfolio_handler,
+        router, data_support, Context()
     )
 
     portfolio = backtest.run(start, end)

@@ -3,9 +3,9 @@ from bigfishtrader.event import *
 
 
 class APIs(object):
-    def __init__(self, queue, handler, portfolio, router=None):
+    def __init__(self, queue, data, portfolio, router=None):
         self.event_queue = queue
-        self.quotation = handler
+        self.quotation = data
         self.portfolio = portfolio
         self.order = router
         self.__id = 0
@@ -260,3 +260,7 @@ def get_available_security(*tickers):
             ]
         )
     return security
+
+
+def get_positions():
+    return api.portfolio.get_positions()

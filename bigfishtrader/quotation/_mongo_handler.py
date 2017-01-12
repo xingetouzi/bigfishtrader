@@ -1,3 +1,4 @@
+# encoding=utf-8
 import pandas as pd
 from bigfishtrader.event import BarEvent, ExitEvent, EVENTS
 from bigfishtrader.quotation.base import AbstractPriceHandler
@@ -14,7 +15,7 @@ class MongoHandler(AbstractPriceHandler):
     it into a BarEvent then put the BarEvent into the event_queue
     """
 
-    def __init__(self, collection, ticker, event_queue, trader=None, fetchall=False):
+    def __init__(self, collection, ticker, event_queue, trader=None, fetchall=False, data_support=None):
         super(MongoHandler, self).__init__()
         self.collection = collection
         self.event_queue = event_queue
@@ -25,6 +26,7 @@ class MongoHandler(AbstractPriceHandler):
         self.last_time = None
         self.trader = trader
         self.cursor = None
+        self.data_support = data_support
         self._handlers["on_bar"] = Handler(self.on_bar, EVENTS.BAR, topic="", priority=100)
 
     def initialize(self, start=None, end=None):
@@ -50,6 +52,10 @@ class MongoHandler(AbstractPriceHandler):
             self._current_index = -1
             self.cursor = self._instance_data.iterrows()
 
+            '''data_support 过渡版本'''
+            if self.data_support:
+                self.data_support.set_instance(self.collection.name, self._instance_data)
+
     def get_last_time(self):
         return self.last_time
 
@@ -70,13 +76,16 @@ class MongoHandler(AbstractPriceHandler):
             bar.pop('_id')
             self._instance_data = self._instance_data.append(bar, ignore_index=True)
 
+            '''data_support 过渡版本'''
+            if self.data_support:
+                self.data_support.set_instance(self.collection.name, self._instance_data)
+
         bar_event = BarEvent(
             self.ticker,
             bar['datetime'], bar['openMid'],
             bar['highMid'], bar['lowMid'],
             bar['closeMid'], bar['volume'],
         )
-        # self.last_time = bar['datetime']
         self.event_queue.put(bar_event)
 
     def get_instance(self, ticker=None):
