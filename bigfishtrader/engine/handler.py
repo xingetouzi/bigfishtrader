@@ -1,7 +1,6 @@
 # encoding:utf-8
 
 from dictproxyhack import dictproxy
-from bigfishtrader.operation import initialize_operation
 from bigfishtrader.event import EVENTS
 
 
@@ -123,7 +122,6 @@ class BigFishTrader(object):
             self.portfolio_handler.register(self.engine)
         if self.trade_handler:
             self.trade_handler.register(self.engine)
-        initialize_operation(self.event_queue, self.price_handler, self.portfolio)
         self.engine.register(self.on_tick, stream=EVENTS.TICK, topic=".", priority=0)
 
     def run(self):
