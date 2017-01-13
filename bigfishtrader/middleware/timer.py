@@ -1,11 +1,11 @@
-import nanotime
 from collections import deque
 
+import nanotime
 import numpy
 import statsd
 
+from bigfishtrader.engine.handler import HandlerCompose, Handler
 from bigfishtrader.event import EVENTS
-from bigfishtrader.core import HandlerCompose, Handler
 
 
 class BaseTimer(HandlerCompose):
@@ -109,10 +109,11 @@ class StatsdTimer(BaseTimer):
         self._stats_client = statsd.StatsClient(host=host, port=port)
 
     def count_bar(self, t):
-        self._stats_client.timing("trader.bar", t * 1000)
+        self._stats_client.timing("trader.bar", t)
 
     def count_order(self, t):
-        self._stats_client.timing("trader.order", t * 1000)
+        print(t)
+        self._stats_client.timing("trader.order", t)
 
     def count_tick(self, t):
-        self._stats_client.timing("trader.tick", t * 1000)
+        self._stats_client.timing("trader.tick", t)

@@ -1,7 +1,8 @@
 import pandas as pd
+
+from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import BarEvent, ExitEvent, EVENTS
 from bigfishtrader.quotation.base import AbstractPriceHandler
-from bigfishtrader.core import Handler
 
 
 class MongoHandler(AbstractPriceHandler):
@@ -20,7 +21,6 @@ class MongoHandler(AbstractPriceHandler):
         self.event_queue = event_queue
         self.ticker = ticker
         self._instance_data = pd.DataFrame()
-        self._current_index = -1
         self._fetchall = fetchall
         self.last_time = None
         self.trader = trader
@@ -47,7 +47,6 @@ class MongoHandler(AbstractPriceHandler):
             self._instance_data = pd.DataFrame(list(self.cursor),
                                                columns=["datetime", "openMid", "highMid", "lowMid", "closeMid",
                                                         "volume"])
-            self._current_index = -1
             self.cursor = self._instance_data.iterrows()
 
     def get_last_time(self):
@@ -65,7 +64,6 @@ class MongoHandler(AbstractPriceHandler):
             return
         if self._fetchall:
             bar = bar[1]
-            self._current_index += 1
         else:
             bar.pop('_id')
             self._instance_data = self._instance_data.append(bar, ignore_index=True)
@@ -110,8 +108,6 @@ class MultipleHandler(AbstractPriceHandler):
 
     def get_instance(self, ticker):
         pass
-
-
 
 
 if __name__ == '__main__':

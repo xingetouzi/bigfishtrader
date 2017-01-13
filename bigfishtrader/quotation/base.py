@@ -1,5 +1,5 @@
 # encoding=utf-8
-from bigfishtrader.core import HandlerCompose
+from bigfishtrader.engine.handler import HandlerCompose
 
 
 class AbstractPriceHandler(HandlerCompose):

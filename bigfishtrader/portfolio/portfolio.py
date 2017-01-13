@@ -2,6 +2,7 @@ from .position import Position
 from ..exception import QuantityException
 from bigfishtrader.portfolio.base import AbstractPortfolio
 
+
 class Portfolio(AbstractPortfolio):
     def __init__(self, init_cash=100000):
         super(Portfolio, self).__init__()
@@ -36,7 +37,6 @@ class Portfolio(AbstractPortfolio):
         self.__cash -= (position.deposit + commission)
 
         if self.__cash < 0:
-
             return
 
         if ticker not in self.__positions:
@@ -62,7 +62,7 @@ class Portfolio(AbstractPortfolio):
                 self.closed_positions.append(position)
 
             elif abs(quantity) < abs(position.quantity):
-                if quantity*position.quantity < 0:
+                if quantity * position.quantity < 0:
                     raise QuantityException(quantity, position.quantity, 2)
 
                 new = position.separate(quantity, price)

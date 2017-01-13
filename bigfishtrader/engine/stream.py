@@ -2,7 +2,7 @@ import bisect
 from itertools import chain
 from collections import deque
 
-__all__ = ["STREAMS", "PriorityList", "StreamManager"]
+__all__ = ["PriorityList", "StreamManager", "StreamEnd"]
 
 
 class StreamEnd(Exception):
@@ -14,7 +14,8 @@ class StreamEnd(Exception):
 
 class PriorityList(object):
     """
-    list of which items sorted by
+    list of which items sorted by its priority
+    and inserting timestamp if have same priority,
     maintained by bisect (binary search)
     """
     def __init__(self):
@@ -23,6 +24,16 @@ class PriorityList(object):
         self._i = {}
 
     def put(self, priority, value):
+        """
+        insert a item of given value and priority to the PriorityList
+
+        Args:
+            priority(int): item's priority
+            value: item's value
+
+        Returns:
+            None
+        """
         if value not in self._i:
             pos = bisect.bisect(self._p, -priority)
             self._p.insert(pos, priority)
@@ -30,19 +41,46 @@ class PriorityList(object):
             self._i[value] = pos
 
     def remove(self, value):
+        """
+        remove item of given value from the PriorityList
+
+        Args:
+            value: item's value
+
+        Returns:
+            None
+        """
         if value in self._i:
             pos = self._i[value]
             self._v.pop(pos)
             self._p.pop(pos)
             del self._i[value]
 
-    def __contains__(self, item):
-        return item in self._i
+    def __contains__(self, value):
+        """
+
+        Args:
+            value: item's value
+
+        Returns:
+            bool: whether item of given value is in the PriorityList
+        """
+        return value in self._i
 
     def __iter__(self):
+        """
+
+        Returns:
+            iter(iterator): the PriorityList's iterator
+        """
         return self._v.__iter__()
 
     def __len__(self):
+        """
+
+        Returns:
+            len(int): the PriorityList's length
+        """
         return self._v.__len__()
 
 
@@ -56,6 +94,7 @@ class StreamManager(object):
     def get_iter(self, stream, topic):
         """
         search for handlers chain in given event stream under given topic
+
         :param stream: event stream
         :param topic: topic
         :rtype: chain
@@ -81,6 +120,7 @@ class StreamManager(object):
     def register_stream(self, stream):
         """
         register given new event stream
+
         :param stream: event stream
         :type stream: bigfishtrader.event.EVENTS
         :return: None
@@ -91,6 +131,7 @@ class StreamManager(object):
     def unregister_stream(self, stream):
         """
         remove given event stream
+
         :param stream: event stream
         :type stream: bigfishtrader.event.EVENTS
         :return: None
@@ -102,6 +143,7 @@ class StreamManager(object):
         """
         register a handler in given event stream under given topic with
         given priority.
+
         :param handler: handler
         :type handler: function
         :param stream: event stream
@@ -121,6 +163,7 @@ class StreamManager(object):
     def unregister_handler(self, handler, stream, topic="."):
         """
         unregister a handler in given event stream under given topic.
+
         :param handler: handler
         :type handler: function
         :param stream: event stream

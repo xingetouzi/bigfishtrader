@@ -1,8 +1,7 @@
-from bigfishtrader.portfolio.portfolio import Portfolio
-from bigfishtrader.portfolio.base import AbstractPortfolioHandler
-from bigfishtrader.core import Handler
+from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import OPEN_ORDER, CLOSE_ORDER, EVENTS
-
+from bigfishtrader.portfolio.base import AbstractPortfolioHandler
+from bigfishtrader.portfolio.portfolio import Portfolio
 
 
 class PortfolioHandler(AbstractPortfolioHandler):

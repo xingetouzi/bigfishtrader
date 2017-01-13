@@ -30,7 +30,6 @@ def run_backtest(collection, ticker, start, end):
         event_queue, engine, strategy,
         price_handler, portfolio_handler, router
     )
-
     portfolio = backtest.run(start, end)
     history = pd.DataFrame(portfolio.history)
     performance = WindowFactorPerformance()

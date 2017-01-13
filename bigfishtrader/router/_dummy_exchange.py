@@ -1,4 +1,4 @@
-from bigfishtrader.core import Handler
+from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import FillEvent, EVENTS
 from bigfishtrader.router.base import AbstractRouter
 

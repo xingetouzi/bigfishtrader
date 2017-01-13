@@ -3,15 +3,16 @@ try:
 except ImportError:
     from queue import PriorityQueue
 
-from bigfishtrader.operation import *
-from bigfishtrader.core import BigFishTrader
-from bigfishtrader.quotation.handlers import ArtificialTickHandler
-from bigfishtrader.portfolio.handlers import PortfolioHandler
-from bigfishtrader.router import VnCtpRouter
-from bigfishtrader.engine.core import Engine
-from bigfishtrader.order.handlers import OrderHandler
-from bigfishtrader.middleware.timer import StatsdTimer
 from ctpgateway.myMainEngine import TradeAccount
+
+from bigfishtrader.engine.core import Engine
+from bigfishtrader.engine.handler import BigFishTrader
+from bigfishtrader.middleware.timer import StatsdTimer
+from bigfishtrader.operation import *
+from bigfishtrader.order.handlers import OrderHandler
+from bigfishtrader.portfolio.handlers import PortfolioHandler
+from bigfishtrader.quotation.handlers import ArtificialTickHandler
+from bigfishtrader.router import VnCtpRouter
 
 
 class MyTrader(BigFishTrader):
@@ -49,7 +50,7 @@ def run():
     account = TradeAccount("068709", "520lmj", "SIMNOW")
     trade_handler = VnCtpRouter(event_queue, account)
     portfolio_handler = PortfolioHandler(event_queue)
-    price_handler = ArtificialTickHandler(event_queue, symbol, interval=600)
+    price_handler = ArtificialTickHandler(event_queue, symbol, interval=1000)
     order_handler = OrderHandler()
     engine = Engine(event_queue=event_queue)
     timer = StatsdTimer(host="192.168.1.201")

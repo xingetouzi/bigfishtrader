@@ -1,6 +1,7 @@
-from bigfishtrader.core import HandlerCompose, Handler
-from bigfishtrader.event import EVENTS
 from dictproxyhack import dictproxy
+
+from bigfishtrader.engine.handler import HandlerCompose, Handler
+from bigfishtrader.event import EVENTS
 
 
 class OrderHandler(HandlerCompose):

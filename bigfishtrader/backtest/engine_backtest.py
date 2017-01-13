@@ -11,7 +11,7 @@ class EngineBackTest(object):
         :param portfolio_handler:
         :type portfolio_handler: bigfishtrader.portfolio.handlers.PortfolioHandler
         :param router:
-        :type router: bigfishtrader.core.HandlerCompose
+        :type router: bigfishtrader.handler.HandlerCompose
         :return:
         """
         self.event_queue = event_queue

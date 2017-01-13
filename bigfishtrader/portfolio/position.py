@@ -11,7 +11,22 @@ class Position(object):
     separate() is called when the portfolio handler has to
     close part of this position.
 
+    Attributes:
+        ticker: the position's ticker (also called: symbol, instrument)
+        open_price: open price of the position
+        open_time: open time of the position
+        price: position average price
+        quantity: quantity of position
+        profit:
+        deposit:
+        close_price: close price of the position
+        close_time: close time of the position
+        commission: commission
+
     """
+
+    __slots__ = ["ticker", "open_price", "open_time", "price", "quantity", "profit", "deposit", "close_price",
+                 "close_time", "commission", "lever", "deposit_rate"]
 
     def __init__(self, ticker, price, quantity, open_time, commission=0, lever=1, deposit_rate=1):
         self.ticker = ticker
@@ -57,7 +72,7 @@ class Position(object):
 
         new_position = Position(self.ticker, self.open_price,
                                 quantity, self.open_time,
-                                self.commission*quantity/self.quantity, self.lever,
+                                self.commission * quantity / self.quantity, self.lever,
                                 self.deposit_rate)
         new_position.update(price)
         self.quantity -= quantity
@@ -67,6 +82,13 @@ class Position(object):
         return new_position
 
     def show(self):
+        """
+        get the position's content in dict form.
+
+        Returns:
+            dict: a dict contains the position's content
+        """
+
         return {
             'ticker': self.ticker,
             'open_price': self.open_price,
