@@ -2,7 +2,7 @@ from bigfishtrader.event import EVENTS
 
 
 class EngineBackTest(object):
-    def __init__(self, event_queue, engine, strategy, price_handler, portfolio_handler, router):
+    def __init__(self, event_queue, engine, strategy, price_handler, portfolio_handler, router, data_support, context):
         """
         :param event_queue:
         :param engine:
@@ -20,10 +20,13 @@ class EngineBackTest(object):
         self.portfolio_handler = portfolio_handler
         self.portfolio = portfolio_handler.portfolio
         self.router = router
+        self.data_support = data_support
+        self.context = context
         self.engine = engine
         self.router.register(engine)
         self.portfolio_handler.register(engine)
         self.price_handler.register(engine)
+        self.data_support.register(engine)
         self.engine.register(self._handle_bar, stream=EVENTS.BAR, topic=".", priority=0)
 
     def run(self, start=None, end=None):
@@ -31,9 +34,9 @@ class EngineBackTest(object):
         st = time.time()
         self.price_handler.initialize(start, end)
         self.strategy.initialize_operation(
-            self.event_queue, self.price_handler, self.portfolio, self.router
+            self.event_queue, self.data_support, self.portfolio, self.engine, self.router
         )
-        self.strategy.initialize()
+        self.strategy.initialize(self.context, self.data_support)
         self.engine.start()
         self.price_handler.run()
         count = len(self.price_handler.get_instance())
@@ -51,4 +54,5 @@ class EngineBackTest(object):
         return self.portfolio
 
     def _handle_bar(self, event, kwargs):
-        self.strategy.handle_data(self.portfolio, self.price_handler.get_instance(self.price_handler.get_ticker()))
+        # self.strategy.handle_data(self.portfolio, self.price_handler.get_instance(self.price_handler.get_ticker()))
+        self.strategy.handle_data(self.context, self.data_support)
