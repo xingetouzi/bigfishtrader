@@ -1,4 +1,4 @@
-from bigfishtrader.data_support.base import AbstractDataSupport
+from bigfishtrader.data.base import AbstractDataSupport
 from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import EVENTS
 import pandas as pd
@@ -14,25 +14,25 @@ class MongoDataSupport(AbstractDataSupport):
         self.__current = {}
         self._handlers['on_bar'] = Handler(self.on_bar, EVENTS.BAR, topic="", priority=100)
 
-    def current(self, ticker, filed=None):
-        return self.__current[ticker]
+    def current(self, tickers, fields=None):
+        return self.__current[tickers]
 
     def instance(
-            self, ticker, period, filed,
+            self, tickers, fields, frequency,
             start=None, end=None, length=None
     ):
-        ticker_period = '.'.join([ticker, period])
+        ticker_period = '.'.join([tickers, frequency])
         instance = self.__instance.get(ticker_period, None)
         return self._get_from_instance(
-            instance, filed, start, end, length
+            instance, fields, start, end, length
         )
 
     def history(
-            self, ticker, period, filed,
+            self, ticker, fields, frequency,
             start=None, end=None, length=None,
             ticker_type=None
     ):
-        ticker_period = '.'.join([ticker, period])
+        ticker_period = '.'.join([ticker, frequency])
         # instance = self.__instance.get(ticker_period, None)
         # if instance is not None:
         #     return self._get_from_instance(
@@ -40,7 +40,7 @@ class MongoDataSupport(AbstractDataSupport):
         #     )
         # else:
         return self._get_from_database(
-            ticker_period, filed, ticker_type, start, end, length
+            ticker_period, fields, ticker_type, start, end, length
         )
 
     def _get_from_instance(
@@ -50,19 +50,19 @@ class MongoDataSupport(AbstractDataSupport):
         if start and end:
             return instance[
                 (instance.datetime >= start) and (instance.datetime <= end)
-            ][filed]
+                ][filed]
         elif start and length:
             return instance[
                 instance.datetime >= start
-            ][filed].head(length)
+                ][filed].head(length)
         elif end and length:
             return instance[
                 instance.datetime <= end
-            ][filed].tail(length)
+                ][filed].tail(length)
         elif length:
             return instance[
                 instance.datetime <= self.__time
-            ][filed].tail(length)
+                ][filed].tail(length)
         else:
             return instance.copy()
 
@@ -115,6 +115,7 @@ class MongoDataSupport(AbstractDataSupport):
     @property
     def current_time(self):
         return self.__time
+
 
 if __name__ == '__main__':
     pass

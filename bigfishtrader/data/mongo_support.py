@@ -15,3 +15,4 @@ def connect(**info):
 def client_from_json(filepath):
     info = json.load(open(filepath))
     return connect(**info)
+

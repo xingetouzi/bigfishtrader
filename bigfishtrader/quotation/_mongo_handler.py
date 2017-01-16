@@ -51,7 +51,7 @@ class MongoHandler(AbstractPriceHandler):
                                                         "volume"])
             self.cursor = self._instance_data.iterrows()
 
-            '''data_support 过渡版本'''
+            '''data 过渡版本'''
             if self.data_support:
                 self.data_support.set_instance(self.collection.name, self._instance_data)
 
@@ -74,7 +74,7 @@ class MongoHandler(AbstractPriceHandler):
             bar.pop('_id')
             self._instance_data = self._instance_data.append(bar, ignore_index=True)
 
-            '''data_support 过渡版本'''
+            '''data 过渡版本'''
             if self.data_support:
                 self.data_support.set_instance(self.collection.name, self._instance_data)
 

@@ -4,11 +4,9 @@ from bigfishtrader.engine.handler import HandlerCompose, Handler
 from bigfishtrader.event import EVENTS
 
 
-class OrderHandler(HandlerCompose):
+class AbstractOrderHandler(HandlerCompose):
     def __init__(self):
-        super(OrderHandler, self).__init__()
-        self._handlers["on_order"] = Handler(self.on_fill, EVENTS.ORDER, topic=".", priority=-100)
-        self._handlers["on_fill"] = Handler(self.on_order, EVENTS.FILL, topic=".", priority=-100)
+        super(AbstractOrderHandler, self).__init__()
 
     def on_order(self, order, kwargs):
         pass
@@ -17,14 +15,15 @@ class OrderHandler(HandlerCompose):
         pass
 
 
-class StorageOrderHandler(OrderHandler):
-    def __init__(self, timing=True):
-        super(StorageOrderHandler, self).__init__()
+class OrderBookHandler(AbstractOrderHandler):
+    def __init__(self):
+        super(OrderBookHandler, self).__init__()
+        self._handlers["on_order"] = Handler(self.on_fill, EVENTS.ORDER, topic=".", priority=-100)
+        self._handlers["on_fill"] = Handler(self.on_order, EVENTS.FILL, topic=".", priority=-100)
         self._orders = {}
         self._fills = {}
         self._order_ref = 0
         self._fill_ref = 0
-        self.timing = timing
 
     @property
     def orders(self):

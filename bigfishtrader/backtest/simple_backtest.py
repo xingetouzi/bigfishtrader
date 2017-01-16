@@ -55,7 +55,7 @@ class BackTest(object):
         for position in self.portfolio.get_positions().values():
             self.portfolio.close_position(
                 position.ticker, position.price,
-                position.quantity, self.portfolio.current_time()
+                position.quantity, self.portfolio.current_time
             )
 
     def _handle_bar(self, event):

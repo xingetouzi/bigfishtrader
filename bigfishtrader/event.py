@@ -2,6 +2,7 @@ from enum import Enum
 from bigfishtrader.const import *
 import nanotime
 
+
 class EVENTS(Enum):
     TICK = 0
     BAR = 1
@@ -44,7 +45,6 @@ class Event(object):
             return self.local_time < other.local_time
         else:
             return False
-
 
     def __eq__(self, other):
         return self.priority == other.priority
@@ -139,7 +139,8 @@ class FillEvent(Event):
     and it will be handled by Portfolio handler to
     update portfolio information
     """
-    __slots__ = ["time", "ticker", "action", "quantity", "price", "commission", "lever", "deposit_rate", "local_id"]
+    __slots__ = ["time", "ticker", "action", "quantity", "price", "profit", "commission", "lever", "deposit_rate",
+                 "local_id", "position_id", "external_id"]
 
     def __init__(self, timestamp, ticker, action, quantity, price, commission=0, lever=1, deposit_rate=1):
         super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp)
@@ -147,10 +148,13 @@ class FillEvent(Event):
         self.action = action
         self.quantity = quantity
         self.price = price
+        self.profit = None
         self.commission = commission
         self.lever = lever
         self.deposit_rate = deposit_rate
+        self.position_id = None
         self.local_id = None
+        self.external_id = None
 
 
 class ExitEvent(Event):
