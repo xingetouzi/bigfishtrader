@@ -4,22 +4,45 @@ from bigfishtrader.data.base import AbstractDataSupport
 
 
 class PanelDataSupport(AbstractDataSupport):
-    def __init__(self, panel, context=None):
+    def __init__(self, panel, context=None, side="L"):
         """
+        Create a PannelDataSupport with a pandas.Panel object.
+        Panel's inner data can be accessed using method history() and current()
+        context is a optional parameters, to
 
         Args:
-            panel(pandas.Panel):
+            panel(pandas.Panel): Panel where real data stored in
+            context: default end bar number refer to context.real_bar_num
+            side(str): "L" or "R", "L" means bar's datetime refer to it's start time
+                "R" means bar's datetime refer to it's end time
         """
         super(PanelDataSupport, self).__init__()
         self._panel = panel
         self._date_index = self._panel.iloc[0].index
+        self._side = side
         self._context = context
 
     @property
     def date_index(self):
+        """
+        Panel's datetime index, that is to it's major axis, which contains datetime of
+        all the bars in panel.
+
+        Returns:
+            pandas.DatetimeIndex: Panel's datetime index
+        """
         return self._date_index
 
     def set_context(self, context):
+        """
+        set the context
+
+        Args:
+            context:
+
+        Returns:
+            None
+        """
         self._context = context
 
     def instance(self, tickers, fields, frequency, start=None, end=None, length=None):
@@ -29,7 +52,8 @@ class PanelDataSupport(AbstractDataSupport):
         if isinstance(end, int):
             return end  # ending bar's number (start from 1) was given
         elif isinstance(end, datetime):
-            return self._date_index.searchsorted(end, side="R")  # ending bar's datetime was given
+            # ending bar's datetime was given
+            return self._date_index.searchsorted(end, side=self._side)
         else:
             raise TypeError()
 
@@ -37,11 +61,26 @@ class PanelDataSupport(AbstractDataSupport):
         if isinstance(start, int):
             return start - 1  # starting bar's number (start from 1) was given
         elif isinstance(start, datetime):
-            return self._date_index.searchsorted(start, side="L")  # starting bar's datetime was given
+            # starting bar's datetime was given
+            return self._date_index.searchsorted(start, side=self._side)
         else:
             raise TypeError()
 
     def history(self, tickers, fields, frequency, start=None, end=None, length=None):
+        """
+
+
+        Args:
+            tickers:
+            fields:
+            frequency:
+            start:
+            end:
+            length:
+
+        Returns:
+
+        """
         if isinstance(tickers, str):
             tickers = [tickers]
         if isinstance(fields, str):
@@ -81,6 +120,15 @@ class PanelDataSupport(AbstractDataSupport):
                 return panel.swapaxes(0, 2)
 
     def current(self, tickers, fields=None):
+        """
+
+        Args:
+            tickers:
+            fields:
+
+        Returns:
+
+        """
         if isinstance(tickers, str):
             tickers = [tickers]
         if isinstance(fields, str):
