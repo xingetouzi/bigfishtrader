@@ -1,10 +1,11 @@
 from datetime import datetime
 
 from bigfishtrader.data.base import AbstractDataSupport
+import pandas as pd
 
 
 class PanelDataSupport(AbstractDataSupport):
-    def __init__(self, panel, context=None, side="L"):
+    def __init__(self, panel, context=None, side="L", frequency='D'):
         """
         Create a PannelDataSupport with a pandas.Panel object.
         Panel's inner data can be accessed using method history() and current()
@@ -18,6 +19,8 @@ class PanelDataSupport(AbstractDataSupport):
         """
         super(PanelDataSupport, self).__init__()
         self._panel = panel
+        self._frequency = frequency
+        self._others = {}
         self._date_index = self._panel.iloc[0].index
         self._side = side
         self._context = context
@@ -85,39 +88,42 @@ class PanelDataSupport(AbstractDataSupport):
             tickers = [tickers]
         if isinstance(fields, str):
             fields = [fields]
-        if start:
-            start_index = self._get_starting_index(start)
-            if end:
-                end_index = self._get_ending_index(end)
-            elif length:
-                end_index = start_index + length
-            else:
-                end_index = self._context.real_bar_num  # using current bar number in context
-        else:
-            if end:
-                end_index = self._get_ending_index(end)
-            else:
-                end_index = self._context.real_bar_num  # using current bar number in context
-            start_index = end_index - length
-        if len(tickers) == 1:
-            df = self._panel[tickers[0]].iloc[start_index:end_index]
-            if fields:
-                if len(fields) == 1:
-                    return df[fields[0]]
+        if frequency == self._frequency:
+            if start:
+                start_index = self._get_starting_index(start)
+                if end:
+                    end_index = self._get_ending_index(end)
+                elif length:
+                    end_index = start_index + length
                 else:
-                    return df[fields]
+                    end_index = self._context.real_bar_num  # using current bar number in context
             else:
-                return df
-        else:
-            panel = self._panel[tickers].iloc[:, start_index:end_index]
-            if fields:
-                if len(fields) == 1:
-                    return panel.loc[:, :, fields[0]]
+                if end:
+                    end_index = self._get_ending_index(end)
                 else:
-                    # TODO whether it is necessary to set copy=False
-                    return panel.loc[:, :, fields].swapaxes(0, 2)
+                    end_index = self._context.real_bar_num  # using current bar number in context
+                start_index = end_index - length
+            if len(tickers) == 1:
+                df = self._panel[tickers[0]].iloc[start_index:end_index]
+                if fields:
+                    if len(fields) == 1:
+                        return df[fields[0]]
+                    else:
+                        return df[fields]
+                else:
+                    return df
             else:
-                return panel.swapaxes(0, 2)
+                panel = self._panel[tickers].iloc[:, start_index:end_index]
+                if fields:
+                    if len(fields) == 1:
+                        return panel.loc[:, :, fields[0]]
+                    else:
+                        # TODO whether it is necessary to set copy=False
+                        return panel.loc[:, :, fields].swapaxes(0, 2)
+                else:
+                    return panel.swapaxes(0, 2)
+        else:
+            pn = self._others[frequency]
 
     def current(self, tickers, fields=None):
         """
@@ -151,3 +157,12 @@ class PanelDataSupport(AbstractDataSupport):
                     return df[fields]
             else:
                 return df
+
+    def pop(self, item):
+        return self._panel.pop(item)
+
+    def insert(self, item, frame, frequency=None):
+        if not frequency or frequency == self._frequency:
+            self._panel[item] = frame
+        else:
+            self._others.setdefault(frequency, pd.Panel())[item] = frame

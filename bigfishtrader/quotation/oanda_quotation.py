@@ -31,7 +31,7 @@ class OandaStream(oandapy.Streamer):
 class OandaQuotation(AbstractPriceHandler):
     def __init__(
             self, event_queue, oanda_stream,
-            mongo_client, trade_type='practice'
+            mongo_client, trade_type='paper'
     ):
         super(OandaQuotation, self).__init__()
         self.event_queue = event_queue
@@ -53,7 +53,7 @@ class OandaQuotation(AbstractPriceHandler):
 
         self.filter = {'datetime': dt_filter} if len(dt_filter) else {}
 
-        if self.type == 'practice':
+        if self.type == 'paper':
             self.cursor = self.collection.find(
                 self.filter,
                 projection=['datetime', 'closeMid', 'highMid', 'lowMid', 'openMid', 'volume']
@@ -66,11 +66,11 @@ class OandaQuotation(AbstractPriceHandler):
             self._instance.pop('_id')
             self.cursor = self._instance.iterrows()
             return self._instance
-        elif self.type == 'live':
+        elif self.type == 'trade':
             return pd.DataFrame()
 
     def run(self):
-        if self.type == 'practice':
+        if self.type == 'paper':
             super(OandaQuotation, self).run()
         elif self.type == 'live':
             thread = Thread(
@@ -105,7 +105,7 @@ class OandaQuotation(AbstractPriceHandler):
 
 
 if __name__ == '__main__':
-    account_info = json.load(open('D:/bigfishtrader/live_account.json'))
+    account_info = json.load(open('D:/bigfishtrader/bigfish_oanda.json'))
     stream = OandaStream(None, account_info)
     stream.rates(account_info['account_id'], ['EUR_USD'])
 

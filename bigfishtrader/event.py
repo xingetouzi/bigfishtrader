@@ -11,6 +11,7 @@ class EVENTS(Enum):
     LIMIT = 4
     STOP = 5
     CANCEL = 6
+    TIME = 7
     EXIT = 999
 
 
@@ -155,6 +156,13 @@ class FillEvent(Event):
         self.position_id = None
         self.local_id = None
         self.external_id = None
+
+
+class TimeEvent(Event):
+    __slots__ = []
+
+    def __init__(self, timestamp, topic='.'):
+        super(TimeEvent, self).__init__(EVENTS.TIME, 1, timestamp, topic)
 
 
 class ExitEvent(Event):

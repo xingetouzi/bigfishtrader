@@ -1,9 +1,10 @@
 # encoding: utf-8
 
 from datetime import timedelta
-from collections import OrderedDict
+from collections import OrderedDict, Iterable
 
 import pandas as pd
+import numpy as np
 from dictproxyhack import dictproxy
 
 from bigfishtrader.event import TimeEvent
@@ -47,13 +48,14 @@ class MongoDataSupport(AbstractDataSupport):
         self._max_backtrack = max_backtrack
         self._cache = MemoryCacheProxy(self, max_backtrack)
 
-    def _fetch_ticker_bar_data(self, db, ticker, timeframe):
+    def _fetch_ticker_bar_data(self, db, ticker, timeframe, dt_filter=None):
         collection = self._client[db][ticker + "." + timeframe]
-        dt_filter = {}
-        if self._start:
-            dt_filter['$gte'] = self._start
-        if self._end:
-            dt_filter['$lte'] = self._end
+        if dt_filter is None:
+            dt_filter = {}
+            if self._start:
+                dt_filter['$gte'] = self._start
+            if self._end:
+                dt_filter['$lte'] = self._end
 
         filter_ = {'datetime': dt_filter} if len(dt_filter) else {}
         if len(dt_filter) == 2:
@@ -115,6 +117,157 @@ class MongoDataSupport(AbstractDataSupport):
         time_events = [TimeEvent(t.to_pydatetime() + timedelta_) for t in self._ds.date_index()]
         queue.put(time_events)
 
+    def subscribe(self, ticker, frequency, start=None, end=None, ticker_type=None):
+        if ticker_type is None:
+            ticker_type = self._db
+        if start or end:
+            dt_filter = {}
+            if start:
+                dt_filter['$gte'] = start
+            if end:
+                dt_filter['$gte'] = end
+            frame = self._fetch_ticker_bar_data(ticker_type, ticker, frequency, dt_filter)
+        else:
+            frame = self._fetch_ticker_bar_data(ticker_type, ticker, frequency)
+
+        self._ds.insert(ticker, frame, frequency)
+
+
+class MultiDataSupport(AbstractDataSupport):
+    def __init__(self, context, db="admin", **info):
+        super(MultiDataSupport, self).__init__()
+        self._db = db
+        self._client = connect(**info)
+        self._panels = {}
+        self.context = context
+
+    def init(self, tickers, frequency, start=None, end=None):
+        self._frequency = frequency
+        self.subscribe(tickers, frequency, start, end)
+
+    def subscribe(self, tickers, frequency, start=None, end=None):
+        if isinstance(tickers, str):
+            tickers = [tickers]
+
+        panel = self._panels.get(frequency, None)
+        if panel is not None:
+            for ticker in tickers:
+                panel[ticker] = self._subscribe(ticker, frequency, start, end)
+        else:
+            frame_dict = {}
+            for ticker in tickers:
+                frame_dict[ticker] = self._subscribe(ticker, frequency, start, end)
+            self._panels[frequency] = pd.Panel.from_dict(frame_dict)
+
+    def _subscribe(self, ticker, frequency, start=None, end=None, ticker_type=None):
+        if ticker_type is None:
+            ticker_type = self._db
+        collection = self._client[ticker_type]['.'.join((ticker,frequency))]
+        dt_filter = {}
+        if start:
+            dt_filter['$gte'] = start
+        if end:
+            dt_filter['$lte'] = end
+
+        filter_ = {'datetime': dt_filter} if len(dt_filter) else {}
+
+        frame = pd.DataFrame(
+            list(
+                collection.find(filter_, projection=_BAR_FIELDS_MAP.keys())
+            )
+        ).rename_axis(_BAR_FIELDS_MAP, axis=1).reindex(columns=_BAR_FIELDS_MAP.values())
+        frame.index = frame['datetime']
+        return frame
+
+    def cancel_subscribe(self, tickers, frequency):
+        panel = self._panels[frequency]
+        tickers = [tickers] if isinstance(tickers, str) else tickers
+        for ticker in tickers:
+            panel.pop(ticker)
+
+    def current(self, tickers, fields=_BAR_FIELDS_MAP.values()):
+        panel = self._panels[self._frequency]
+        end = pd.to_datetime(self.context.current_time)
+        print(self.context.current_time)
+        index = panel.major_axis.searchsorted(end, 'left')
+        if panel.major_axis[index] <= end:
+            index += 1
+
+        if isinstance(tickers, str):
+            frame = panel[tickers]
+            return frame[fields].iloc[index]
+        elif isinstance(tickers, Iterable):
+            panel = panel[tickers]
+            return panel.iloc[:, index, :]
+
+    def history(
+            self, tickers, fields, frequency,
+            start=None, end=None, length=None
+    ):
+        if isinstance(tickers, str):
+            tickers = [tickers]
+        panel = self._panels[frequency]
+        if start:
+            start = pd.to_datetime(start)
+            begin = panel.major_axis.searchsorted(start)
+            if length:
+                if len(tickers) == 1:
+                    return panel[tickers[0]][fields].iloc[begin:begin+length]
+                else:
+                    return panel[tickers][:, begin:begin+length, fields]
+
+            else:
+                end = pd.to_datetime(end) if end else pd.to_datetime(self.context.current_time)
+                stop = panel.major_axis.searchsorted(end)
+                if panel.major_axis[stop] <= end:
+                    stop += 1
+                if len(tickers) == 1:
+                    frame = panel[tickers[0]]
+                    return frame.iloc[begin:stop][fields]
+                else:
+                    panel = panel[tickers]
+                    return panel[:, begin:stop, fields]
+        if end:
+            end = pd.to_datetime(end)
+            stop = panel.major_axis.searchsorted(end)
+            if panel.major_axis[stop] <= end:
+                    stop += 1
+            if length:
+                if len(tickers) == 1:
+                    return panel[tickers[0]][fields].iloc[stop-length:stop]
+                else:
+                    return panel[tickers][:, stop-length:stop, fields]
+            elif start:
+                start = pd.to_datetime(start)
+                begin = panel.major_axis.searchsorted(start)
+                if len(tickers) == 1:
+                    frame = panel[tickers[0]]
+                    return frame.iloc[begin:stop][fields]
+                else:
+                    panel = panel[tickers]
+                    return panel[:, begin:stop, fields]
+            else:
+                if len(tickers) == 1:
+                    return panel[tickers[0]][fields].iloc[:stop]
+                else:
+                    return panel[tickers][:, :stop, fields]
+        elif length:
+            end = pd.to_datetime(self.context.current_time)
+            stop = panel.major_axis.searchsorted(end)
+            if panel.major_axis[stop] <= end:
+                    stop += 1
+            if len(tickers) == 1:
+                return panel[tickers[0]][fields].iloc[stop-length:stop]
+            else:
+                return panel[tickers][:, stop-length:stop, fields]
+        else:
+            raise TypeError('history() takes at least one param among start, end and length')
+
+    def put_time_events(self, queue):
+        for time_ in self._panels[self._frequency].major_axis:
+            print time_
+            queue.put(TimeEvent(time_, '.'))
+
 
 if __name__ == "__main__":
     from datetime import datetime
@@ -124,13 +277,12 @@ if __name__ == "__main__":
         "port": 27018,
         "db": "Oanda",
     }
+
     data = MongoDataSupport(**setting)
     data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1))
 
-
     class Context(object):
         pass
-
 
     context = Context()
     context.real_bar_num = 20

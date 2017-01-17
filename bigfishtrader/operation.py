@@ -24,9 +24,9 @@ class APIs(HandlerCompose):
         return self.__id
 
 
-def initialize_operation(queue, handler, portfolio, engine, router=None):
+def initialize_operation(queue, data, portfolio, engine, router=None):
     global api
-    api = APIs(queue, handler, portfolio, engine, router)
+    api = APIs(queue, data, portfolio, engine, router)
 
 
 def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
