@@ -16,7 +16,7 @@ from bigfishtrader.engine.core import Engine
 from bigfishtrader.backtest.engine_backtest import EngineBackTest
 from bigfishtrader.middleware.timer import CountTimer
 from bigfishtrader.performance import WindowFactorPerformance
-from bigfishtrader.data_support.mongo_data_support import MongoDataSupport
+from bigfishtrader.data.mongo_data_support import MongoDataSupport
 from bigfishtrader.portfolio.context import Context
 
 

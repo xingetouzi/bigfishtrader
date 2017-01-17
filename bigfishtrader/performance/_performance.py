@@ -300,3 +300,21 @@ class WindowFactorPerformance(Performance):
 
     def information_ratio(self):
         pass
+
+
+class ReportSheet(Performance):
+    def __init__(self):
+        super(ReportSheet, self).__init__()
+        self._report_sheet = None
+
+    def calculate(self):
+        pass
+
+    @cache_calculator
+    def csv(self):
+        pass
+
+    @cache_calculator
+    def html(self):
+        pass
+

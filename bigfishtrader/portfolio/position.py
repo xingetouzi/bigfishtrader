@@ -12,23 +12,26 @@ class Position(object):
     close part of this position.
 
     Attributes:
+        id: identity of positions
         ticker: the position's ticker (also called: symbol, instrument)
         open_price: open price of the position
         open_time: open time of the position
-        price: position average price
+        price: the ticker's last price
         quantity: quantity of position
-        profit:
-        deposit:
+        profit: profit calculating according to the ticker's current price and open price
+        deposit: margin
         close_price: close price of the position
         close_time: close time of the position
         commission: commission
-
+        lever: leverage
+        deposit_rate: margin rate
     """
 
-    __slots__ = ["ticker", "open_price", "open_time", "price", "quantity", "profit", "deposit", "close_price",
+    __slots__ = ["id", "ticker", "open_price", "open_time", "price", "quantity", "profit", "deposit", "close_price",
                  "close_time", "commission", "lever", "deposit_rate"]
 
     def __init__(self, ticker, price, quantity, open_time, commission=0, lever=1, deposit_rate=1):
+        self.id = None
         self.ticker = ticker
         self.open_price = price
         self.price = price
@@ -38,21 +41,51 @@ class Position(object):
         self.lever = lever
         self.deposit_rate = deposit_rate
         self.deposit = abs(self.open_price * self.quantity * lever * deposit_rate)
-        self.profit = 0
         self.close_price = None
         self.close_time = None
 
+    @property
+    def profit(self):
+        return (self.price - self.open_price) * self.quantity * self.lever
+
     def update(self, price):
+        """
+        update the current price
+
+        Args:
+            price(float): current price
+        Returns:
+            None
+        """
         self.price = price
-        self.profit = (price - self.open_price) * self.quantity * self.lever
 
     def close(self, price, timestamp, commission=0):
+        """
+        close the entire position with the ticker's current price, timestamp and commission
+
+        Args:
+            price(float): the ticker's current price
+            timestamp(float): timestamp now
+            commission(float): trading commission
+        Returns:
+            None
+
+        """
         self.commission += commission
         self.close_time = timestamp
         self.close_price = price
         self.update(price)
 
     def merge(self, other):
+        """
+        merge a position of same ticker as this position,
+        this position will change and other remain itself.
+
+        Args:
+            other: other position of same ticker
+        Returns:
+            None
+        """
         quantity = self.quantity + other.quantity
         self.open_price = (self.open_price * self.quantity + other.quantity * other.open_price) / quantity
         self.commission = self.commission + other.commission
@@ -63,11 +96,13 @@ class Position(object):
         """
         Separate this position into 2 position
         Return the position which has the input quantity
-        and the other remains itself
+        and the other remains itself.
 
-        :param quantity:
-        :param price:
-        :return:
+        Args:
+            quantity(float): quantity
+            price(float): price
+        Returns:
+            Position: new position which has the input quantity
         """
 
         new_position = Position(self.ticker, self.open_price,

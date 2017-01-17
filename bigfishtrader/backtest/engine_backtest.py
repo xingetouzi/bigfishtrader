@@ -49,7 +49,7 @@ class EngineBackTest(object):
         for position in self.portfolio.positions.copy().values():
             self.portfolio.close_position(
                 position.ticker, position.price,
-                position.quantity, self.portfolio.current_time()
+                position.quantity, self.portfolio.current_time
             )
         return self.portfolio
 
