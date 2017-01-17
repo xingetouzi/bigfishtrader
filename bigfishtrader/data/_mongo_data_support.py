@@ -266,7 +266,7 @@ class MultiDataSupport(AbstractDataSupport):
     def put_time_events(self, queue):
         for time_ in self._panels[self._frequency].major_axis:
             print time_
-            queue.put(TimeEvent(time_, '.'))
+            queue.put(TimeEvent(time_))
 
 
 if __name__ == "__main__":

@@ -15,8 +15,9 @@ from bigfishtrader.router.exchange import DummyExchange
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.backtest.engine_backtest import EngineBackTest
 from bigfishtrader.middleware.timer import CountTimer
-from bigfishtrader.performance import WindowFactorPerformance
+from bigfishtrader.performance import WindowFactorPerformance, ReportSheet
 from bigfishtrader.data.mongo_data_support import MongoDataSupport
+from bigfishtrader.order.handlers import OrderBookHandler
 from bigfishtrader.portfolio.context import Context
 
 
@@ -26,6 +27,7 @@ def run_backtest(collection, ticker, start, end, period='D'):
     data_support = MongoDataSupport(**{'.'.join([ticker, period]): collection})
     price_handler = MongoHandler(collection, ticker, event_queue, fetchall=True, data_support=data_support)
     router = DummyExchange(event_queue, price_handler)
+    order_handler = OrderBookHandler()
     context = Context()
     context.ticker = ticker
     engine = Engine(event_queue=event_queue)
@@ -36,13 +38,21 @@ def run_backtest(collection, ticker, start, end, period='D'):
         price_handler, portfolio_handler,
         router, data_support, context
     )
+    order_handler.register(engine)
     portfolio = backtest.run(start, end)
     history = pd.DataFrame(portfolio.history)
     performance = WindowFactorPerformance()
     performance.set_equity(pd.Series(history["equity"].values, index=history["datetime"]))
-    print(performance.ar_window_simple)
-    print(performance.volatility_window_simple)
-    print(performance.sharpe_ratio_window_simple)
+    # print(pd.DataFrame([order.to_dict() for order in order_handler.orders.values()]))
+    fills = pd.DataFrame([fill.to_dict() for fill in order_handler.fills.values()])
+    print(fills)
+    rp = ReportSheet()
+    rp.set_fills(fills)
+    print(rp.trade_details)
+    print(rp.trade_summary)
+    # print(performance.ar_window_simple)
+    # print(performance.volatility_window_simple)
+    # print(performance.sharpe_ratio_window_simple)
     positions = pd.DataFrame(
         [position.show() for position in portfolio.closed_positions]
     )

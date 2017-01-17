@@ -62,17 +62,21 @@ class PortfolioHandler(AbstractPortfolioHandler):
             None
         """
         if event.action == OPEN_ORDER:
-            self.portfolio.open_position(
+            position = self.portfolio.open_position(
                 event.ticker, event.price,
                 event.quantity, event.time,
                 event.commission
             )
+            if position:
+                event.position_id = position.identifier
         elif event.action == CLOSE_ORDER:
-            self.portfolio.close_position(
+            position = self.portfolio.close_position(
                 event.ticker, event.price,
                 event.quantity, event.time,
                 event.commission
             )
+            event.profit = position.profit
+            event.position_id = position.identifier
 
     def on_confirm(self, event, kwargs=None):
         pass

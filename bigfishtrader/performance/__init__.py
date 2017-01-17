@@ -1,3 +1,4 @@
-from _performance import Performance, WindowFactorPerformance
-__all__ = ["Performance", "WindowFactorPerformance"]
+from _performance import *
+import _performance
+__all__ = _performance.__all__
 

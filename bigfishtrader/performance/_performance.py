@@ -8,7 +8,9 @@ import numpy as np
 import pandas as pd
 import pytz
 
-__all__ = ["Performance", "WindowFactorPerformance"]
+from bigfishtrader.const import DIRECTION, ACTION
+
+__all__ = ["Performance", "WindowFactorPerformance", "ReportSheet"]
 
 FLOAT_ERR = 1e-7
 
@@ -65,8 +67,9 @@ def cache_calculator(func):
 class Performance(object):
     def __init__(self):
         self.equity = pd.Series()
-        self.fill = pd.Series()
+        self._fills = pd.Series()
         self.base = 100000
+        self._currency = "$"
         self._count = 0
 
     def _update(self, equity):
@@ -125,6 +128,12 @@ class Performance(object):
         else:
             self.base = base
         self._update(value * base + base)
+
+    def set_fills(self, fills):
+        self._fills = fills
+
+    def set_currency(self, currency):
+        self._currency = currency
 
 
 class WindowFactorPerformance(Performance):
@@ -306,6 +315,79 @@ class ReportSheet(Performance):
     def __init__(self):
         super(ReportSheet, self).__init__()
         self._report_sheet = None
+        self._units = {}
+
+    @property
+    @cache_calculator
+    def trade_details(self):
+        df = self._fills[["position_id", "local_id", "time", "ticker", "action", "price", "quantity", "profit"]]
+        dct = {k: v for k, v in df.groupby(["ticker"])}
+        for trade in dct.values():
+            temp = trade.groupby("position_id")["quantity"].first().apply(
+                lambda x: DIRECTION.LONG.value if x > 0 else DIRECTION.SHORT.value)
+            trade["direction"] = trade["position_id"].apply(lambda x: temp[x])
+            trade["volume"] = trade["quantity"].abs()
+            trade["entry"] = trade["action"].apply(
+                lambda x: ACTION.IN.value if x else ACTION.OUT.value)
+            trade["profit"] = trade["profit"].fillna(0)
+            trade.rename_axis({"local_id": "trade_id"}, axis=1)
+            del trade["quantity"], trade["action"]
+        return dct
+
+    @property
+    @cache_calculator
+    def trade_summary(self):
+        self._units.update({
+            "(%s)" % self._currency: {
+                u"总净利", u"总盈利", u"总亏损", u"平均每笔盈利", u"平均每笔亏损",
+                u"单笔最大盈利", u"单笔最大亏损", u"最大连续盈利金额", u"最大连续亏损金额",
+            },
+            '': [
+                u"总盈利/总亏损", u"平均每笔盈利/平均每笔亏损", u"平均连续盈利次数",
+                u"平均连续亏损次数",
+            ],
+            "%": [
+                u"胜率"
+            ]
+        })
+        result = {}
+        for ticker, trade in self.trade_details.items():
+            total = pd.DataFrame()
+            total["profit"] = trade.groupby("position_id")["profit"].sum()
+            total["direction"] = trade.groupby("position_id")["direction"].last()
+            total["volume"] = abs(trade[trade["entry"] == ACTION.IN.value]["volume"]).sum()
+            long_ = total[total["direction"] == DIRECTION.LONG.value]
+            short = total[total["direction"] == DIRECTION.SHORT.value]
+            temp = [total, long_, short]
+            win = [t["profit"] > 0 for t in temp]
+            loss = [t["profit"] < 0 for t in temp]
+            dct = dict()
+            dct[u"总净利"] = np.array([t["profit"].sum() for t in temp])
+            # fi means fancy indexing
+            dct[u"总盈利"] = np.array([t[fi]["profit"].sum() for fi, t in zip(win, temp)])
+            dct[u"总亏损"] = abs(np.array([t[fi]["profit"].sum() for fi, t in zip(loss, temp)]))
+            volume = np.array([t["volume"].sum() for t in temp])
+            dct[u"平均每笔盈利"] = dct[u"总盈利"] / volume
+            dct[u"平均每笔亏损"] = dct[u"总亏损"] / volume
+            dct[u"单笔最大盈利"] = np.array([(t["profit"] / t["volume"]).max() for t in temp])
+            dct[u"单笔最大亏损"] = abs(np.minimum(np.array([(t["profit"] / t["volume"]).min() for t in temp]), 0))
+            section = {
+                True: np.array([0] * 3),
+                False: np.array([0] * 3),
+            }
+            for i_, t_ in zip(range(3), temp):
+                t_ = t_["profit"]
+                if not t_.empty:
+                    win_flag = np.NaN
+                    for v_ in t_:
+                        if ((v_ >= 0) * win_flag) == 0:
+                            section[win_flag][i_] += 1
+                        win_flag = v_ >= 0
+                    section[win_flag][i_] += 1
+            dct[u"平均连续盈利次数"] = np.array([len(t[fi]) / section[True][i] for i, fi, t in zip(range(3), win, temp)])
+            dct[u"平均连续亏损次数"] = np.array([len(t[fi]) / section[False][i] for i, fi, t in zip(range(3), loss, temp)])
+            result[ticker] = pd.DataFrame(data=dct, index=[u"全部", u"多头", u"空头"]).T
+        return result
 
     def calculate(self):
         pass
@@ -317,4 +399,3 @@ class ReportSheet(Performance):
     @cache_calculator
     def html(self):
         pass
-
