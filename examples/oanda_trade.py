@@ -1,9 +1,9 @@
 # from bigfishtrader.quotation.oanda_quotation import OandaStream, OandaQuotation
-from bigfishtrader.portfolio.handlers import PortfolioHandler
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.router.oanda_exchange import OandaExchange
 from bigfishtrader.data.support import MultiDataSupport
 from bigfishtrader.portfolio.context import Context
+from bigfishtrader.portfolio.oanda_portfolio import OandaPortfolio
 from bigfishtrader.event import EVENTS
 import oanda_strategy
 import json
@@ -28,14 +28,14 @@ def run(strategy, db_setting, account_info, trade_type='paper'):
     data_support = MultiDataSupport(context, **db_setting)
     data_support.register(engine)
 
-    portfolio_handler = PortfolioHandler(event_queue, data_support)
-    portfolio_handler.register(engine)
+    portfolio = OandaPortfolio(init_cash=100000, data_support=data_support)
+    portfolio.register(engine)
 
     oanda_api = oandapy.API(account_info['environment'], account_info['access_token'])
     router = OandaExchange(oanda_api, event_queue, data_support, trade_type)
     router.register(engine)
 
-    strategy.initialize_operation(event_queue, data_support, portfolio_handler.portfolio, engine, router, context)
+    strategy.initialize_operation(event_queue, data_support, portfolio, engine, router, context)
     strategy.initialize(context, data_support)
     data_support.put_time_events(event_queue)
 
@@ -50,7 +50,7 @@ def run(strategy, db_setting, account_info, trade_type='paper'):
     print('stop')
     engine.stop()
 
-    return portfolio_handler.portfolio
+    return portfolio
 
 
 
@@ -65,10 +65,10 @@ if __name__ == '__main__':
     account_info = json.load(open('D:/bigfishtrader/bigfish_oanda.json'))
     portfolio = run(oanda_strategy, setting, account_info, 'paper')
 
-    print pandas.DataFrame(portfolio.history)
-    print pandas.DataFrame([
+    print (pandas.DataFrame(portfolio.history))
+    print (pandas.DataFrame([
         position.show() for position in portfolio.closed_positions
-    ])
+    ]))
 
 
 

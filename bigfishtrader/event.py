@@ -87,8 +87,8 @@ class BarEvent(Event):
     """
     __slots__ = ["ticker", "time", "open", "high", "low", "close", "volume"]
 
-    def __init__(self, ticker, timestamp, openPrice, highPrice, lowPrice, closePrice, volume):
-        super(BarEvent, self).__init__(EVENTS.BAR, 1, timestamp)
+    def __init__(self, ticker, timestamp, openPrice, highPrice, lowPrice, closePrice, volume, topic=''):
+        super(BarEvent, self).__init__(EVENTS.BAR, 1, timestamp, topic)
         self.ticker = ticker
         self.time = timestamp
         self.open = openPrice
@@ -108,8 +108,8 @@ class OrderEvent(Event):
 
     def __init__(self, timestamp, ticker, action, quantity,
                  price=None, order_type=EVENTS.ORDER, tag=None,
-                 local_id=0, take_profit=0, stop_lost=0):
-        super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp)
+                 local_id=0, take_profit=0, stop_lost=0, topic=''):
+        super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp, topic)
         self.price = price
         self.ticker = ticker
         self.action = action
@@ -136,8 +136,8 @@ class CancelEvent(Event):
     """
     __slots__ = ["conditions"]
 
-    def __init__(self, **conditions):
-        super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, nanotime.now())
+    def __init__(self, topic='', **conditions):
+        super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, nanotime.now(), topic)
         self.conditions = conditions
 
 
@@ -154,8 +154,8 @@ class FillEvent(Event):
 
     def __init__(self, timestamp, ticker, action, quantity, price,
                  commission=0, lever=1, deposit_rate=1, fill_type='position',
-                 local_id=None, position_id=None, external_id=None):
-        super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp)
+                 local_id=None, position_id=None, external_id=None, topic=''):
+        super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp, topic)
         self.ticker = ticker
         self.action = action
         self.quantity = quantity

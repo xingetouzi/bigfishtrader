@@ -30,8 +30,14 @@ def initialize_operation(queue, data, portfolio, engine, router, context=None):
     api = APIs(queue, data, portfolio, engine, router, context)
 
 
-def open_order(ticker, quantity, price=None, order_type=EVENTS.ORDER, take_profit=0, stop_lost=0):
-    pass
+def open_order(ticker, quantity, price=None, order_type=EVENTS.ORDER, tag=None, take_profit=0, stop_lost=0):
+    api.event_queue.put(
+        OrderEvent(
+            api.context.current_time, ticker, OPEN_ORDER,
+            quantity, price, order_type, tag, api.next_id(),
+            take_profit, stop_lost, 'oanda'
+        )
+    )
 
 
 def close_order(order_id, quantity, price=None):
