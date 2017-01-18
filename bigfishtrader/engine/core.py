@@ -49,7 +49,6 @@ class Engine(object):
                 event = self.event_queue.get(timeout=0)
                 kwargs = {}
                 for handle in self._stream_manager.get_iter(event.type, event.topic):
-                    print event.time, handle
                     handle(event, kwargs)
             except StreamEnd:
                 pass

@@ -5,10 +5,10 @@ import pandas as pd
 
 
 class MongoDataSupport(AbstractDataSupport):
-    def __init__(self, mongo_client=None, **colections):
+    def __init__(self, mongo_client=None, **collections):
         super(MongoDataSupport, self).__init__()
         self.__client = mongo_client
-        self.__collections = colections
+        self.__collections = collections
         self.__instance = {}
         self.__time = None
         self.__current = {}

@@ -14,7 +14,7 @@ except ImportError:
     from queue import PriorityQueue
 
 
-def run(strategy, db_setting, account_info, trade_type='practice'):
+def run(strategy, db_setting, account_info, trade_type='paper'):
     event_queue = PriorityQueue()
 
     engine = Engine(event_queue)
@@ -22,39 +22,40 @@ def run(strategy, db_setting, account_info, trade_type='practice'):
     # streamer = OandaStream(event_queue, account_info)
     # quotation.register(engine)
 
-    portfolio_handler = PortfolioHandler(event_queue)
-    portfolio_handler.register(engine)
-
-    oanda_api = oandapy.API(account_info['environment'], account_info['access_token'])
-    router = OandaExchange(oanda_api, event_queue, trade_type)
-    router.register(engine)
-
     context = Context()
     context.register(engine)
 
     data_support = MultiDataSupport(context, **db_setting)
     data_support.register(engine)
 
-    strategy.initialize_operation(event_queue, data_support, portfolio_handler.portfolio, engine, router)
+    portfolio_handler = PortfolioHandler(event_queue, data_support)
+    portfolio_handler.register(engine)
+
+    oanda_api = oandapy.API(account_info['environment'], account_info['access_token'])
+    router = OandaExchange(oanda_api, event_queue, data_support, trade_type)
+    router.register(engine)
+
+    strategy.initialize_operation(event_queue, data_support, portfolio_handler.portfolio, engine, router, context)
     strategy.initialize(context, data_support)
     data_support.put_time_events(event_queue)
 
     def on_time(event, kwargs=None):
         strategy.handle_data(context, data_support)
 
-    def on_test(event, kwargs=None):
-        pass
-
     engine.register(on_time, EVENTS.TIME, '.', priority=90)
-    engine.register(on_test, EVENTS.TIME, '.', priority=90)
 
     engine.start()
+    print('join')
     engine.join()
+    print('stop')
     engine.stop()
+
+    return portfolio_handler.portfolio
+
 
 
 if __name__ == '__main__':
-    from datetime import datetime
+    import pandas
     setting = {
         "host": "192.168.1.103",
         "port": 27018,
@@ -62,7 +63,14 @@ if __name__ == '__main__':
     }
 
     account_info = json.load(open('D:/bigfishtrader/bigfish_oanda.json'))
-    run(oanda_strategy, setting, account_info, 'paper')
+    portfolio = run(oanda_strategy, setting, account_info, 'paper')
+
+    print pandas.DataFrame(portfolio.history)
+    print pandas.DataFrame([
+        position.show() for position in portfolio.closed_positions
+    ])
+
+
 
 
 

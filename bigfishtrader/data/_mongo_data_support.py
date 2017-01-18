@@ -4,10 +4,9 @@ from datetime import timedelta
 from collections import OrderedDict, Iterable
 
 import pandas as pd
-import numpy as np
 from dictproxyhack import dictproxy
 
-from bigfishtrader.event import TimeEvent
+from bigfishtrader.event import TimeEvent, ExitEvent
 from bigfishtrader.data.mongo_support import connect
 from bigfishtrader.data.base import AbstractDataSupport
 from bigfishtrader.data.cache import MemoryCacheProxy
@@ -188,10 +187,7 @@ class MultiDataSupport(AbstractDataSupport):
     def current(self, tickers, fields=_BAR_FIELDS_MAP.values()):
         panel = self._panels[self._frequency]
         end = pd.to_datetime(self.context.current_time)
-        print(self.context.current_time)
         index = panel.major_axis.searchsorted(end, 'left')
-        if panel.major_axis[index] <= end:
-            index += 1
 
         if isinstance(tickers, str):
             frame = panel[tickers]
@@ -265,8 +261,46 @@ class MultiDataSupport(AbstractDataSupport):
 
     def put_time_events(self, queue):
         for time_ in self._panels[self._frequency].major_axis:
-            print time_
-            queue.put(TimeEvent(time_, '.'))
+            queue.put(TimeEvent(time_, ''))
+        queue.put(ExitEvent())
+
+    def put_limit_time(self, queue, topic, **condition):
+        for time_ in self._panels[self._frequency].major_axis:
+            if self._time_match(time_, **condition):
+                queue.put(TimeEvent(time_, topic))
+
+    @staticmethod
+    def _time_match(time, **condition):
+        for key, value in condition.items():
+            if getattr(time, key) != value:
+                return False
+
+        return True
+
+    def data_base(self, ticker, frequency, field=None, start=None, end=None, ticker_type=None):
+        dt_filter = {}
+        if start:
+            dt_filter['$gte'] = start
+        if end:
+            dt_filter['$lte'] = end
+
+        filter_ = {'datetime': dt_filter} if len(dt_filter) else {}
+
+        ticker_type = self._db if not ticker_type else ticker_type
+        field = _BAR_FIELDS_MAP.keys() if field is None else field
+
+
+        frame = pd.DataFrame(
+            list(
+                self._client[ticker_type]['.'.join((ticker, frequency))].find(
+                    filter_,
+                    projection=field
+                )
+            )
+        )
+        frame.pop('_id')
+        return frame
+
 
 
 if __name__ == "__main__":
@@ -278,33 +312,37 @@ if __name__ == "__main__":
         "db": "Oanda",
     }
 
-    data = MongoDataSupport(**setting)
-    data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1))
+    # data = MongoDataSupport(**setting)
+    # data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1))
 
     class Context(object):
         pass
 
     context = Context()
-    context.real_bar_num = 20
-    data.set_context(context)
-    print(data.current("EUR_USD", "open"))
-    print("\n")
-    print(data.current("EUR_USD", ["open", "close"]))
-    print("\n")
-    print(data.current(["EUR_USD", "GBP_USD"], "open"))
-    print("\n")
-    print(data.current(["EUR_USD", "GBP_USD"], ["open", "close"]))
-    print("\n<test history>:")
-    print(data.history("EUR_USD", "open", "D", length=4))
-    print("\n")
-    print(data.history("EUR_USD", ["open", "close"], "D", length=4))
-    print("\n")
-    print(data.history(["EUR_USD", "GBP_USD"], "open", "D", length=4))
-    print("\n")
-    print(data.history(["EUR_USD", "GBP_USD"], ["open", "close"], "D", length=4))
-    print("\n<test start,end and length>:")
-    print(data.history(["EUR_USD", "GBP_USD"], "open", "D", start=datetime(2014, 3, 2), length=5))
-    print("\n")
-    print(data.history(["EUR_USD", "GBP_USD"], "open", "D", end=datetime(2014, 4, 1), length=5))
-    print("\n")
-    print(data.history(["EUR_USD", "GBP_USD"], "open", "D", start=datetime(2014, 3, 2), end=datetime(2014, 4, 1)))
+
+    data = MultiDataSupport(context, **setting)
+
+    print(data.data_base('EUR_USD', 'D', field=['closeMid'], start=datetime(2016, 1, 1), end=datetime(2017, 1, 1)))
+    # context.real_bar_num = 20
+    # data.set_context(context)
+    # print(data.current("EUR_USD", "open"))
+    # print("\n")
+    # print(data.current("EUR_USD", ["open", "close"]))
+    # print("\n")
+    # print(data.current(["EUR_USD", "GBP_USD"], "open"))
+    # print("\n")
+    # print(data.current(["EUR_USD", "GBP_USD"], ["open", "close"]))
+    # print("\n<test history>:")
+    # print(data.history("EUR_USD", "open", "D", length=4))
+    # print("\n")
+    # print(data.history("EUR_USD", ["open", "close"], "D", length=4))
+    # print("\n")
+    # print(data.history(["EUR_USD", "GBP_USD"], "open", "D", length=4))
+    # print("\n")
+    # print(data.history(["EUR_USD", "GBP_USD"], ["open", "close"], "D", length=4))
+    # print("\n<test start,end and length>:")
+    # print(data.history(["EUR_USD", "GBP_USD"], "open", "D", start=datetime(2014, 3, 2), length=5))
+    # print("\n")
+    # print(data.history(["EUR_USD", "GBP_USD"], "open", "D", end=datetime(2014, 4, 1), length=5))
+    # print("\n")
+    # print(data.history(["EUR_USD", "GBP_USD"], "open", "D", start=datetime(2014, 3, 2), end=datetime(2014, 4, 1)))

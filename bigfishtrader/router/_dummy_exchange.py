@@ -51,7 +51,7 @@ class DummyExchange(AbstractRouter):
         self.event_queue.put(fill)
         pass
 
-    def on_cancel(self, event):
+    def on_cancel(self, event, kwargs=None):
         """
         When a CancelEvent arrives, remove the orders that satisfy the event's condition
         :param event:

@@ -4,29 +4,41 @@ from bigfishtrader.engine.handler import HandlerCompose, Handler
 
 
 class APIs(HandlerCompose):
-    def __init__(self, queue, data, portfolio, engine, router=None):
+    def __init__(self, queue, data, portfolio, engine, router, context):
         super(APIs, self).__init__()
         self.event_queue = queue
         self.data = data
         self.portfolio = portfolio
         self.order = router
-        self.register(engine)
+        self.context = context
+        self._engine = engine
         self.__id = 0
         self.buy_cost = 0
         self.sell_cost = 0
         self.slippage = 0
 
-    def put_handler(self, name, func, event_type, topic='.', priority=10):
-        self._handlers[name] = Handler(func, event_type, topic, priority)
+    def register_handler(self, handler, event_type, topic='.', priority=0):
+        self._engine.register(handler, event_type, topic, priority)
 
     def next_id(self):
         self.__id += 1
         return self.__id
 
 
-def initialize_operation(queue, data, portfolio, engine, router=None):
+def initialize_operation(queue, data, portfolio, engine, router, context=None):
     global api
-    api = APIs(queue, data, portfolio, engine, router)
+    api = APIs(queue, data, portfolio, engine, router, context)
+
+
+def open_order(ticker, quantity, price=None, order_type=EVENTS.ORDER, take_profit=0, stop_lost=0):
+    pass
+
+
+def close_order(order_id, quantity, price=None):
+    order = api.portfolio.orders[order_id]
+    api.event_queue.put(
+        OrderEvent(api.context.current_time, order.ticker, CLOSE_ORDER, quantity, price, local_id=order.order_id)
+    )
 
 
 def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
@@ -43,7 +55,7 @@ def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
 
     api.event_queue.put(
         OrderEvent(
-            api.data.current_time,
+            api.context.current_time,
             ticker, OPEN_ORDER, quantity, price,
             order_type=order_type,
             local_id=api.next_id()
@@ -84,7 +96,7 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
         if available_quantity:
             api.event_queue.put(
                 OrderEvent(
-                    api.data.current_time,
+                    api.context.current_time,
                     position.ticker, CLOSE_ORDER,
                     available_quantity, price,
                     order_type=order_type,
@@ -217,7 +229,7 @@ def set_ticker_info(**ticker):
     exchange = api.order
     if exchange:
         ticker_info = getattr(exchange, 'ticker_info', {})
-        for key, value in ticker:
+        for key, value in ticker.items():
             ticker_info[key] = value
         if not hasattr(exchange, 'ticker_info'):
             setattr(exchange, 'ticker_info', ticker_info)
@@ -237,7 +249,7 @@ def get_security(*tickers):
             if position:
                 security[ticker] = position.quantity
     else:
-        for ticker, position in positions:
+        for ticker, position in positions.items():
             security[ticker] = position.quantity
 
     return security
@@ -255,11 +267,28 @@ def get_available_security(*tickers):
         security[ticker] -= sum(
             [
                 order.quantity if order.match(action=CLOSE_ORDER, ticker=ticker) else 0
-                for order in orders
+                for order in orders.values()
             ]
         )
     return security
 
 
 def get_positions():
-    return api.portfolio.get_positions()
+    return api.portfolio.positions
+
+
+def get_orders():
+    return api.portfolio.orders
+
+
+def time_limit(func):
+    def wrapper(event, kwargs=None):
+        func(api.context, api.data)
+
+    return wrapper
+
+
+def register_time_limit(function, topic, **limit):
+    api.register_handler(function, EVENTS.TIME, topic)
+
+    api.data.put_limit_time(api.event_queue, topic, **limit)

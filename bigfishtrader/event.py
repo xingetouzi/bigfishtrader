@@ -100,9 +100,12 @@ class OrderEvent(Event):
     OrderEvent is created by a strategy when it wants to open an order and
     will be handled by Simulation or Trade section
     """
-    __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag", "order_type"]
+    __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag", "order_type",
+                 "take_profit", "stop_lost"]
 
-    def __init__(self, timestamp, ticker, action, quantity, price=None, order_type=EVENTS.ORDER, tag=None, local_id=0):
+    def __init__(self, timestamp, ticker, action, quantity,
+                 price=None, order_type=EVENTS.ORDER, tag=None,
+                 local_id=0, take_profit=0, stop_lost=0):
         super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp)
         self.price = price
         self.ticker = ticker
@@ -112,6 +115,8 @@ class OrderEvent(Event):
         self.local_id = local_id
         self.status = ORDER_STATUS.UNFILL
         self.order_type = order_type
+        self.take_profit = take_profit
+        self.stop_lost = stop_lost
 
     def match(self, **conditions):
         for key, value in conditions.items():
@@ -141,9 +146,11 @@ class FillEvent(Event):
     update portfolio information
     """
     __slots__ = ["time", "ticker", "action", "quantity", "price", "profit", "commission", "lever", "deposit_rate",
-                 "local_id", "position_id", "external_id"]
+                 "local_id", "position_id", "external_id", "fill_type"]
 
-    def __init__(self, timestamp, ticker, action, quantity, price, commission=0, lever=1, deposit_rate=1):
+    def __init__(self, timestamp, ticker, action, quantity, price,
+                 commission=0, lever=1, deposit_rate=1, fill_type='position',
+                 local_id=None, position_id=None, external_id=None):
         super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp)
         self.ticker = ticker
         self.action = action
@@ -153,6 +160,7 @@ class FillEvent(Event):
         self.commission = commission
         self.lever = lever
         self.deposit_rate = deposit_rate
+        self.fill_type = fill_type
         self.position_id = None
         self.local_id = None
         self.external_id = None
@@ -161,7 +169,7 @@ class FillEvent(Event):
 class TimeEvent(Event):
     __slots__ = []
 
-    def __init__(self, timestamp, topic='.'):
+    def __init__(self, timestamp, topic=''):
         super(TimeEvent, self).__init__(EVENTS.TIME, 1, timestamp, topic)
 
 

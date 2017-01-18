@@ -28,9 +28,9 @@ class Position(object):
     """
 
     __slots__ = ["id", "ticker", "open_price", "open_time", "price", "quantity", "profit", "deposit", "close_price",
-                 "close_time", "commission", "lever", "deposit_rate"]
+                 "close_time", "commission", "lever", "deposit_rate", "order_id"]
 
-    def __init__(self, ticker, price, quantity, open_time, commission=0, lever=1, deposit_rate=1):
+    def __init__(self, ticker, price, quantity, open_time, commission=0, lever=1, deposit_rate=1, order_id=None):
         self.id = None
         self.ticker = ticker
         self.open_price = price
@@ -43,6 +43,7 @@ class Position(object):
         self.deposit = abs(self.open_price * self.quantity * lever * deposit_rate)
         self.close_price = None
         self.close_time = None
+        self.order_id = order_id
 
     @property
     def profit(self):
@@ -107,8 +108,8 @@ class Position(object):
 
         new_position = Position(self.ticker, self.open_price,
                                 quantity, self.open_time,
-                                self.commission * quantity / self.quantity, self.lever,
-                                self.deposit_rate)
+                                self.commission * quantity / self.quantity,
+                                self.lever, self.deposit_rate, self.order_id)
         new_position.update(price)
         self.quantity -= quantity
         self.deposit -= new_position.deposit
