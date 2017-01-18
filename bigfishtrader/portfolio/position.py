@@ -12,7 +12,7 @@ class Position(object):
     close part of this position.
 
     Attributes:
-        id: identity of positions
+        identifier: identity of positions
         ticker: the position's ticker (also called: symbol, instrument)
         open_price: open price of the position
         open_time: open time of the position
@@ -27,11 +27,12 @@ class Position(object):
         deposit_rate: margin rate
     """
 
-    __slots__ = ["id", "ticker", "open_price", "open_time", "price", "quantity", "profit", "deposit", "close_price",
+
+    __slots__ = ["identifier", "ticker", "open_price", "open_time", "price", "quantity", "profit", "deposit", "close_price",
                  "close_time", "commission", "lever", "deposit_rate", "order_id"]
 
     def __init__(self, ticker, price, quantity, open_time, commission=0, lever=1, deposit_rate=1, order_id=None):
-        self.id = None
+        self.identifier = None
         self.ticker = ticker
         self.open_price = price
         self.price = price
@@ -108,8 +109,9 @@ class Position(object):
 
         new_position = Position(self.ticker, self.open_price,
                                 quantity, self.open_time,
-                                self.commission * quantity / self.quantity,
-                                self.lever, self.deposit_rate, self.order_id)
+                                self.commission * quantity / self.quantity, self.lever,
+                                self.deposit_rate, order_id=self.order_id)
+        new_position.identifier = self.identifier
         new_position.update(price)
         self.quantity -= quantity
         self.deposit -= new_position.deposit

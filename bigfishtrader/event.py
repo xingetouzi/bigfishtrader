@@ -35,6 +35,9 @@ class Event(object):
         self.time = timestamp
         self.local_time = nanotime.now()
 
+    def to_dict(self):
+        return {field: getattr(self, field) for field in self.__slots__}
+
     def lt_time(self, other):
         if self.__eq__(other):
             return self.time < other.time or self.local_time < other.local_time
@@ -113,7 +116,7 @@ class OrderEvent(Event):
         self.quantity = quantity
         self.tag = tag
         self.local_id = local_id
-        self.status = ORDER_STATUS.UNFILL
+        self.status = ORDERSTATUS.UNFILL
         self.order_type = order_type
         self.take_profit = take_profit
         self.stop_lost = stop_lost
@@ -131,6 +134,7 @@ class CancelEvent(Event):
     CancelEvent is created by a strategy when it wants to cancel an limit or stop order
     and it will be handled by Simulation or Trade section
     """
+    __slots__ = ["conditions"]
 
     def __init__(self, **conditions):
         super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, nanotime.now())
@@ -146,7 +150,7 @@ class FillEvent(Event):
     update portfolio information
     """
     __slots__ = ["time", "ticker", "action", "quantity", "price", "profit", "commission", "lever", "deposit_rate",
-                 "local_id", "position_id", "external_id", "fill_type"]
+                 "local_id", "external_id", "position_id", "fill_type"]
 
     def __init__(self, timestamp, ticker, action, quantity, price,
                  commission=0, lever=1, deposit_rate=1, fill_type='position',
@@ -169,7 +173,8 @@ class FillEvent(Event):
 class TimeEvent(Event):
     __slots__ = []
 
-    def __init__(self, timestamp, topic=''):
+
+    def __init__(self, timestamp, topic=""):
         super(TimeEvent, self).__init__(EVENTS.TIME, 1, timestamp, topic)
 
 

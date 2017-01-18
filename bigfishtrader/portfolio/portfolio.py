@@ -32,6 +32,12 @@ class Portfolio(AbstractPortfolio):
         self.closed_positions = []
         self.history = []
         self._time = None
+        self.__position_ref = 0
+
+    @property
+    def _next_position_id(self):
+        self.__position_ref += 1
+        return self.__position_ref
 
     @property
     def positions(self):
@@ -121,23 +127,28 @@ class Portfolio(AbstractPortfolio):
             **kwargs:
 
         Returns:
-            None
+            Position: the opened position
         """
         position = Position(ticker, price, quantity, open_time, commission, **kwargs)
         self._cash -= (position.deposit + commission)
 
+
         if self._cash < 0:
-            return
+            return None
 
         if ticker not in self._positions:
             self._positions[ticker] = position
+            position.identifier = self._next_position_id
+            result = position
         else:
             old = self._positions[ticker]
             if old.quantity * position.quantity > 0:
                 old.merge(position)
+                result = old
             else:
                 raise QuantityException(old.quantity, position.quantity, 2)
         self.update_position(open_time, ticker, price)
+        return result
 
     def close_position(self, ticker, price, quantity, close_time, commission=0):
         """
@@ -151,7 +162,7 @@ class Portfolio(AbstractPortfolio):
             commission:
 
         Returns:
-            None
+            Position: the closed position
         """
         position = self._positions.get(ticker, None)
 
@@ -163,11 +174,13 @@ class Portfolio(AbstractPortfolio):
                 position.close(price, close_time, commission)
                 self._cash += position.deposit + position.profit - commission
                 self.closed_positions.append(position)
+                return position
             elif abs(quantity) < abs(position.quantity):
                 new = position.separate(quantity, price)
                 new.close(price, close_time, commission)
                 self._cash += new.deposit + new.profit - commission
                 self.closed_positions.append(new)
+                return new
             else:
                 raise QuantityException(quantity, position.quantity)
 
