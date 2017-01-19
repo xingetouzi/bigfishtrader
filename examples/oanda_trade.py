@@ -66,9 +66,11 @@ if __name__ == '__main__':
     portfolio = run(oanda_strategy, setting, account_info, 'paper')
 
     print (pandas.DataFrame(portfolio.history))
-    print (pandas.DataFrame([
+    positions = pandas.DataFrame([
         position.show() for position in portfolio.closed_positions
-    ]))
+    ])
+    print(positions)
+    print(positions['profit'].sum())
 
 
 

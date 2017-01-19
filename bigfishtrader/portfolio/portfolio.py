@@ -44,6 +44,10 @@ class Portfolio(AbstractPortfolio):
         return dictproxy(self._positions)
 
     @property
+    def cash(self):
+        return dictproxy(self._cash)
+
+    @property
     def orders(self):
         return dictproxy(self._orders)
 
@@ -183,26 +187,6 @@ class Portfolio(AbstractPortfolio):
                 return new
             else:
                 raise QuantityException(quantity, position.quantity)
-
-    def get_positions(self):
-        """
-        get portfolio's current positions
-
-        Returns:
-            dict: current positions of this portfolio, a dict of which
-                key is position's ticker,
-                value is :class:`bigfishtrader.portfolio.position.Position`.
-        """
-        return dictproxy(self._positions)
-
-    def get_cash(self):
-        """
-        get portfolio's current cash
-
-        Returns:
-            float: current cash of this portfolio
-        """
-        return self._cash
 
     def confirm_position(self, confirmation):
         pass

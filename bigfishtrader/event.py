@@ -12,6 +12,7 @@ class EVENTS(Enum):
     STOP = 5
     CANCEL = 6
     TIME = 7
+    MODIFY = 8
     EXIT = 999
 
 
@@ -165,17 +166,25 @@ class FillEvent(Event):
         self.lever = lever
         self.deposit_rate = deposit_rate
         self.fill_type = fill_type
-        self.position_id = None
-        self.local_id = None
-        self.external_id = None
+        self.position_id = position_id
+        self.local_id = local_id
+        self.external_id = external_id
 
 
 class TimeEvent(Event):
     __slots__ = []
 
-
     def __init__(self, timestamp, topic=""):
         super(TimeEvent, self).__init__(EVENTS.TIME, 1, timestamp, topic)
+
+
+class ModifyEvent(Event):
+    __slots__ = ["modify", "order_id"]
+
+    def __init__(self, timestamp, order_id, topic='', **modify):
+        super(ModifyEvent, self).__init__(EVENTS.MODIFY, 0, timestamp, topic)
+        self.order_id = order_id
+        self.modify = modify
 
 
 class ExitEvent(Event):
@@ -183,3 +192,7 @@ class ExitEvent(Event):
 
     def __init__(self):
         super(ExitEvent, self).__init__(EVENTS.EXIT, 999, nanotime.now())
+
+
+if __name__ == '__main__':
+    ee = ExitEvent

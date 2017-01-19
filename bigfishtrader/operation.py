@@ -30,24 +30,41 @@ def initialize_operation(queue, data, portfolio, engine, router, context=None):
     api = APIs(queue, data, portfolio, engine, router, context)
 
 
-def open_order(ticker, quantity, price=None, order_type=EVENTS.ORDER, tag=None, take_profit=0, stop_lost=0):
+# def open_order(ticker, quantity, price=None, order_type=EVENTS.ORDER, tag=None, take_profit=0, stop_lost=0):
+#     api.event_queue.put(
+#         OrderEvent(
+#             api.context.current_time, ticker, OPEN_ORDER,
+#             quantity, price, order_type, tag, api.next_id(),
+#             take_profit, stop_lost, 'oanda'
+#         )
+#     )
+
+
+def order_close(position_id=None, quantity=None, price=None, position=None):
+    position = api.portfolio.positions[position_id] if position is None else position
+    quantity = position.quantity if quantity is None else quantity
     api.event_queue.put(
         OrderEvent(
-            api.context.current_time, ticker, OPEN_ORDER,
-            quantity, price, order_type, tag, api.next_id(),
-            take_profit, stop_lost, 'oanda'
+            api.context.current_time, position.ticker,
+            CLOSE_ORDER, quantity, price,
+            local_id=position.position_id,
+            topic='oanda'
         )
     )
+    return position.position_id
 
 
-def close_order(order_id, quantity, price=None):
-    order = api.portfolio.orders[order_id]
+def order_modify(order_id, **kwargs):
     api.event_queue.put(
-        OrderEvent(api.context.current_time, order.ticker, CLOSE_ORDER, quantity, price, local_id=order.order_id)
+        ModifyEvent(api.context.current_time, order_id, 'oanda', **kwargs)
     )
 
 
-def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
+def get_orders():
+    return api.order.get_orders()
+
+
+def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwargs):
     """
     开仓
     市价单输入 ticker + quantity
@@ -58,23 +75,25 @@ def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER):
     :param order_type:
     :return:
     """
-
+    local_id = api.next_id()
     api.event_queue.put(
         OrderEvent(
             api.context.current_time,
             ticker, OPEN_ORDER, quantity, price,
             order_type=order_type,
-            local_id=api.next_id()
+            local_id=local_id,
+            **kwargs
         )
     )
+    return local_id
 
 
-def open_limit(ticker, quantity, price):
-    open_position(ticker, quantity, price, EVENTS.LIMIT)
+def open_limit(ticker, quantity, price, **kwargs):
+    return open_position(ticker, quantity, price, EVENTS.LIMIT, **kwargs)
 
 
-def open_stop(ticker, quantity, price):
-    open_position(ticker, quantity, price, EVENTS.STOP)
+def open_stop(ticker, quantity, price, **kwargs):
+    return open_position(ticker, quantity, price, EVENTS.STOP, **kwargs)
 
 
 def cancel_order(**conditions):
@@ -83,7 +102,7 @@ def cancel_order(**conditions):
     )
 
 
-def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORDER, position=None):
+def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORDER, position=None, **kwargs):
     """
     平仓
     市价单只需要 ticker + quantity 或 position
@@ -100,15 +119,17 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
         available_quantity = get_available_security(position.ticker)[position.ticker]
 
         if available_quantity:
+            _id = position.position_id if position.position_id else api.next_id()
             api.event_queue.put(
                 OrderEvent(
                     api.context.current_time,
                     position.ticker, CLOSE_ORDER,
                     available_quantity, price,
                     order_type=order_type,
-                    local_id=api.next_id()
+                    local_id=_id
                 )
             )
+            return _id
         else:
             print('available_quantity == 0 , unable to close position')
 
@@ -118,22 +139,25 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
             print('quantity(%s) > available_quantity(%s) , unable to close position'
                   % (quantity, available_quantity))
 
+        if 'local_id' not in kwargs.keys():
+            kwargs['local_id'] = api.next_id()
         api.event_queue.put(
             OrderEvent(
                 api.data.current_time,
                 ticker, CLOSE_ORDER, quantity, price,
                 order_type=order_type,
-                local_id=api.next_id()
+                **kwargs
             )
         )
+        return kwargs['local_id']
 
 
 def close_limit(price, ticker=None, quantity=None, position=None):
-    close_position(ticker, quantity, price, EVENTS.LIMIT, position)
+    return close_position(ticker, quantity, price, EVENTS.LIMIT, position)
 
 
 def close_stop(price, ticker=None, quantity=None, position=None):
-    close_position(ticker, quantity, price, EVENTS.STOP, position)
+    return close_position(ticker, quantity, price, EVENTS.STOP, position)
 
 
 def set_commission(buy_cost=None, sell_cost=None, unit=None, min_cost=0, calculate_function=None):
@@ -248,7 +272,7 @@ def get_security(*tickers):
     :return: {ticker: quantity}
     """
     security = {}
-    positions = api.portfolio.get_positions()
+    positions = api.portfolio.positions
     if len(tickers):
         for ticker in tickers:
             position = positions.get(ticker, None)
@@ -282,9 +306,6 @@ def get_available_security(*tickers):
 def get_positions():
     return api.portfolio.positions
 
-
-def get_orders():
-    return api.portfolio.orders
 
 
 def time_limit(func):
