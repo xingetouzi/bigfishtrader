@@ -27,9 +27,9 @@ class OandaExchange(AbstractRouter):
         pass
 
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     import requests
+
     account_info = json.load(open('D:/bigfishtrader/oanda_account.json'))
     api = oandapy.API(access_token=str(account_info['access_token']))
     # response = api.create_order(

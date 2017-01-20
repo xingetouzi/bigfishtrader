@@ -103,7 +103,8 @@ class OrderEvent(Event):
     OrderEvent is created by a strategy when it wants to open an order and
     will be handled by Simulation or Trade section
     """
-    __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag", "order_type"]
+    __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag", "order_type",
+                 "exchange_id"]
 
     def __init__(self, timestamp, ticker, action, quantity, price=None, order_type=EVENTS.ORDER, tag=None, local_id=0):
         super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp)
@@ -113,6 +114,7 @@ class OrderEvent(Event):
         self.quantity = quantity
         self.tag = tag
         self.local_id = local_id
+        self.exchange_id = None
         self.status = ORDERSTATUS.UNFILL
         self.order_type = order_type
 
@@ -145,7 +147,7 @@ class FillEvent(Event):
     update portfolio information
     """
     __slots__ = ["time", "ticker", "action", "quantity", "price", "profit", "commission", "lever", "deposit_rate",
-                 "local_id", "external_id", "position_id"]
+                 "local_id", "exchange_id", "position_id"]
 
     def __init__(self, timestamp, ticker, action, quantity, price, commission=0, lever=1, deposit_rate=1):
         super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp)
@@ -158,7 +160,7 @@ class FillEvent(Event):
         self.lever = lever
         self.deposit_rate = deposit_rate
         self.local_id = None
-        self.external_id = None
+        self.exchange_id = None
         self.position_id = None
 
 

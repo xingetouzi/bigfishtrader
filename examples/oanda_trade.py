@@ -1,13 +1,14 @@
-# from bigfishtrader.quotation.oanda_quotation import OandaStream, OandaQuotation
+from bigfishtrader.quotation.oanda_quotation import OandaStream, OandaQuotation
 from bigfishtrader.portfolio.handlers import PortfolioHandler
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.router.oanda_exchange import OandaExchange
 from bigfishtrader.data.support import MultiDataSupport
 from bigfishtrader.portfolio.context import Context
 from bigfishtrader.event import EVENTS
-import oanda_strategy
+import oanda_strategy as strategy
 import json
 import oandapy
+
 try:
     from Queue import PriorityQueue
 except ImportError:
@@ -25,9 +26,10 @@ def run(strategy, db_setting, account_info, trade_type='practice'):
     portfolio_handler = PortfolioHandler(event_queue)
     portfolio_handler.register(engine)
 
-    oanda_api = oandapy.API(account_info['environment'], account_info['access_token'])
-    router = OandaExchange(oanda_api, event_queue, trade_type)
-    router.register(engine)
+    # oanda_api = oandapy.API(account_info['environment'], account_info['access_token'])
+    # router = OandaExchange(oanda_api, event_queue, trade_type)
+    # router.register(engine)
+    router = None
 
     context = Context()
     context.register(engine)
@@ -54,15 +56,12 @@ def run(strategy, db_setting, account_info, trade_type='practice'):
 
 
 if __name__ == '__main__':
-    from datetime import datetime
     setting = {
         "host": "192.168.1.103",
         "port": 27018,
         "db": "Oanda",
     }
 
-    account_info = json.load(open('D:/bigfishtrader/bigfish_oanda.json'))
+    # account_info = json.load(open('bigfish_oanda.json'))
+    account_info = {}
     run(oanda_strategy, setting, account_info, 'paper')
-
-
-

@@ -28,7 +28,7 @@ class Position(object):
     """
 
     __slots__ = ["identifier", "ticker", "open_price", "open_time", "price", "quantity", "profit", "deposit", "close_price",
-                 "close_time", "commission", "lever", "deposit_rate"]
+                 "close_time", "commission", "lever", "deposit_rate", "ticket"]
 
     def __init__(self, ticker, price, quantity, open_time, commission=0, lever=1, deposit_rate=1):
         self.identifier = None
@@ -43,6 +43,7 @@ class Position(object):
         self.deposit = abs(self.open_price * self.quantity * lever * deposit_rate)
         self.close_price = None
         self.close_time = None
+        self.ticket = None
 
     @property
     def profit(self):

@@ -69,6 +69,7 @@ class PortfolioHandler(AbstractPortfolioHandler):
             )
             if position:
                 event.position_id = position.identifier
+                position.ticket = event.exchange_id
         elif event.action == CLOSE_ORDER:
             position = self.portfolio.close_position(
                 event.ticker, event.price,

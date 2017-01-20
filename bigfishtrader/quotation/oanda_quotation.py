@@ -4,6 +4,7 @@ from datetime import datetime
 from threading import Thread
 import pandas as pd
 import oandapy
+import pytz
 import json
 
 
@@ -12,6 +13,7 @@ class OandaStream(oandapy.Streamer):
         super(OandaStream, self).__init__(account_info['environment'], account_info['access_token'])
         self.info = account_info
         self.event_queue = event_queue
+        self.tz = pytz.timezone("Asia/Shanghai")
 
     def on_success(self, data):
         if 'tick' in data:
@@ -19,7 +21,8 @@ class OandaStream(oandapy.Streamer):
             self.event_queue.put(
                 TickEvent(
                     ticker['instrument'],
-                    datetime.strptime(ticker['time'], '%Y-%m-%dT%H:%M:%S.%fZ'),
+                    datetime.strptime(ticker['time'], '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=pytz.utc).astimezone(
+                        tz=self.tz),
                     ticker['ask'], ticker['bid']
                 )
             )
@@ -83,8 +86,6 @@ class OandaQuotation(AbstractPriceHandler):
             thread.start()
             self.live_streams[self.ticker] = thread
 
-
-
     def next_stream(self):
         while self._is_running:
             try:
@@ -103,13 +104,32 @@ class OandaQuotation(AbstractPriceHandler):
         self.event_queue.put(event)
 
 
-
 if __name__ == '__main__':
-    account_info = json.load(open('D:/bigfishtrader/bigfish_oanda.json'))
-    stream = OandaStream(None, account_info)
-    stream.rates(account_info['account_id'], ['EUR_USD'])
+    try:
+        from Queue import Queue
+    except ImportError:
+        from queue import Queue
+    from threading import Thread
+    import json
 
 
+    def process(q):
+        while True:
+            event = q.get()
+            dct = event.to_dict()
+            print(dct["time"].isoformat())
+            # print(json.dumps(dct, indent=4, ensure_ascii=False, sort_keys=True))
 
 
+    qu = Queue()
+    account_info = json.load(open('../bigfish_oanda.json'))
 
+    stream = OandaStream(qu, account_info)
+
+    def produce(account):
+        stream.rates(account_info['account_id'], ['EUR_USD'])
+
+
+    thread = Thread(target=produce, args=(account_info, ))
+    thread.start()
+    process(qu)
