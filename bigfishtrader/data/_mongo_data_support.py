@@ -10,7 +10,7 @@ from bigfishtrader.event import TimeEvent, ExitEvent
 from bigfishtrader.data.mongo_support import connect
 from bigfishtrader.data.base import AbstractDataSupport
 from bigfishtrader.data.cache import MemoryCacheProxy
-from bigfishtrader.data.support import PanelDataSupport
+from bigfishtrader.data.support import PanelDataSupport, MultiPanelData
 
 _BAR_FIELDS_MAP = OrderedDict([
     ("datetime", "datetime"),
@@ -137,26 +137,26 @@ class MultiDataSupport(AbstractDataSupport):
         super(MultiDataSupport, self).__init__()
         self._db = db
         self._client = connect(**info)
-        self._panels = {}
-        self.context = context
+        self._panel_data = MultiPanelData(context)
+        self._initialized = False
 
     def init(self, tickers, frequency, start=None, end=None):
-        self._frequency = frequency
+        self._initialized = False
         self.subscribe(tickers, frequency, start, end)
+        self._initialized = True
 
     def subscribe(self, tickers, frequency, start=None, end=None):
         if isinstance(tickers, str):
             tickers = [tickers]
 
-        panel = self._panels.get(frequency, None)
-        if panel is not None:
-            for ticker in tickers:
-                panel[ticker] = self._subscribe(ticker, frequency, start, end)
+        frames = {}
+        for ticker in tickers:
+            frames[ticker] = self._subscribe(ticker, frequency, start, end)
+
+        if self._initialized:
+            self._panel_data.insert(frequency, **frames)
         else:
-            frame_dict = {}
-            for ticker in tickers:
-                frame_dict[ticker] = self._subscribe(ticker, frequency, start, end)
-            self._panels[frequency] = pd.Panel.from_dict(frame_dict)
+            self._panel_data.init(frequency, **frames)
 
     def _subscribe(self, ticker, frequency, start=None, end=None, ticker_type=None):
         if ticker_type is None:
@@ -179,93 +179,41 @@ class MultiDataSupport(AbstractDataSupport):
         return frame
 
     def cancel_subscribe(self, tickers, frequency):
-        panel = self._panels[frequency]
-        tickers = [tickers] if isinstance(tickers, str) else tickers
-        for ticker in tickers:
-            panel.pop(ticker)
+        # panel = self._panels[frequency]
+        # tickers = [tickers] if isinstance(tickers, str) else tickers
+        # for ticker in tickers:
+        #     panel.pop(ticker)
+        self._panel_data.drop(frequency, *tickers)
 
     def current(self, tickers, fields=_BAR_FIELDS_MAP.values()):
-        panel = self._panels[self._frequency]
-        end = pd.to_datetime(self.context.current_time)
-        index = panel.major_axis.searchsorted(end, 'left')
-
-        if isinstance(tickers, str):
-            frame = panel[tickers]
-            return frame[fields].iloc[index]
-        elif isinstance(tickers, Iterable):
-            panel = panel[tickers]
-            return panel.iloc[:, index, :]
+        # panel = self._panels[self._frequency]
+        # end = pd.to_datetime(self.context.current_time)
+        # index = panel.major_axis.searchsorted(end, 'left')
+        #
+        # if isinstance(tickers, str):
+        #     frame = panel[tickers]
+        #     return frame[fields].iloc[index]
+        # elif isinstance(tickers, Iterable):
+        #     panel = panel[tickers]
+        #     return panel.iloc[:, index, :]
+        return self._panel_data.current(tickers, fields)
 
     def history(
             self, tickers, fields, frequency,
             start=None, end=None, length=None
     ):
-        if isinstance(tickers, str):
-            tickers = [tickers]
-        panel = self._panels[frequency]
-        if start:
-            start = pd.to_datetime(start)
-            begin = panel.major_axis.searchsorted(start)
-            if length:
-                if len(tickers) == 1:
-                    return panel[tickers[0]][fields].iloc[begin:begin+length]
-                else:
-                    return panel[tickers][:, begin:begin+length, fields]
-
-            else:
-                end = pd.to_datetime(end) if end else pd.to_datetime(self.context.current_time)
-                stop = panel.major_axis.searchsorted(end)
-                if panel.major_axis[stop] <= end:
-                    stop += 1
-                if len(tickers) == 1:
-                    frame = panel[tickers[0]]
-                    return frame.iloc[begin:stop][fields]
-                else:
-                    panel = panel[tickers]
-                    return panel[:, begin:stop, fields]
-        if end:
-            end = pd.to_datetime(end)
-            stop = panel.major_axis.searchsorted(end)
-            if panel.major_axis[stop] <= end:
-                    stop += 1
-            if length:
-                if len(tickers) == 1:
-                    return panel[tickers[0]][fields].iloc[stop-length:stop]
-                else:
-                    return panel[tickers][:, stop-length:stop, fields]
-            elif start:
-                start = pd.to_datetime(start)
-                begin = panel.major_axis.searchsorted(start)
-                if len(tickers) == 1:
-                    frame = panel[tickers[0]]
-                    return frame.iloc[begin:stop][fields]
-                else:
-                    panel = panel[tickers]
-                    return panel[:, begin:stop, fields]
-            else:
-                if len(tickers) == 1:
-                    return panel[tickers[0]][fields].iloc[:stop]
-                else:
-                    return panel[tickers][:, :stop, fields]
-        elif length:
-            end = pd.to_datetime(self.context.current_time)
-            stop = panel.major_axis.searchsorted(end)
-            if panel.major_axis[stop] <= end:
-                    stop += 1
-            if len(tickers) == 1:
-                return panel[tickers[0]][fields].iloc[stop-length:stop]
-            else:
-                return panel[tickers][:, stop-length:stop, fields]
-        else:
-            raise TypeError('history() takes at least one param among start, end and length')
+        return self._panel_data.history(
+            tickers, fields, frequency,
+            start, end, length
+        )
 
     def put_time_events(self, queue):
-        for time_ in self._panels[self._frequency].major_axis:
+        for time_ in self._panel_data.major_axis:
             queue.put(TimeEvent(time_, ''))
         queue.put(ExitEvent())
 
     def put_limit_time(self, queue, topic, **condition):
-        for time_ in self._panels[self._frequency].major_axis:
+        for time_ in self._panel_data.major_axis:
             if self._time_match(time_, **condition):
                 queue.put(TimeEvent(time_, topic))
 

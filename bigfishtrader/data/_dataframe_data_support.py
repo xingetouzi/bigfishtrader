@@ -166,3 +166,141 @@ class PanelDataSupport(AbstractDataSupport):
             self._panel[item] = frame
         else:
             self._others.setdefault(frequency, pd.Panel())[item] = frame
+
+
+class Context(object):
+    @property
+    def current_time(self):
+        return datetime.now()
+
+
+class MultiPanelData(AbstractDataSupport):
+    def __init__(self, context=None):
+        super(MultiPanelData, self).__init__()
+        self._panels = {}
+        self._frequency = None
+        self.major_axis = None
+        self._context = context if context is not None else Context()
+
+    def set_context(self, context):
+        self._context = context
+
+    def init(self, frequency, **ticker_frame):
+        panel = self.insert(frequency, **ticker_frame)
+        self._frequency = frequency
+        self.major_axis = panel.major_axis
+
+    def insert(self, frequency, **ticker_frame):
+        panel = self._panels.get(frequency, None)
+        if panel is not None:
+            for ticker, frame in ticker_frame.items():
+                panel[ticker] = frame
+
+        else:
+            panel = pd.Panel.from_dict(ticker_frame)
+            self._panels[frequency] = panel
+        return panel
+
+    def drop(self, frequency, *tickers):
+        panel = self._panels.get(frequency, None)
+        if panel is not None:
+            if len(tickers):
+                for ticker in tickers:
+                    panel.pop(ticker)
+            else:
+                self._panels.pop(frequency)
+
+    def current(self, tickers, fields=None):
+        panel = self._panels[self._frequency]
+        end = pd.to_datetime(self._context.current_time)
+        index = panel.major_axis.searchsorted(end, 'left')
+        if index >= len(panel.major_axis):
+            index = -1
+
+        if isinstance(tickers, str):
+            frame = panel[tickers]
+            return frame[fields].iloc[index, :]
+        elif isinstance(tickers, list):
+            panel = panel[tickers]
+            return panel.iloc[:, index, :].T[fields]
+        else:
+            raise TypeError('type of tickers must be str or list, not %s' % type(tickers))
+
+    def history(
+            self, tickers, fields, frequency,
+            start=None, end=None, length=None
+    ):
+        if isinstance(tickers, str):
+            tickers = [tickers]
+        panel = self._panels[frequency]
+        if start:
+            start = pd.to_datetime(start)
+            begin = panel.major_axis.searchsorted(start)
+            if length:
+                if len(tickers) == 1:
+                    return panel[tickers[0]][fields].iloc[begin:begin+length]
+                else:
+                    return panel[tickers][:, begin:begin+length, fields]
+
+            else:
+                end = pd.to_datetime(end) if end else pd.to_datetime(self._context.current_time)
+                stop = panel.major_axis.searchsorted(end)
+
+                if stop < len(panel.major_axis):
+                    if panel.major_axis[stop] <= end:
+                        stop += 1
+                else:
+                    stop = None
+
+                if len(tickers) == 1:
+                    frame = panel[tickers[0]]
+                    return frame.iloc[begin:stop][fields]
+                else:
+                    panel = panel[tickers]
+                    return panel[:, begin:stop, fields]
+        if end:
+            end = pd.to_datetime(end)
+            stop = panel.major_axis.searchsorted(end)
+
+            if stop < len(panel.major_axis):
+                if panel.major_axis[stop] <= end:
+                        stop += 1
+            else:
+                stop = None
+
+            if length:
+                if len(tickers) == 1:
+                    return panel[tickers[0]][fields].iloc[stop-length:stop]
+                else:
+                    return panel[tickers][:, stop-length:stop, fields]
+            elif start:
+                start = pd.to_datetime(start)
+                begin = panel.major_axis.searchsorted(start)
+                if len(tickers) == 1:
+                    frame = panel[tickers[0]]
+                    return frame.iloc[begin:stop][fields]
+                else:
+                    panel = panel[tickers]
+                    return panel[:, begin:stop, fields]
+            else:
+                if len(tickers) == 1:
+                    return panel[tickers[0]][fields].iloc[:stop]
+                else:
+                    return panel[tickers][:, :stop, fields]
+        elif length:
+            end = pd.to_datetime(self._context.current_time)
+            stop = panel.major_axis.searchsorted(end)
+            begin = stop - length
+            if stop < len(panel.major_axis):
+                if panel.major_axis[stop] <= end:
+                        stop += 1
+                        begin += 1
+            else:
+                stop = None
+
+            if len(tickers) == 1:
+                return panel[tickers[0]][fields].iloc[begin:stop]
+            else:
+                return panel[tickers][:, begin:stop, fields]
+        else:
+            raise TypeError('history() takes at least one param among start, end and length')

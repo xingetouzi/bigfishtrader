@@ -57,8 +57,8 @@ def run(strategy, db_setting, account_info, trade_type='paper'):
 if __name__ == '__main__':
     import pandas
     setting = {
-        "host": "192.168.1.103",
-        "port": 27018,
+        "host": "localhost",
+        "port": 10001,
         "db": "Oanda",
     }
 

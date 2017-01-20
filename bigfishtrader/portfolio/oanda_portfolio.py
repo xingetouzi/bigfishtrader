@@ -20,10 +20,11 @@ class OandaPortfolio(AbstractPortfolio):
         self._handlers['on_exit'] = Handler(self._trade_stop, EVENTS.EXIT)
 
     def _trade_stop(self, event, kwargs=None):
-        for _id, position in self._positions:
+        for _id, position in self._positions.items():
             current = self.data.current(position.ticker)
-            position.close(current['close'], current['time'], 0)
+            position.close(current['close'], current['datetime'], 0)
             self._cash += position.deposit + position.profit
+            self.closed_positions.append(position)
 
         self.equity = self._cash
 
