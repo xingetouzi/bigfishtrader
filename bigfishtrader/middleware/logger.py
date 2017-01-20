@@ -10,9 +10,11 @@ class LogRecorder(HandlerCompose):
             self._logger = logger
         else:
             self._logger = logging.getLogger(logger)
+        self._count = 0
         self._handlers["on_tick_begin"] = Handler(self.on_tick_begin, EVENTS.TICK, topic="", priority=200)
         self._handlers["on_tick_end"] = Handler(self.on_tick_end, EVENTS.TICK, topic=".", priority=-200)
-        self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-200)
+        self._handlers["on_order_begin"] = Handler(self.on_order_begin, EVENTS.ORDER, topic="", priority=200)
+        self._handlers["on_order_end"] = Handler(self.on_order_end, EVENTS.ORDER, topic=".", priority=-200)
         self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.FILL, topic="", priority=100)
 
     def on_tick_begin(self, event, kwarg=None):
@@ -30,7 +32,12 @@ class LogRecorder(HandlerCompose):
     def on_tick_end(self, event, kwarg=None):
         self._logger.info("Finish handle ticker")
 
-    def on_order(self, event, kwarg=None):
+    def on_order_begin(self, event, kwargs=None):
+        self._count += 1
+        event.local_id = self._count
+        self._logger.info("Order <Ref: %s> has been generated" % event.local_id)
+
+    def on_order_end(self, event, kwarg=None):
         """
 
         Args:
@@ -41,7 +48,7 @@ class LogRecorder(HandlerCompose):
 
         """
 
-        self._logger.info("Order <Ref: %s> has been send at %s" % (event.local_id, event.time.isoformat()))
+        self._logger.info("Order <Ref: %s> has been sent" % event.local_id)
 
     def on_fill(self, event, kwarg=None):
         """
