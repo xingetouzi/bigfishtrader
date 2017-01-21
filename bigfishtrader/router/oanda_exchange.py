@@ -47,7 +47,7 @@ class OandaExchange(AbstractRouter):
         self._orders[event.local_id] = event
 
     def on_time_paper(self, event, kwargs=None):
-        for order in self._orders.values():
+        for order in self._orders.copy().values():
             self.order_handlers[order.order_type](order)
 
     def _put_fill(self, _id, timestamp, ticker, action, quantity, price, commission, **kwargs):

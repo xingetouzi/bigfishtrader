@@ -287,14 +287,14 @@ class MultiPanelData(AbstractDataSupport):
                     return panel[tickers[0]][fields].iloc[:stop]
                 else:
                     return panel[tickers][:, :stop, fields]
-        elif length:
+        else:
             end = pd.to_datetime(self._context.current_time)
             stop = panel.major_axis.searchsorted(end)
-            begin = stop - length
+            begin = stop - length if length else None
             if stop < len(panel.major_axis):
-                if panel.major_axis[stop] <= end:
+                if panel.major_axis[stop] <= end and frequency == self._frequency:
                         stop += 1
-                        begin += 1
+                        begin = begin + 1 if begin else None
             else:
                 stop = None
 
@@ -302,5 +302,5 @@ class MultiPanelData(AbstractDataSupport):
                 return panel[tickers[0]][fields].iloc[begin:stop]
             else:
                 return panel[tickers][:, begin:stop, fields]
-        else:
-            raise TypeError('history() takes at least one param among start, end and length')
+        # else:
+        #     raise TypeError('history() takes at least one param among start, end and length')

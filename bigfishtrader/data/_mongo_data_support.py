@@ -172,7 +172,7 @@ class MultiDataSupport(AbstractDataSupport):
 
         frame = pd.DataFrame(
             list(
-                collection.find(filter_, projection=_BAR_FIELDS_MAP.keys())
+                collection.find(filter_, projection=list(_BAR_FIELDS_MAP.keys()))
             )
         ).rename_axis(_BAR_FIELDS_MAP, axis=1).reindex(columns=_BAR_FIELDS_MAP.values())
         frame.index = frame['datetime']
@@ -185,7 +185,7 @@ class MultiDataSupport(AbstractDataSupport):
         #     panel.pop(ticker)
         self._panel_data.drop(frequency, *tickers)
 
-    def current(self, tickers, fields=_BAR_FIELDS_MAP.values()):
+    def current(self, tickers, fields=list(_BAR_FIELDS_MAP.values())):
         # panel = self._panels[self._frequency]
         # end = pd.to_datetime(self.context.current_time)
         # index = panel.major_axis.searchsorted(end, 'left')

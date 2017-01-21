@@ -28,7 +28,7 @@ class Position(object):
     """
 
 
-    __slots__ = ["identifier", "ticker", "open_price", "open_time", "price", "quantity", "profit", "deposit", "close_price",
+    __slots__ = ["identifier", "ticker", "open_price", "open_time", "price", "quantity", "deposit", "close_price",
                  "close_time", "commission", "lever", "deposit_rate", "position_id"]
 
     def __init__(self, ticker, price, quantity, open_time, commission=0, lever=1, deposit_rate=1, order_id=None):
