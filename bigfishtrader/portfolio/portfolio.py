@@ -4,6 +4,8 @@ from dictproxyhack import dictproxy
 from .position import Position
 from ..exception import QuantityException
 from bigfishtrader.portfolio.base import AbstractPortfolio
+from bigfishtrader.engine.handler import Handler
+from bigfishtrader.event import EVENTS
 
 
 class Portfolio(AbstractPortfolio):
@@ -22,7 +24,7 @@ class Portfolio(AbstractPortfolio):
         __time(float): record current time
     """
 
-    def __init__(self, init_cash=100000):
+    def __init__(self, data, init_cash=100000):
         super(Portfolio, self).__init__()
         self.init_cash = init_cash
         self._id_ref = 0
@@ -31,8 +33,12 @@ class Portfolio(AbstractPortfolio):
         self._orders = {}
         self.closed_positions = []
         self.history = []
+        self._data = data
         self._time = None
         self.__position_ref = 0
+
+        self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=100)
+        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, priority=100)
 
     @property
     def _next_position_id(self):
@@ -61,6 +67,26 @@ class Portfolio(AbstractPortfolio):
         for position in self._positions.values():
             equity += position.deposit + position.profit
         return equity
+
+    def on_fill(self, event, kwargs=None):
+        if event.action:
+            self.open_position(
+                event.ticker, event.price, event.quantity,
+                event.time, event.commission,
+                lever=event.lever, deposit_rate=event.deposit_rate
+            )
+        else:
+            self.close_position(
+                event.ticker, event.price, event.quantity,
+                event.time, event.commission
+            )
+
+    def on_time(self, event, kwargs=None):
+        self._time = event.time
+        for ticker, position in self._positions.items():
+            current = self._data.current(ticker)
+            position.update(current['close'])
+        self.log()
 
     def update_position(self, timestamp, ticker, price):
         """
@@ -135,7 +161,6 @@ class Portfolio(AbstractPortfolio):
         """
         position = Position(ticker, price, quantity, open_time, commission, **kwargs)
         self._cash -= (position.deposit + commission)
-
 
         if self._cash < 0:
             return None

@@ -1,6 +1,7 @@
 from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import FillEvent, EVENTS
 from bigfishtrader.router.base import AbstractRouter
+from dictproxyhack import dictproxy
 
 class DummyExchange(AbstractRouter):
     """
@@ -9,7 +10,7 @@ class DummyExchange(AbstractRouter):
     generate FillEvent which then be put into the event_queue
     """
 
-    def __init__(self, event_queue, exchange_name=None, **ticker_information):
+    def __init__(self, event_queue, data, exchange_name=None, **ticker_information):
         """
         :param event_queue:
         :param exchange_name:
@@ -20,10 +21,12 @@ class DummyExchange(AbstractRouter):
         self.event_queue = event_queue
         self.ticker_info = ticker_information
         self.exchange_name = exchange_name
+        self._data = data
         self.orders = {}
         self._handlers = {
             "on_bar": Handler(self.on_bar, EVENTS.BAR, topic="", priority=100),
-            "on_order": Handler(self.on_order, EVENTS.ORDER, topic=".", priority=0)
+            "on_order": Handler(self.on_order, EVENTS.ORDER, topic=".", priority=0),
+            "on_time": Handler(self.on_time, EVENTS.TIME, priority=100)
         }
         self.handle_order = {
             EVENTS.ORDER: self._fill_order,
@@ -49,7 +52,6 @@ class DummyExchange(AbstractRouter):
         )
         self.orders.pop(order.local_id, None)
         self.event_queue.put(fill)
-        pass
 
     def on_cancel(self, event, kwargs=None):
         """
@@ -62,7 +64,7 @@ class DummyExchange(AbstractRouter):
                 self.orders.pop(order.loacl_id, None)
 
     def _fill_order(self, order, bar):
-        self._put_fill(order, bar.open, bar.time)
+        self._put_fill(order, bar.open, bar.datetime)
 
     def _fill_limit(self, order, bar):
         if order.action:
@@ -77,20 +79,21 @@ class DummyExchange(AbstractRouter):
             self._limit_open(order, bar)
 
     def _limit_open(self, order, bar):
+
         if order.quantity > 0 and bar.low < order.price:
             price = order.price if bar.open >= order.price else bar.open
-            self._put_fill(order, price, bar.time)
+            self._put_fill(order, price, bar.datetime)
         elif order.quantity < 0 and bar.high > order.price:
             price = order.price if bar.open <= order.price else bar.open
-            self._put_fill(order, price, bar.time)
+            self._put_fill(order, price, bar.datetime)
 
     def _stop_open(self, order, bar):
         if order.quantity > 0 and bar.high > order.price:
             price = order.price if bar.open <= order.price else bar.open
-            self._put_fill(order, price, bar.time)
+            self._put_fill(order, price, bar.datetime)
         elif order.quantity < 0 and bar.low < order.price:
             price = order.price if bar.open >= order.price else bar.open
-            self._put_fill(order, price, bar.time)
+            self._put_fill(order, price, bar.datetime)
 
     def on_order(self, event, kwargs=None):
         """
@@ -100,7 +103,6 @@ class DummyExchange(AbstractRouter):
         :return:
         """
         self.orders[event.local_id] = event
-        pass
 
     def on_bar(self, bar_event, kwargs=None):
         """
@@ -111,5 +113,9 @@ class DummyExchange(AbstractRouter):
         for order in self.orders.values():
             self.handle_order[order.order_type](order, bar_event)
 
+    def on_time(self, event, kwargs=None):
+        for _id, order in self.orders.items():
+            self.handle_order[order.order_type](order, self._data.current(order.ticker))
+
     def get_orders(self):
-        return self.orders.values()
+        return dictproxy(self.orders)

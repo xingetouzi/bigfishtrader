@@ -9,6 +9,8 @@ class APIs(HandlerCompose):
         self.event_queue = queue
         self.data = data
         self.portfolio = portfolio
+        if isinstance(portfolio, dict):
+            self.portfolios = portfolio
         self.order = router
         self.context = context
         self._engine = engine
@@ -23,6 +25,13 @@ class APIs(HandlerCompose):
     def next_id(self):
         self.__id += 1
         return self.__id
+
+    def get_portfolio(self, name=None):
+        if name:
+            return self.portfolios[name]
+        else:
+            return self.portfolio
+
 
 
 def initialize_operation(queue, data, portfolio, engine, router, context=None):
@@ -133,8 +142,8 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
         else:
             print('available_quantity == 0 , unable to close position')
 
-    elif ticker and quantity and price:
-        available_quantity = get_available_security(position.ticker)[ticker]
+    elif ticker and quantity:
+        available_quantity = get_available_security(ticker)[ticker]
         if quantity > available_quantity:
             print('quantity(%s) > available_quantity(%s) , unable to close position'
                   % (quantity, available_quantity))
@@ -143,7 +152,7 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
             kwargs['local_id'] = api.next_id()
         api.event_queue.put(
             OrderEvent(
-                api.data.current_time,
+                api.context.current_time,
                 ticker, CLOSE_ORDER, quantity, price,
                 order_type=order_type,
                 **kwargs
@@ -319,3 +328,7 @@ def register_time_limit(function, topic, **limit):
     api.register_handler(function, EVENTS.TIME, topic)
 
     api.data.put_limit_time(api.event_queue, topic, **limit)
+
+
+def get_portfolio(name=None):
+    return api.get_portfolio(name)
