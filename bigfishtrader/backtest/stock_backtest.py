@@ -40,4 +40,7 @@ def back_test(strategy, **params):
     engine.join()
     engine.stop()
 
+    for ticker, position in portfolio.positions.items():
+        portfolio.close_position(ticker, data.current(ticker)['close'], position.quantity, context.current_time)
+
     return portfolio
