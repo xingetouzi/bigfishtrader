@@ -35,7 +35,7 @@ class Event(object):
         self.priority = priority
         self.topic = topic
         self.time = timestamp
-        self.local_time = nanotime.now()
+        self.local_time = datetime.now()
 
     def to_dict(self):
         return {field: getattr(self, field) for field in self.__slots__}
@@ -139,7 +139,7 @@ class CancelEvent(Event):
     __slots__ = ["conditions"]
 
     def __init__(self, topic='', **conditions):
-        super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, nanotime.now(), topic)
+        super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, datetime.now(), topic)
         self.conditions = conditions
 
 
@@ -192,7 +192,7 @@ class ExitEvent(Event):
     __slots__ = []
 
     def __init__(self):
-        super(ExitEvent, self).__init__(EVENTS.EXIT, 999, nanotime.now())
+        super(ExitEvent, self).__init__(EVENTS.EXIT, 999, datetime.now())
 
 
 if __name__ == '__main__':

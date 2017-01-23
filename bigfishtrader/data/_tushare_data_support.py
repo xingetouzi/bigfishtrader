@@ -41,10 +41,10 @@ class TushareDataSupport(AbstractDataSupport):
         freq = frequency[:-3] if 'min' in frequency else frequency
 
         if isinstance(tickers, str):
-            frames[tickers] = self._subscribe(tickers, freq, start, end)
+            frames[tickers] = self._subscribe(tickers, freq, start, end, **kwargs)
         elif isinstance(tickers, list):
             for ticker in tickers:
-                frames[ticker] = self._subscribe(ticker, freq, start, end)
+                frames[ticker] = self._subscribe(ticker, freq, start, end, **kwargs)
         else:
             raise TypeError('Type of tickers must be str or list, not %s' % type(tickers))
 
@@ -54,10 +54,15 @@ class TushareDataSupport(AbstractDataSupport):
             return frames
 
     def _subscribe(self, ticker, frequency, start=None, end=None, **kwargs):
-        frame = tushare.get_k_data(ticker, start, end, frequency, **kwargs)
+        source = kwargs.pop('source', 'tushare')
+
+        if source == 'csv':
+            frame = self.from_csv(ticker, frequency, **kwargs)
+        else:
+            frame = self.from_tushare(ticker, frequency, start, end, **kwargs)
 
         format_ = '%Y-%m-%d'
-        if frequency.isdigit():
+        if len(frame['date'].values[-1]) > 11:
             format_ = ' '.join((format_, '%H:%M'))
 
         frame['datetime'] = pandas.to_datetime(
@@ -66,6 +71,26 @@ class TushareDataSupport(AbstractDataSupport):
         )
         frame.index = frame['datetime']
 
+        if source == "csv":
+            if start:
+                frame = frame[frame.index >= start]
+            if end:
+                frame = frame[frame.index <= end]
+
+        return frame
+
+    @staticmethod
+    def from_csv(ticker, frequency, **kwargs):
+        path = kwargs.pop('path', '')
+        frame = pandas.read_csv(path+'_'.join((ticker, frequency))+'.csv')
+        return frame
+
+    @staticmethod
+    def from_tushare(ticker, frequency, start=None, end=None, **kwargs):
+        save = kwargs.pop('save', False)
+        frame = tushare.get_k_data(ticker, start, end, frequency, **kwargs)
+        if save:
+            frame.to_csv('_'.join((ticker, frequency))+'.csv', index=False,)
         return frame
 
     def current(self, tickers, fields=FIELDS):
@@ -128,18 +153,19 @@ if __name__ == '__main__':
     tsdata.init(['000001', '000002'], 'D', '2016-01-01')
     tsdata.subscribe(['000001', '000002'], 'W', '2016-01-01')
 
-    print('--------- test current() ---------')
-    print(tsdata.current(['000001', '000002'], ['open', 'close']))
-    print(tsdata.current('000002', ['open', 'high', 'low', 'close']))
+    # print('--------- test current() ---------')
+    # print(tsdata.current(['000001', '000002'], ['open', 'close']))
+    # print(tsdata.current('000002', ['open', 'high', 'low', 'close']))
+    #
+    # print('------------------ test history() ------------------')
+    # print(tsdata.history('000001', 'D', start=datetime(2016, 12, 15), end=datetime(2017, 1, 15)))
+    # print(tsdata.history('000001', 'D', start=datetime(2017, 1, 1)))
+    # print(tsdata.history('000001', 'D', end=datetime(2016, 1, 15)))
+    # print(tsdata.history('000001', 'D', start=datetime(2017, 1, 1), length=3))
+    # print(tsdata.history('000001', 'D', end=datetime(2017, 1, 1), length=3))
+    # print(tsdata.history('000001', 'D', length=3))
+    # print(tsdata.history(['000001', '000002'], 'D', length=3))
+    # print(tsdata.history('000001', 'W', start=datetime(2016, 12, 15), end=datetime(2017, 1, 15)))
+    # print(tsdata.history(['000001', '000002'], 'W', start=datetime(2016, 12, 15), end=datetime(2017, 1, 15)))
+    # print(tsdata.history('000001', 'D'))
 
-    print('------------------ test history() ------------------')
-    print(tsdata.history('000001', 'D', start=datetime(2016, 12, 15), end=datetime(2017, 1, 15)))
-    print(tsdata.history('000001', 'D', start=datetime(2017, 1, 1)))
-    print(tsdata.history('000001', 'D', end=datetime(2016, 1, 15)))
-    print(tsdata.history('000001', 'D', start=datetime(2017, 1, 1), length=3))
-    print(tsdata.history('000001', 'D', end=datetime(2017, 1, 1), length=3))
-    print(tsdata.history('000001', 'D', length=3))
-    print(tsdata.history(['000001', '000002'], 'D', length=3))
-    print(tsdata.history('000001', 'W', start=datetime(2016, 12, 15), end=datetime(2017, 1, 15)))
-    print(tsdata.history(['000001', '000002'], 'W', start=datetime(2016, 12, 15), end=datetime(2017, 1, 15)))
-    print(tsdata.history('000001', 'D'))

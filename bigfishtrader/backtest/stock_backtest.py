@@ -5,7 +5,10 @@ from bigfishtrader.router.exchange import DummyExchange
 from bigfishtrader.data.support import TushareDataSupport
 from bigfishtrader.data.support import MultiPanelData
 from bigfishtrader.event import EVENTS
-from Queue import PriorityQueue
+try:
+    from Queue import PriorityQueue
+except ImportError:
+    from queue import PriorityQueue
 
 
 def back_test(strategy, **params):
@@ -40,7 +43,7 @@ def back_test(strategy, **params):
     engine.join()
     engine.stop()
 
-    for ticker, position in portfolio.positions.items():
+    for ticker, position in portfolio.positions.copy().items():
         portfolio.close_position(ticker, data.current(ticker)['close'], position.quantity, context.current_time)
 
     return portfolio

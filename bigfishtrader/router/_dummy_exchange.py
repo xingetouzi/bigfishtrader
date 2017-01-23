@@ -114,7 +114,7 @@ class DummyExchange(AbstractRouter):
             self.handle_order[order.order_type](order, bar_event)
 
     def on_time(self, event, kwargs=None):
-        for _id, order in self.orders.items():
+        for _id, order in self.orders.copy().items():
             self.handle_order[order.order_type](order, self._data.current(order.ticker))
 
     def get_orders(self):
