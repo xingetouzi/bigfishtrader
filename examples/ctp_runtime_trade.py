@@ -7,13 +7,14 @@ import time
 from datetime import datetime, timedelta
 
 import oanda_strategy as strategy
+from ctpgateway.myMainEngine import TradeAccount
 from bigfishtrader.data.support import MultiDataSupport
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.event import EVENTS, OrderEvent, OPEN_ORDER, CLOSE_ORDER
 from bigfishtrader.middleware.logger import LogRecorder
 from bigfishtrader.portfolio.context import Context
 from bigfishtrader.portfolio.handlers import PortfolioHandler
-from bigfishtrader.router.oanda._oanda import BFOandaApi, OandaRouter
+from bigfishtrader.router import VnCtpRouter
 
 try:
     from Queue import PriorityQueue
@@ -31,12 +32,12 @@ class MyFormatter(logging.Formatter):
             s = datetime.now().isoformat()
         return s
 
-
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("trade")
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler()
 handler.setLevel(logging.INFO)
-file_handler = logging.FileHandler(filename="oanda.log", encoding="utf-8", mode="w")
+file_handler = logging.FileHandler(filename="ctp.log", encoding="utf-8", mode="w")
 file_handler.setLevel(logging.INFO)
 formatter = MyFormatter("%(asctime)-15s %(levelname)-8s %(message)s", datefmt=None)
 handler.setFormatter(formatter)
@@ -49,7 +50,7 @@ po = 0
 
 
 def run(db_setting, account_info):
-    symbol = "EUR_USD"
+    symbol = "IF1702"
     event_queue = PriorityQueue()
     engine = Engine(event_queue)
 
@@ -61,16 +62,15 @@ def run(db_setting, account_info):
     log_recorder = LogRecorder("trade")
     log_recorder.register(engine)
 
-    oanda_api = BFOandaApi(event_queue, logger="trade")
-    oanda_router = OandaRouter(oanda_api=oanda_api)
-    oanda_router.register(engine)
+    account = TradeAccount("068709", "520lmj", "SIMNOW")
+    ctp_router = VnCtpRouter(event_queue, account)
 
     context = Context()
     context.register(engine)
 
     data_support = MultiDataSupport(context, **db_setting)
     data_support.register(engine)
-    strategy.initialize_operation(event_queue, data_support, portfolio_handler.portfolio, engine, oanda_router)
+    strategy.initialize_operation(event_queue, data_support, portfolio_handler.portfolio, engine, ctp_router)
     strategy.initialize(context, data_support)
 
     # data_support.put_time_events(event_queue)
@@ -96,7 +96,7 @@ def run(db_setting, account_info):
     def on_tick(event, kwargs=None):
         global last_trade, po
 
-        if last_trade is None or event.time - last_trade >= timedelta(milliseconds=300):
+        if last_trade is None or event.time - last_trade >= timedelta(milliseconds=1000):
             positions = strategy.get_positions()
             if len(positions) == 0 and po == 0:
                 last_trade = event.time
@@ -105,7 +105,7 @@ def run(db_setting, account_info):
                     datetime.now(),
                     symbol,
                     OPEN_ORDER,
-                    1000,
+                    1,
                 )
                 event_queue.put(
                     open_event
@@ -117,7 +117,7 @@ def run(db_setting, account_info):
                     datetime.now(),
                     symbol,
                     CLOSE_ORDER,
-                    1000,
+                    1,
                 )
                 close_event.exchange_id = positions[symbol].ticket
                 event_queue.put(
@@ -125,19 +125,25 @@ def run(db_setting, account_info):
                 )
 
     def on_fill(event, kwargs=None):
-        print(event)
+        print(event.to_dict())
 
     # register handlers
     engine.register(on_time, EVENTS.TIME, '.', priority=90)
     engine.register(on_test, EVENTS.TIME, '.', priority=90)
-    # engine.register(on_tick, EVENTS.TICK, '.', priority=0)
+    engine.register(on_tick, EVENTS.TICK, '.', priority=0)
     # engine.register(partial(on_tick_close, id_="10610756920"), EVENTS.TICK, ".", priority=0)
     engine.register(on_fill, EVENTS.FILL, '.', priority=100)
     # start engine
     for item in engine._stream_manager.get_iter(EVENTS.ORDER, topic=""):
         print(item)
     engine.start()
-    oanda_api.init("practice", str(account_info["access_token"]), account_info["account_id"], symbols=[symbol])
+    ctp_router.register(engine)
+
+    class SubReq(object):
+        def __init__(self, s=None):
+            self.symbol = s
+
+    ctp_router._main_engine.subscribe(SubReq(symbol))
     engine.join()
     engine.stop()
 

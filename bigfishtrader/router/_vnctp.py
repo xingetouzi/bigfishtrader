@@ -1,21 +1,27 @@
 import time
 from weakref import proxy
+from datetime import datetime
 
 from ctpgateway.myMainEngine import MyMainEngine
+from ctpgateway.eventType import EVENT_TICK
 from ctpgateway.vtConstant import PRICETYPE_MARKETPRICE_, DIRECTION_LONG, DIRECTION_SHORT, OFFSET_OPEN, OFFSET_CLOSE
 from ctpgateway.vtGateway import VtOrderReq
 
 from bigfishtrader.engine.handler import HandlerCompose, Handler
-from bigfishtrader.event import EVENTS, OPEN_ORDER, CLOSE_ORDER, FillEvent
+from bigfishtrader.event import EVENTS, OPEN_ORDER, CLOSE_ORDER, FillEvent, TickEvent
 
 
 class VnCtpMainEngine(MyMainEngine):
     def __init__(self, router, user_id, account):
         super(VnCtpMainEngine, self).__init__(user_id, account)
+        self.eventEngine.register(EVENT_TICK, self.on_tick)
         self.router = proxy(router)
 
     def on_all_trade(self, order):
         self.router.on_fill(order)
+
+    def on_tick(self, event):
+        self.router.on_tick(event.dict_["data"])
 
 
 class VnCtpRouter(HandlerCompose):
@@ -40,9 +46,10 @@ class VnCtpRouter(HandlerCompose):
         order_req.priceType = PRICETYPE_MARKETPRICE_  # TODO support limit order
         order_req.volume = abs(event.quantity)
         order_req.direction = DIRECTION_SHORT if (event.quantity < 0 and event.action == OPEN_ORDER) \
-            or (event.quantity > 0 and event.action == CLOSE_ORDER) else DIRECTION_LONG
+                                                 or (
+                                                     event.quantity > 0 and event.action == CLOSE_ORDER) else DIRECTION_LONG
         order_req.offset = OFFSET_OPEN if event.action == OPEN_ORDER else OFFSET_CLOSE
-        event.local_id = self._main_engine.sendOrder(order_req)
+        event.exchange_id = self._main_engine.sendOrder(order_req)
 
     def register(self, engine):
         self._main_engine.start()
@@ -59,12 +66,29 @@ class VnCtpRouter(HandlerCompose):
         :type vt_order: ctpgateway.vtGateway.VtOrderData
         :return:
         """
-        print(vt_order.to_dict())
+        t_str = datetime.now().strftime("%Y%m%d") + vt_order.orderTime
+        dt = datetime.strptime(t_str, "%Y%m%d%H:%M:%S")
         fill_event = FillEvent(
-            vt_order.orderTime,
+            dt,
             vt_order.symbol,
             OPEN_ORDER if vt_order.offset == OFFSET_OPEN else CLOSE_ORDER,
             vt_order.tradedVolume,
             vt_order.price,
         )
+        fill_event.exchange_id = vt_order.orderID
         self._event_queue.put(fill_event)
+
+    def on_tick(self, vt_ticker):
+        """
+
+        Args:
+            vt_ticker(ctpgateway.vtGateway.VtTickData):
+
+        Returns:
+            pass
+
+        """
+        # TODO other attributes
+        timestamp = datetime.strptime(vt_ticker.date + vt_ticker.time, "%Y%m%d%H:%M:%S.%f")
+        tick = TickEvent(vt_ticker.symbol, timestamp, 0, 0)
+        self._event_queue.put(tick)

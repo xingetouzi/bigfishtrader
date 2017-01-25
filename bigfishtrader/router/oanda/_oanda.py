@@ -1,7 +1,7 @@
 # encoding:utf-8
 
-import logging
 import json
+import logging
 from datetime import datetime, timedelta
 
 import pytz
@@ -9,7 +9,7 @@ import pytz
 from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import EVENTS, TickEvent, OPEN_ORDER, CLOSE_ORDER, FillEvent
 from bigfishtrader.router.base import AbstractRouter
-from bigfishtrader.vnoanda import OandaApi, FUNCTIONCODE_STREAMPRICES, FUNCTIONCODE_GETINSTRUMENTS
+from bigfishtrader.router.oanda.vnoanda import OandaApi, FUNCTIONCODE_STREAMPRICES, FUNCTIONCODE_GETINSTRUMENTS
 
 
 class OandaRouter(AbstractRouter):
@@ -62,6 +62,13 @@ class OandaRouter(AbstractRouter):
 
 
 class BFOandaApi(OandaApi):
+    """
+    inherit from vnoanda.OanApi
+
+    Args:
+        event_queue: event_queue to put event
+        logger: logger name
+    """
     def __init__(self, event_queue, logger=""):
         super(BFOandaApi, self).__init__()
         self.event_queue = event_queue
@@ -100,12 +107,62 @@ class BFOandaApi(OandaApi):
             #     print(self._timedelta)
 
     def onSendOrder(self, data, reqID):
+        """
+        callback of SendOrder's response
+        response examples: ::
+
+            {
+                u'price': 1.06345,
+                u'tradeReduced': {
+
+                },
+                u'instrument': u'EUR_USD',
+                u'tradesClosed': [
+
+                ],
+                u'time': u'2017-01-19T18: 52: 55.000000Z',
+                u'tradeOpened': {
+                    u'stopLoss': 0,
+                    u'takeProfit': 0,
+                    u'side': u'buy',
+                    u'trailingStop': 0,
+                    u'units': 1000,
+                    u'id': 10610751977L
+                }
+            }
+
+        Args:
+            data(dct): response body
+            reqID(int): request identity
+        Returns:
+            None
+        """
         print("PLACED")
         print(data, reqID)
         self._logger.info("Order <Ref: %s, ID: %s> has been placed at %s" % (
             reqID, data["tradeOpened"]["id"], self._get_datetime(data["time"]).isoformat()))
 
     def onCloseTrade(self, data, reqID):
+        """
+        callback of CloseTrade's response
+        response examples: ::
+
+            {
+                u'profit': 0.38,
+                u'price': 1.06274,
+                u'side': u'buy',
+                u'instrument': u'EUR_USD',
+                u'time': u'2017-01-19T18: 39: 00.000000Z',
+                u'id': 10610744365L
+            }
+
+        Args:
+            data(dct): response body
+            reqID: response id
+
+        Returns:
+            None
+        """
         print("PLACED")
         print(data, reqID)
         self._logger.info(
@@ -113,8 +170,35 @@ class BFOandaApi(OandaApi):
                 reqID, data["id"], self._get_datetime(data["time"]).isoformat()))
 
     def onEvent(self, data):
-        print("FILLED")
-        print(data)
+        """
+        callback of Oanda's event stream, handle data such as order status report,
+        contains heartbeat
+        response examples:
+            + type: "TradeClose": ::
+
+                {
+                    u'transaction': {
+                        u'tradeId': 10610704020L,
+                        u'accountBalance': 100000.3793,
+                        u'price': 1.06274,
+                        u'side': u'sell',
+                        u'instrument': u'EUR_USD',
+                        u'interest': -0.0007,
+                        u'time': u'2017-01-19T18: 39: 00.000000Z',
+                        u'units': 1000,
+                        u'type': u'TRADE_CLOSE',
+                        u'id': 10610744365L,
+                        u'pl': 0.38,
+                        u'accountId': 7370328
+                    }
+                }
+
+        Args:
+            data(dct): response body
+
+        Returns:
+            None
+        """
         if "transaction" in data:
             transaction = data["transaction"]
             if transaction["type"] == "MARKET_ORDER_CREATE":
@@ -137,6 +221,9 @@ class BFOandaApi(OandaApi):
                 )
                 event.exchange_id = str(transaction["id"])
                 self.event_queue.put(event)
+        elif "heartbeat" in data:
+            heartbeat = data["heartbeat"]
+            self._logger.info("Heartbeat at %s" % heartbeat["time"])
 
     def processStreamPrices(self):
         if self._symbols is None:
