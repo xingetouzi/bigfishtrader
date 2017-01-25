@@ -1,10 +1,13 @@
 import time
+import json
+import logging
 from weakref import proxy
 from datetime import datetime
 
 from ctpgateway.myMainEngine import MyMainEngine
 from ctpgateway.eventType import EVENT_TICK
-from ctpgateway.vtConstant import PRICETYPE_MARKETPRICE_, DIRECTION_LONG, DIRECTION_SHORT, OFFSET_OPEN, OFFSET_CLOSE
+from ctpgateway.vtConstant import PRICETYPE_MARKETPRICE_, DIRECTION_LONG, DIRECTION_SHORT, OFFSET_OPEN, OFFSET_CLOSE, \
+    STATUS_ALLTRADED, STATUS_UNKNOWN
 from ctpgateway.vtGateway import VtOrderReq
 
 from bigfishtrader.engine.handler import HandlerCompose, Handler
@@ -16,6 +19,21 @@ class VnCtpMainEngine(MyMainEngine):
         super(VnCtpMainEngine, self).__init__(user_id, account)
         self.eventEngine.register(EVENT_TICK, self.on_tick)
         self.router = proxy(router)
+
+    def onOrder(self, event):
+        data = event.dict_["data"]
+        if (data.frontID == long(self.gateway.tdApi.frontID)) and (
+                    data.sessionID == long(self.gateway.tdApi.sessionID)):
+            if data.vtOrderID in self.orders:
+                if data.status != STATUS_UNKNOWN:
+                    self.logger.info(u"Order:%s" % json.dumps(data.to_dict()))
+                    if data.status == STATUS_ALLTRADED:
+                        self.orders.remove(data.vtOrderID)
+                        self.on_all_trade(data)
+                else:
+                    t_str = datetime.now().strftime("%Y-%m-%dT") + data.orderTime
+                    logging.getLogger("trade").info("Order <Ref: %s, ID: %s> has been placed at %s" %
+                                                    (data.orderID, data.orderID, t_str))
 
     def on_all_trade(self, order):
         self.router.on_fill(order)
