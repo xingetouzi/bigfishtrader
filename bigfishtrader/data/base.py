@@ -32,7 +32,7 @@ class AbstractDataSupport(HandlerCompose):
         raise NotImplementedError("should implement instance()")
 
     def history(
-            self, tickers, fields, frequency,
+            self, tickers, frequency, fields=None,
             start=None, end=None, length=None
     ):
         """

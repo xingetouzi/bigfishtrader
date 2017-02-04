@@ -95,7 +95,7 @@ class MongoDataSupport(AbstractDataSupport):
             self.fetch_data()
         return self._ds.instance(tickers, fields, frequency, start=start, end=end, length=length)
 
-    def history(self, tickers, fields, frequency, start=None, end=None, length=None):
+    def history(self, tickers, frequency, fields=None, start=None, end=None, length=None):
         if not self._ds:
             self.fetch_data()
         return self._ds.history(tickers, fields, frequency, start=start, end=end, length=length)
@@ -133,79 +133,131 @@ class MongoDataSupport(AbstractDataSupport):
 
 
 class MultiDataSupport(AbstractDataSupport):
-    def __init__(self, context, db="admin", **info):
+    def __init__(self, context, **info):
         super(MultiDataSupport, self).__init__()
-        self._db = db
+        self._db = info.pop('db', None)
         self._client = connect(**info)
         self._panel_data = MultiPanelData(context)
         self._initialized = False
+        self.tickers = {}
+        self._BAR_FIELD_MAP = OrderedDict([
+            ("datetime", "datetime"),
+            ("openMid", "open"),
+            ("highMid", "high"),
+            ("lowMid", "low"),
+            ("closeMid", "close"),
+            ("volume", "volume"),
+        ])
 
-    def init(self, tickers, frequency, start=None, end=None):
+    def init(self, tickers, frequency, start=None, end=None, ticker_type=None):
+        """
+        初始化，包括设置主品种和时间周期
+
+        :param tickers: str or list
+        :param frequency: str
+        :param start: datetime
+        :param end: datetime
+        :param ticker_type: str, MongoDB database name
+        :return:
+        """
+
         self._initialized = False
-        self.subscribe(tickers, frequency, start, end)
+        self._db = ticker_type
+        self.subscribe(tickers, frequency, start, end, ticker_type)
         self._initialized = True
 
-    def subscribe(self, tickers, frequency, start=None, end=None):
-        if isinstance(tickers, str):
-            tickers = [tickers]
+    def subscribe(self, tickers, frequency, start=None, end=None, ticker_type=None):
+        """
+        回测时获取数据，如果调用时未初始化，会将此次调用视为初始化
+
+        :param tickers: str or list
+        :param frequency: str
+        :param start: datetime
+        :param end: datetime
+        :param ticker_type: str, MongoDB database name
+        :return:
+        """
 
         frames = {}
+
+        if isinstance(tickers, str):
+            tickers = [tickers]
         for ticker in tickers:
-            frames[ticker] = self._subscribe(ticker, frequency, start, end)
+            frames[ticker] = self._subscribe(ticker, frequency, start, end, ticker_type)
 
         if self._initialized:
             self._panel_data.insert(frequency, **frames)
         else:
             self._panel_data.init(frequency, **frames)
+            self._db = ticker_type
+            self._initialized = True
 
     def _subscribe(self, ticker, frequency, start=None, end=None, ticker_type=None):
+        """
+        被subscribe()调用，获取其请求的数据
+
+        :param ticker: str
+        :param frequency: str
+        :param start: datetime
+        :param end: datetime
+        :param ticker_type: str, MongoDB database name
+        :return:
+        """
+
         if ticker_type is None:
             ticker_type = self._db
-        collection = self._client[ticker_type]['.'.join((ticker,frequency))]
-        dt_filter = {}
-        if start:
-            dt_filter['$gte'] = start
-        if end:
-            dt_filter['$lte'] = end
-
-        filter_ = {'datetime': dt_filter} if len(dt_filter) else {}
-
-        frame = pd.DataFrame(
-            list(
-                collection.find(filter_, projection=list(_BAR_FIELDS_MAP.keys()))
-            )
-        ).rename_axis(_BAR_FIELDS_MAP, axis=1).reindex(columns=_BAR_FIELDS_MAP.values())
-        frame.index = frame['datetime']
+        frame = self.history_db(ticker, frequency, start=start, end=end, ticker_type=ticker_type)
+        self.tickers.setdefault(ticker, []).append(frequency)
         return frame
 
     def cancel_subscribe(self, tickers, frequency):
-        # panel = self._panels[frequency]
-        # tickers = [tickers] if isinstance(tickers, str) else tickers
-        # for ticker in tickers:
-        #     panel.pop(ticker)
-        self._panel_data.drop(frequency, *tickers)
+        if isinstance(tickers, str):
+            self._panel_data.drop(frequency, tickers)
+            self.tickers[frequency].remove(tickers)
+        elif isinstance(tickers, list):
+            self._panel_data.drop(frequency, *tickers)
+            f = self.tickers[frequency]
+            for ticker in tickers:
+                f.remove(ticker)
 
-    def current(self, tickers, fields=list(_BAR_FIELDS_MAP.values())):
-        # panel = self._panels[self._frequency]
-        # end = pd.to_datetime(self.context.current_time)
-        # index = panel.major_axis.searchsorted(end, 'left')
-        #
-        # if isinstance(tickers, str):
-        #     frame = panel[tickers]
-        #     return frame[fields].iloc[index]
-        # elif isinstance(tickers, Iterable):
-        #     panel = panel[tickers]
-        #     return panel.iloc[:, index, :]
+    def current(self, tickers, fields=None):
+        """
+        获取最新数据
+
+        :param tickers: str or list
+        :param fields: str or list, [close, open, high, low, volume]
+        :return: float, series or DataFrame
+        """
         return self._panel_data.current(tickers, fields)
 
     def history(
-            self, tickers, fields, frequency,
+            self, tickers, frequency, fields=None,
             start=None, end=None, length=None
     ):
-        return self._panel_data.history(
-            tickers, fields, frequency,
-            start, end, length
-        )
+        """
+        获取历史数据
+
+        :param tickers: str or list
+        :param frequency: str
+        :param fields: str or list, [close, open, high, low, volume]
+        :param start: datetime
+        :param end: datetime
+        :param length: int
+        :return: float, series or DataFrame
+        """
+        try:
+            return self._panel_data.history(
+                tickers, frequency, fields,
+                start, end, length
+            )
+        except KeyError:
+            if isinstance(tickers, str):
+                return self.history_db(tickers, frequency, fields, start, end, length)
+            elif isinstance(tickers, list):
+                frames = {}
+                for ticker in tickers:
+                    frames[ticker] = self.history_db(ticker, frequency, fields, start, end, length)
+                return pd.Panel.from_dict(frames)
 
     def put_time_events(self, queue):
         for time_ in self._panel_data.major_axis:
@@ -225,8 +277,21 @@ class MultiDataSupport(AbstractDataSupport):
 
         return True
 
-    def data_base(self, ticker, frequency, field=None, start=None, end=None, ticker_type=None):
+    def history_db(self, ticker, frequency, fields=None, start=None, end=None, length=None, ticker_type=None):
+        """
+        获取MongoDB中的历史行情数据，该方法被history()和_subscribe()调用，也可由用户直接调用。
+
+        :param ticker: str
+        :param frequency: str
+        :param fields: str or list, [close, open, high, low, volume]
+        :param start: datetime
+        :param end: datetime
+        :param length: int
+        :param ticker_type:
+        :return:
+        """
         dt_filter = {}
+        col_name = '.'.join((ticker, frequency))
         if start:
             dt_filter['$gte'] = start
         if end:
@@ -235,15 +300,48 @@ class MultiDataSupport(AbstractDataSupport):
         filter_ = {'datetime': dt_filter} if len(dt_filter) else {}
 
         ticker_type = self._db if not ticker_type else ticker_type
-        field = _BAR_FIELDS_MAP.keys() if field is None else field
+        if ticker_type == 'Oanda':
+            mapper = self._BAR_FIELD_MAP
+            if fields is None:
+                fields = self._BAR_FIELD_MAP.keys()
+        else:
+            mapper = {}
 
+        if not length:
+            frame = self._from_mongo(
+                ticker_type, col_name, filter_, fields, sort=[('datetime', 1)]
+            )
+        else:
+            if start:
+                frame = self._from_mongo(
+                    ticker_type, col_name, filter_, fields,
+                    limit=length, sort=[('datetime', 1)]
+                )
+            else:
+                frame = self._from_mongo(
+                    ticker_type, col_name, filter_, fields,
+                    limit=length, sort=[('datetime', -1)]
+                ).iloc[::-1]
 
+        frame = frame.rename_axis(mapper, 1)
+        frame.index = frame.pop('datetime')
+        return frame
+
+    def _from_mongo(self, db, col_name, filter_, projection=None, *args, **kwargs):
+        """
+        从MongoDB中读取数据整理成DataFrame返回
+
+        :param db: str
+        :param col_name: str
+        :param filter_: dict
+        :param projection: list
+        :param args:
+        :param kwargs:
+        :return: DataFrame
+        """
         frame = pd.DataFrame(
             list(
-                self._client[ticker_type]['.'.join((ticker, frequency))].find(
-                    filter_,
-                    projection=field
-                )
+                self._client[db][col_name].find(filter_, projection, *args, **kwargs)
             )
         )
         frame.pop('_id')
@@ -254,42 +352,43 @@ if __name__ == "__main__":
     from datetime import datetime
 
     setting = {
-        "host": "192.168.1.103",
+        "host": "192.168.0.103",
         "port": 27018,
         "db": "Oanda",
     }
 
-    # data = MongoDataSupport(**setting)
-    # data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1))
-
     class Context(object):
-        pass
+
+        @property
+        def current_time(self):
+            return datetime.now()
 
     context = Context()
 
     data = MultiDataSupport(context, **setting)
+    data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1), ticker_type='Oanda')
+    print data.current('EUR_USD')
+    print data.history('EUR_USD', 'D', length=100)
 
-    print(data.data_base('EUR_USD', 'D', field=['closeMid'], start=datetime(2016, 1, 1), end=datetime(2017, 1, 1)))
-    # context.real_bar_num = 20
-    # data.set_context(context)
-    # print(data.current("EUR_USD", "open"))
-    # print("\n")
-    # print(data.current("EUR_USD", ["open", "close"]))
-    # print("\n")
-    # print(data.current(["EUR_USD", "GBP_USD"], "open"))
-    # print("\n")
-    # print(data.current(["EUR_USD", "GBP_USD"], ["open", "close"]))
-    # print("\n<test history>:")
-    # print(data.history("EUR_USD", "open", "D", length=4))
-    # print("\n")
-    # print(data.history("EUR_USD", ["open", "close"], "D", length=4))
-    # print("\n")
-    # print(data.history(["EUR_USD", "GBP_USD"], "open", "D", length=4))
-    # print("\n")
-    # print(data.history(["EUR_USD", "GBP_USD"], ["open", "close"], "D", length=4))
-    # print("\n<test start,end and length>:")
-    # print(data.history(["EUR_USD", "GBP_USD"], "open", "D", start=datetime(2014, 3, 2), length=5))
-    # print("\n")
-    # print(data.history(["EUR_USD", "GBP_USD"], "open", "D", end=datetime(2014, 4, 1), length=5))
-    # print("\n")
-    # print(data.history(["EUR_USD", "GBP_USD"], "open", "D", start=datetime(2014, 3, 2), end=datetime(2014, 4, 1)))
+    print(data.current("EUR_USD", "open"))
+    print("\n")
+    print(data.current("EUR_USD", ["open", "close"]))
+    print("\n")
+    print(data.current(["EUR_USD", "GBP_USD"], "open"))
+    print("\n")
+    print(data.current(["EUR_USD", "GBP_USD"], ["open", "close"]))
+    print("\n<test history>:")
+    print(data.history("EUR_USD", "D", "open", length=4))
+    print("\n")
+    print(data.history("EUR_USD", "D", ["open", "close"], length=4))
+    print("\n")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", length=4))
+    print("\n")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", ["open", "close"], length=4))
+    print("\n<test start,end and length>:")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", start=datetime(2014, 3, 2), length=5))
+    print("\n")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", end=datetime(2014, 4, 1), length=5))
+    print("\n")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", start=datetime(2014, 3, 2), end=datetime(2014, 4, 1)))
+    print(data.history_db('000001', 'D', start=datetime(2016, 1, 1), ticker_type='HS'))

@@ -211,25 +211,30 @@ class MultiPanelData(AbstractDataSupport):
                 self._panels.pop(frequency)
 
     def current(self, tickers, fields=None):
+        if fields is None:
+            fields = slice(None)
         panel = self._panels[self._frequency]
         end = pd.to_datetime(self._context.current_time)
         index = panel.major_axis.searchsorted(end, 'left')
         if index >= len(panel.major_axis):
             index = -1
 
-        if isinstance(tickers, str):
-            frame = panel[tickers]
-            return frame[fields].iloc[index, :]
-        elif isinstance(tickers, list):
+        # if isinstance(tickers, str):
+        #     frame = panel[tickers]
+        #     return frame[fields].iloc[index]
+        if isinstance(tickers, list):
             panel = panel[tickers]
-            return panel.iloc[:, index, :].T[fields]
+            return panel.iloc[:, index].T[fields]
         else:
-            raise TypeError('type of tickers must be str or list, not %s' % type(tickers))
+            frame = panel[tickers]
+            return frame[fields].iloc[index]
 
     def history(
-            self, tickers, fields, frequency,
+            self, tickers, frequency, fields=None,
             start=None, end=None, length=None
     ):
+        if fields is None:
+            fields = slice(None)
         if isinstance(tickers, str):
             tickers = [tickers]
         panel = self._panels[frequency]
@@ -290,14 +295,13 @@ class MultiPanelData(AbstractDataSupport):
         else:
             end = pd.to_datetime(self._context.current_time)
             stop = panel.major_axis.searchsorted(end)
-            begin = stop - length if length else None
+            begin = stop - length if length and (stop >= length) else None
             if stop < len(panel.major_axis):
                 if panel.major_axis[stop] <= end and frequency == self._frequency:
                         stop += 1
                         begin = begin + 1 if begin else None
             else:
                 stop = None
-
             if len(tickers) == 1:
                 return panel[tickers[0]][fields].iloc[begin:stop]
             else:
