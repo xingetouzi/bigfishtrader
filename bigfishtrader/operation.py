@@ -4,7 +4,7 @@ from bigfishtrader.engine.handler import HandlerCompose, Handler
 
 
 class APIs(HandlerCompose):
-    def __init__(self, queue, data, portfolio, engine, router, context):
+    def __init__(self, queue, data, portfolio, engine, router, context, mode='paper'):
         super(APIs, self).__init__()
         self.event_queue = queue
         self.data = data
@@ -18,6 +18,7 @@ class APIs(HandlerCompose):
         self.buy_cost = 0
         self.sell_cost = 0
         self.slippage = 0
+        self.mode = mode
 
     def register_handler(self, handler, event_type, topic='.', priority=0):
         self._engine.register(handler, event_type, topic, priority)
@@ -34,9 +35,9 @@ class APIs(HandlerCompose):
 
 
 
-def initialize_operation(queue, data, portfolio, engine, router, context=None):
+def initialize_operation(queue, data, portfolio, engine, router, context=None, mode='paper'):
     global api
-    api = APIs(queue, data, portfolio, engine, router, context)
+    api = APIs(queue, data, portfolio, engine, router, context, mode)
 
 
 # def open_order(ticker, quantity, price=None, order_type=EVENTS.ORDER, tag=None, take_profit=0, stop_lost=0):
@@ -143,7 +144,7 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
             print('available_quantity == 0 , unable to close position')
 
     elif ticker and quantity:
-        available_quantity = get_available_security(ticker)[ticker]
+        available_quantity = get_available_security(ticker).get('ticker', 0)
         if quantity > available_quantity:
             print('quantity(%s) > available_quantity(%s) , unable to close position'
                   % (quantity, available_quantity))
@@ -316,7 +317,6 @@ def get_positions():
     return api.portfolio.positions
 
 
-
 def time_limit(func):
     def wrapper(event, kwargs=None):
         func(api.context, api.data)
@@ -332,3 +332,4 @@ def register_time_limit(function, topic, **limit):
 
 def get_portfolio(name=None):
     return api.get_portfolio(name)
+

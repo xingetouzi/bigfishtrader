@@ -118,7 +118,7 @@ class TushareDataSupport(AbstractDataSupport):
         :return:
         """
         return self._panel_data.history(
-            tickers, fields, frequency,
+            tickers,  frequency, fields,
             start, end, length
         )
 
@@ -151,8 +151,7 @@ class TushareDataSupport(AbstractDataSupport):
 if __name__ == '__main__':
     tsdata = TushareDataSupport(MultiPanelData(None))
     tsdata.init(['000001', '000002'], 'D', '2016-01-01')
-    tsdata.subscribe(['000001', '000002'], 'W', '2016-01-01')
-
+    # tsdata.subscribe(['000001', '000002'], 'W', '2016-01-01')
     # print('--------- test current() ---------')
     # print(tsdata.current(['000001', '000002'], ['open', 'close']))
     # print(tsdata.current('000002', ['open', 'high', 'low', 'close']))

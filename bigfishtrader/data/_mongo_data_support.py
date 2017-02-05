@@ -1,7 +1,7 @@
 # encoding: utf-8
 
-from datetime import timedelta
-from collections import OrderedDict, Iterable
+from datetime import timedelta, datetime
+from collections import OrderedDict
 
 import pandas as pd
 from dictproxyhack import dictproxy
@@ -133,21 +133,23 @@ class MongoDataSupport(AbstractDataSupport):
 
 
 class MultiDataSupport(AbstractDataSupport):
-    def __init__(self, context, **info):
+    def __init__(self, context=None, **info):
         super(MultiDataSupport, self).__init__()
         self._db = info.pop('db', None)
         self._client = connect(**info)
         self._panel_data = MultiPanelData(context)
         self._initialized = False
         self.tickers = {}
-        self._BAR_FIELD_MAP = OrderedDict([
-            ("datetime", "datetime"),
-            ("openMid", "open"),
-            ("highMid", "high"),
-            ("lowMid", "low"),
-            ("closeMid", "close"),
-            ("volume", "volume"),
-        ])
+
+        self.mapper = {}
+        self.bar_general = ['open', 'high', 'low', 'close', 'volume', 'datetime']
+        self.set_bar_map(
+            'Oanda',
+            ("open", "openMid"),
+            ("high", "highMid"),
+            ("low", "lowMid"),
+            ("close", "closeMid"),
+        )
 
     def init(self, tickers, frequency, start=None, end=None, ticker_type=None):
         """
@@ -300,32 +302,56 @@ class MultiDataSupport(AbstractDataSupport):
         filter_ = {'datetime': dt_filter} if len(dt_filter) else {}
 
         ticker_type = self._db if not ticker_type else ticker_type
-        if ticker_type == 'Oanda':
-            mapper = self._BAR_FIELD_MAP
-            if fields is None:
-                fields = self._BAR_FIELD_MAP.keys()
-        else:
-            mapper = {}
+        fields, mapper, columns = self.key_map_transfer(fields, ticker_type)
 
         if not length:
             frame = self._from_mongo(
-                ticker_type, col_name, filter_, fields, sort=[('datetime', 1)]
+                ticker_type, col_name, filter_, fields, sort=[(fields[-1], 1)]
             )
         else:
             if start:
                 frame = self._from_mongo(
                     ticker_type, col_name, filter_, fields,
-                    limit=length, sort=[('datetime', 1)]
+                    limit=length, sort=[(fields[-1], 1)]
                 )
             else:
                 frame = self._from_mongo(
                     ticker_type, col_name, filter_, fields,
-                    limit=length, sort=[('datetime', -1)]
+                    limit=length, sort=[(fields[-1], -1)]
                 ).iloc[::-1]
 
-        frame = frame.rename_axis(mapper, 1)
+        frame = frame.rename_axis(mapper, 1).reindex(columns=columns)
         frame.index = frame.pop('datetime')
         return frame
+
+    def key_map_transfer(self, fields, ticker_type):
+        if fields:
+            fields = fields if isinstance(fields, list) else [fields]
+            fields.append('datetime')
+        else:
+            fields = self.bar_general
+
+        mapper = self.mapper.get(ticker_type, None)
+        if mapper:
+            positive, negative = mapper
+            return [positive.get(field, field) for field in fields], negative, fields
+        else:
+            return fields, {}, fields
+
+    def set_bar_map(self, name, *mapper, **mappers):
+        """
+
+        :param name: str, mongo database name
+        :param mapper: tuple, 格式转换方式: ('close', 'closeMid'), ('open', 'openMid') ...
+
+        :return:
+        """
+
+        positive = dict(mapper, **mappers)
+        negative = dict()
+        for item in positive.items():
+            negative[item[1]] = item[0]
+        self.mapper[name] = [positive, negative]
 
     def _from_mongo(self, db, col_name, filter_, projection=None, *args, **kwargs):
         """
@@ -349,7 +375,6 @@ class MultiDataSupport(AbstractDataSupport):
 
 
 if __name__ == "__main__":
-    from datetime import datetime
 
     setting = {
         "host": "192.168.0.103",
@@ -357,19 +382,12 @@ if __name__ == "__main__":
         "db": "Oanda",
     }
 
-    class Context(object):
+    data = MultiDataSupport(**setting)
+    data.set_bar_map('Data', close='Close', high='High', low='Low', open='Open', datetime='Date', volume='Volume')
 
-        @property
-        def current_time(self):
-            return datetime.now()
-
-    context = Context()
-
-    data = MultiDataSupport(context, **setting)
     data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1), ticker_type='Oanda')
     print data.current('EUR_USD')
-    print data.history('EUR_USD', 'D', length=100)
-
+    print("\n")
     print(data.current("EUR_USD", "open"))
     print("\n")
     print(data.current("EUR_USD", ["open", "close"]))
@@ -391,4 +409,5 @@ if __name__ == "__main__":
     print(data.history(["EUR_USD", "GBP_USD"], "D", "open", end=datetime(2014, 4, 1), length=5))
     print("\n")
     print(data.history(["EUR_USD", "GBP_USD"], "D", "open", start=datetime(2014, 3, 2), end=datetime(2014, 4, 1)))
+    print("\n")
     print(data.history_db('000001', 'D', start=datetime(2016, 1, 1), ticker_type='HS'))
