@@ -321,7 +321,7 @@ class MultiDataSupport(AbstractDataSupport):
                 ).iloc[::-1]
 
         frame = frame.rename_axis(mapper, 1).reindex(columns=columns)
-        frame.index = frame.pop('datetime')
+        frame.index = frame['datetime']
         return frame
 
     def key_map_transfer(self, fields, ticker_type):

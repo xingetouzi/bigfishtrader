@@ -14,6 +14,9 @@ class EVENTS(Enum):
     CANCEL = 6
     TIME = 7
     MODIFY = 8
+    CONFIRM = 9
+    CONFIG = 10
+    RECALL = 11
     EXIT = 999
 
 
@@ -188,6 +191,31 @@ class ModifyEvent(Event):
         self.modify = modify
 
 
+class ConfirmEvent(Event):
+    __slots__ = ["info"]
+
+    def __init__(self, timestamp, topic='', **info):
+        super(ConfirmEvent, self).__init__(EVENTS.CONFIRM, 0, timestamp, topic)
+        self.info = info
+
+
+class ConfigEvent(Event):
+    __slots__ = ["config"]
+
+    def __init__(self, timestamp, topic='', **config):
+        super(ConfigEvent, self).__init__(EVENTS.CONFIG, -1, timestamp, topic)
+        self.config = config
+
+
+class RecallEvent(Event):
+    __slots__ = ['order', 'lock']
+
+    def __init__(self, timestamp, order, lock=True, topic=''):
+        super(RecallEvent, self).__init__(EVENTS.RECALL, 0, timestamp, topic)
+        self.order = order
+        self.lock = lock
+
+
 class ExitEvent(Event):
     __slots__ = []
 
@@ -196,4 +224,4 @@ class ExitEvent(Event):
 
 
 if __name__ == '__main__':
-    ee = ExitEvent
+    pass

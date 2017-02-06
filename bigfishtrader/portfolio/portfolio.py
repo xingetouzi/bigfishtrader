@@ -1,11 +1,12 @@
 # encoding: utf-8
 from dictproxyhack import dictproxy
 
-from .position import Position
-from ..exception import QuantityException
+from bigfishtrader.portfolio.position import Position
+from bigfishtrader.exception import QuantityException
 from bigfishtrader.portfolio.base import AbstractPortfolio
 from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import EVENTS
+import pandas as pd
 
 
 class Portfolio(AbstractPortfolio):
@@ -215,3 +216,82 @@ class Portfolio(AbstractPortfolio):
 
     def confirm_position(self, confirmation):
         pass
+
+
+class NewPortfolio(AbstractPortfolio):
+    def __init__(self, data, init_cash=100000):
+        super(NewPortfolio, self).__init__()
+        self._data = data
+        self._cash = init_cash
+        self.init_cash = init_cash
+        self._positions = {}
+        self._locked_positions = {}
+        self._handlers = {
+            'on_recall': Handler(self.on_recall, EVENTS.RECALL)
+        }
+
+    @property
+    def positions(self):
+        return dictproxy(self._positions)
+
+    @property
+    def cash(self):
+        return self._cash
+
+    @property
+    def security(self):
+        security = {}
+        for _id, position in self._positions.items():
+            security[position.ticker] = security.get(position.ticker, 0) + position.quantity
+
+        return security
+
+    def _get_position(self, ticker):
+        positions = {}
+        for _id, position in self._positions.items():
+            if position.ticker == ticker:
+                positions[_id] = position
+
+        return positions
+
+    def lock(self, event, kwargs=None):
+        order = event.order
+        positions = self._get_position(order.ticker)
+        for _id, position in positions.items():
+            if order.local_id == _id:
+                self._locked_positions[_id] = self._positions[_id]
+                position.lock += order.quantity
+                return
+
+        quantity = 0
+        for _id, position in positions.items():
+            quantity += position.available_quantity
+            if abs(quantity) <= abs(order.quantity):
+                position.lock += position.available_quantity
+            else:
+                position.lock += quantity - order.quantity
+                break
+
+    def unlock(self, event, kwargs=None):
+        pass
+
+    def on_recall(self, event, kwargs=None):
+        if event.lock:
+            self.lock(event, kwargs)
+        else:
+            self.unlock(event, kwargs)
+
+    def set_position(self, position):
+        self._positions[position.position_id] = position
+
+if __name__ == '__main__':
+    p = NewPortfolio(None)
+    p.set_position(
+        Position('000001', 1000, 1000, '2016-01-01', order_id=100)
+    )
+    p.set_position(
+        Position('000001', 1000, 1000, '2016-01-02', order_id=101)
+    )
+    p.set_position(
+        Position('000001', 1000, 1000, '2016-01-03', order_id=102)
+    )

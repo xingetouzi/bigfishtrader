@@ -26,7 +26,8 @@ class DummyExchange(AbstractRouter):
         self._handlers = {
             "on_bar": Handler(self.on_bar, EVENTS.BAR, topic="", priority=100),
             "on_order": Handler(self.on_order, EVENTS.ORDER, topic=".", priority=0),
-            "on_time": Handler(self.on_time, EVENTS.TIME, priority=100)
+            "on_time": Handler(self.on_time, EVENTS.TIME, priority=100),
+            "on_order_instance": Handler(self.on_order_instance, EVENTS.ORDER, topic='this_bar')
         }
         self.handle_order = {
             EVENTS.ORDER: self._fill_order,
@@ -48,7 +49,8 @@ class DummyExchange(AbstractRouter):
             order.action, order.quantity,
             price + self.calculate_slippage(order, price),
             self.calculate_commission(order, price),
-            **self.ticker_info.get(order.ticker, {})
+            local_id=order.local_id, position_id=order.local_id,
+            topic=order.topic, **self.ticker_info.get(order.ticker, {})
         )
         self.orders.pop(order.local_id, None)
         self.event_queue.put(fill)
@@ -116,6 +118,13 @@ class DummyExchange(AbstractRouter):
     def on_time(self, event, kwargs=None):
         for _id, order in self.orders.copy().items():
             self.handle_order[order.order_type](order, self._data.current(order.ticker))
+
+    def on_order_instance(self, event, kwargs=None):
+        if event.order_type == EVENTS.ORDER:
+            current = self._data.current(event.ticker)
+            self._put_fill(event, current.close, current.datetime)
+        else:
+            self.on_order(event, kwargs)
 
     def get_orders(self):
         return dictproxy(self.orders)

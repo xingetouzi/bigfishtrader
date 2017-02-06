@@ -1,4 +1,6 @@
 # encoding: utf-8
+from bigfishtrader.engine.handler import HandlerCompose, Handler
+from bigfishtrader.event import EVENTS
 
 
 class Position(object):
@@ -27,9 +29,8 @@ class Position(object):
         deposit_rate: margin rate
     """
 
-
     __slots__ = ["identifier", "ticker", "open_price", "open_time", "price", "quantity", "deposit", "close_price",
-                 "close_time", "commission", "lever", "deposit_rate", "position_id"]
+                 "close_time", "commission", "lever", "deposit_rate", "position_id", "lock"]
 
     def __init__(self, ticker, price, quantity, open_time, commission=0, lever=1, deposit_rate=1, order_id=None):
         self.identifier = None
@@ -45,6 +46,7 @@ class Position(object):
         self.close_price = None
         self.close_time = None
         self.position_id = order_id
+        self.lock = 0
 
     @property
     def profit(self):
@@ -107,10 +109,11 @@ class Position(object):
             Position: new position which has the input quantity
         """
 
-        new_position = Position(self.ticker, self.open_price,
-                                quantity, self.open_time,
-                                self.commission * quantity / self.quantity, self.lever,
-                                self.deposit_rate, order_id=self.position_id)
+        new_position = Position(
+            self.ticker, self.open_price, quantity, self.open_time,
+            self.commission*quantity/self.quantity, self.lever,
+            self.deposit_rate, order_id=self.position_id
+        )
         new_position.identifier = self.identifier
         new_position.update(price)
         self.quantity -= quantity
@@ -119,22 +122,133 @@ class Position(object):
         self.update(price)
         return new_position
 
-    def show(self):
+    def show(self, *args):
         """
         get the position's content in dict form.
 
         Returns:
             dict: a dict contains the position's content
         """
+        if len(args) == 0:
+            args = self.__slots__
 
-        return {
-            'ticker': self.ticker,
-            'open_price': self.open_price,
-            'open_time': self.open_time,
-            'quantity': self.quantity,
-            'profit': self.profit,
-            'deposit': self.deposit,
-            'close_time': self.close_time,
-            'close_price': self.close_price,
-            'commission': self.commission
-        }
+        return dict([(key, self.__getattribute__(key)) for key in args])
+
+    @property
+    def available(self):
+        return self.quantity - self.lock
+
+
+class PositionHandler(HandlerCompose):
+    def __init__(self):
+        super(PositionHandler, self).__init__()
+        self._positions = {}
+        self._lock = {}
+        self._handlers['on_recall'] = Handler(self.on_recall, EVENTS.RECALL)
+
+    def __getitem__(self, item):
+        return self._positions[item]
+
+    def __setitem__(self, key, value):
+        self._positions[key] = value
+
+    def __call__(self, *args, **kwargs):
+        return self._positions
+
+    def get(self, key, default=None):
+        return self._positions.get(key, default)
+
+    def pop(self, key, default=None):
+        return self._positions.pop(key, default)
+
+    def pop_ticker(self, key, default=None):
+        positions = {}
+        for _id, position in self._positions.copy().items():
+            if position.ticker == key:
+                positions[_id] = self._positions.pop(_id)
+
+        return positions
+
+    def from_ticker(self, ticker):
+        positions = {}
+        for _id, position in self._positions.items():
+            if position.ticker == ticker:
+                positions[_id] = position
+
+        return positions
+
+    def lock(self, order, kwargs=None):
+        position = self._positions.get(order.local_id, None)
+        if position:
+            if position.available / order.quantity >= 1:
+                position.lock += order.quantity
+
+    def unlock(self, order, kwargs=None):
+        position = self._positions.get(order.local_id, None)
+        if position:
+            if position.lock / order.quantity >= 1:
+                position.lock -= order.quantity
+
+    def on_recall(self, event, kwargs=None):
+        if event.lock:
+            self.lock(event.order, kwargs)
+        else:
+            self.unlock(event.order, kwargs)
+
+    @property
+    def locked(self):
+        return self._lock.copy()
+
+    @property
+    def security(self):
+        security = {}
+        for position in self._positions.values():
+            security[position.ticker] = security.get(position.ticker, 0) + position.available
+        return security
+
+    def separate_close(self, ticker, close_quantity):
+
+        quantity = 0
+        for _id, position in self.from_ticker(ticker).items():
+            available = position.available
+            if (available == 0) or (available*close_quantity < 0):
+                continue
+
+            quantity += available
+            if abs(quantity) < abs(close_quantity):
+                yield _id, available
+
+            elif quantity == close_quantity:
+                yield _id, available
+                raise StopIteration
+
+            else:
+                yield _id, quantity - close_quantity
+                raise StopIteration
+
+        raise StopIteration
+
+
+if __name__ == '__main__':
+    from bigfishtrader.event import OrderEvent, RecallEvent, CLOSE_ORDER
+    from datetime import datetime
+
+    p = Position('000001', 15, 2000, datetime(2017, 1, 1), order_id=101)
+    p2 = Position('000001', 15, 2000, datetime(2017, 1, 1), order_id=102)
+    p3 = Position('000001', 15, 2000, datetime(2017, 1, 1), order_id=103)
+    p4 = Position('000001', 15, -2000, datetime(2017, 1, 1), order_id=104)
+    ph = PositionHandler()
+    ph[101] = p
+    ph[102] = p2
+    ph[103] = p3
+    ph[104] = p4
+    for _id, quantity in ph.separate_close('000001', 3000):
+        o1 = OrderEvent(datetime.now(), '000001', CLOSE_ORDER, quantity, 20, EVENTS.LIMIT, local_id=_id)
+        r1 = RecallEvent(o1.time, o1)
+        ph.on_recall(r1)
+    for _id, quantity in ph.separate_close('000001', -1000):
+        o1 = OrderEvent(datetime.now(), '000001', CLOSE_ORDER, quantity, 20, EVENTS.LIMIT, local_id=_id)
+        r1 = RecallEvent(o1.time, o1)
+        ph.on_recall(r1)
+
+    print ph.security
