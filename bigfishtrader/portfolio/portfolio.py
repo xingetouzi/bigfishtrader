@@ -1,7 +1,7 @@
 # encoding: utf-8
 from dictproxyhack import dictproxy
 
-from bigfishtrader.portfolio.position import Position
+from bigfishtrader.portfolio.position import Position, PositionHandler
 from bigfishtrader.exception import QuantityException
 from bigfishtrader.portfolio.base import AbstractPortfolio
 from bigfishtrader.engine.handler import Handler
@@ -219,79 +219,111 @@ class Portfolio(AbstractPortfolio):
 
 
 class NewPortfolio(AbstractPortfolio):
-    def __init__(self, data, init_cash=100000):
+    def __init__(self, data, position_handler=None, init_cash=100000):
         super(NewPortfolio, self).__init__()
         self._data = data
         self._cash = init_cash
         self.init_cash = init_cash
-        self._positions = {}
-        self._locked_positions = {}
-        self._handlers = {
-            'on_recall': Handler(self.on_recall, EVENTS.RECALL)
-        }
+        if position_handler:
+            self._positions = position_handler
+        else:
+            self._positions = PositionHandler()
+            self._handlers['on_recall'] = Handler(self._positions.on_recall, EVENTS.RECALL)
+
+        self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=100)
+        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, priority=100)
 
     @property
     def positions(self):
-        return dictproxy(self._positions)
+        return dictproxy(self._positions())
 
     @property
     def cash(self):
         return self._cash
 
     @property
+    def equity(self):
+        return self._cash + sum(
+            map(
+                lambda (_id, position): position.profit + position.deposit,
+                self._positions().items()
+            )
+        )
+
+    @property
     def security(self):
-        security = {}
-        for _id, position in self._positions.items():
-            security[position.ticker] = security.get(position.ticker, 0) + position.quantity
+        return self._positions.security
 
-        return security
+    def on_time(self, event, kwargs=None):
+        for position in self._positions():
+            current = self._data.current(position.ticker)
+            position.update(current.close)
 
-    def _get_position(self, ticker):
-        positions = {}
-        for _id, position in self._positions.items():
-            if position.ticker == ticker:
-                positions[_id] = position
-
-        return positions
-
-    def lock(self, event, kwargs=None):
-        order = event.order
-        positions = self._get_position(order.ticker)
-        for _id, position in positions.items():
-            if order.local_id == _id:
-                self._locked_positions[_id] = self._positions[_id]
-                position.lock += order.quantity
-                return
-
-        quantity = 0
-        for _id, position in positions.items():
-            quantity += position.available_quantity
-            if abs(quantity) <= abs(order.quantity):
-                position.lock += position.available_quantity
-            else:
-                position.lock += quantity - order.quantity
-                break
-
-    def unlock(self, event, kwargs=None):
-        pass
-
-    def on_recall(self, event, kwargs=None):
-        if event.lock:
-            self.lock(event, kwargs)
+    def on_fill(self, event, kwargs=None):
+        if event.action:
+            self.open_position(
+                event.position_id, event.ticker, event.price,
+                event.quantity, event.time, event.commission,
+                deposit_rate=event.deposit_rate, lever=event.lever
+            )
         else:
-            self.unlock(event, kwargs)
+            self.close_position(
+                event.position_id, event.price,
+                event.quantity, event.time,
+                event.commission, event.external_id
+            )
 
-    def set_position(self, position):
-        self._positions[position.position_id] = position
+    def open_position(self, order_id, ticker, price, quantity, open_time, commission=0, **kwargs):
+        position = Position(
+            ticker, price, quantity,open_time,
+            commission, order_id=order_id, **kwargs
+        )
+
+        self._cash -= (position.deposit + commission)
+
+        if self._cash >= 0:
+            self._positions[position.position_id] = position
+
+
+    def close_position(self, order_id, price, quantity, close_time, commission=0, new_id=None):
+        position = self._positions.pop(order_id)
+
+        if position:
+            if position.quantity * quantity <= 0:
+                raise ValueError(
+                    'position.quantity and quantity should both be positive or negative'
+                )
+
+            if position.quantity == quantity:
+                position.close(price, close_time, commission)
+
+            elif abs(position.quantity) > abs(quantity):
+                closed_position = position.separate(quantity, price, new_id)
+                closed_position.close(price, close_time, commission)
+                self._positions[position.position_id] = position
+
+            else:
+                raise ValueError(
+                    'quantity to be close is larger than position.quantity'
+                )
 
 if __name__ == '__main__':
-    p = NewPortfolio(None)
-    p.set_position(
-        Position('000001', 1000, 1000, '2016-01-01', order_id=100)
-    )
-    p.set_position(
-        Position('000001', 1000, 1000, '2016-01-02', order_id=101)
-    )
-    p.set_position(
-        Position('000001', 1000, 1000, '2016-01-03', order_id=102)
-    )
+    from bigfishtrader.event import FillEvent, OrderEvent, RecallEvent
+    portfolio = NewPortfolio(None)
+
+    fill = FillEvent('2017-01-01', '000001', 1, 2000, 20,
+                     local_id=1001, position_id=1001)
+    fill_close = FillEvent('2017-01-01', '000001', 0, 1000, 20,
+                     local_id=1001, position_id=1001, external_id=1002)
+
+    o1 = OrderEvent('2017-01-01', '000001', 1, 1000, 21, EVENTS.LIMIT, local_id=1001)
+    r1 = RecallEvent('2017-01-01', o1)
+
+    portfolio.on_fill(fill)
+    print portfolio.security
+
+    portfolio._positions.on_recall(r1)
+    print portfolio.security
+
+    portfolio.on_fill(fill_close)
+    print portfolio.security

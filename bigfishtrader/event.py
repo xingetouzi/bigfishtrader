@@ -133,6 +133,18 @@ class OrderEvent(Event):
 
         return True
 
+    def to_fill(
+            self, timestamp, price, commission=0, lever=1, deposit_rate=1,
+            position_id=None, external_id=None, topic=''
+    ):
+        return FillEvent(
+            timestamp, self.ticker, self.action, self.quantity,
+            price, commission, lever, deposit_rate,
+            local_id=self.local_id,
+            position_id=position_id if position_id else self.local_id,
+            external_id=external_id
+        )
+
 
 class CancelEvent(Event):
     """

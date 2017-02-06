@@ -96,7 +96,7 @@ class Position(object):
         self.deposit = self.deposit + other.deposit
         self.quantity = quantity
 
-    def separate(self, quantity, price):
+    def separate(self, quantity, price, new_id=None):
         """
         Separate this position into 2 position
         Return the position which has the input quantity
@@ -116,6 +116,11 @@ class Position(object):
         )
         new_position.identifier = self.identifier
         new_position.update(price)
+
+        if new_id:
+            self.position_id = new_id
+
+        self.lock -= quantity if self.lock >= quantity else 0
         self.quantity -= quantity
         self.deposit -= new_position.deposit
         self.commission -= new_position.commission
