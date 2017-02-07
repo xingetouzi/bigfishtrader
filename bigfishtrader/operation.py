@@ -34,20 +34,9 @@ class APIs(HandlerCompose):
             return self.portfolio
 
 
-
 def initialize_operation(queue, data, portfolio, engine, router, context=None, mode='paper'):
     global api
     api = APIs(queue, data, portfolio, engine, router, context, mode)
-
-
-# def open_order(ticker, quantity, price=None, order_type=EVENTS.ORDER, tag=None, take_profit=0, stop_lost=0):
-#     api.event_queue.put(
-#         OrderEvent(
-#             api.context.current_time, ticker, OPEN_ORDER,
-#             quantity, price, order_type, tag, api.next_id(),
-#             take_profit, stop_lost, 'oanda'
-#         )
-#     )
 
 
 def order_close(position_id=None, quantity=None, price=None, position=None):
@@ -68,10 +57,6 @@ def order_modify(order_id, **kwargs):
     api.event_queue.put(
         ModifyEvent(api.context.current_time, order_id, 'oanda', **kwargs)
     )
-
-
-def get_orders():
-    return api.order.get_orders()
 
 
 def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwargs):
@@ -126,40 +111,31 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
     :return:
     """
     if position:
-        available_quantity = get_available_security(position.ticker)[position.ticker]
-
-        if available_quantity:
+        if position.available:
             _id = position.position_id if position.position_id else api.next_id()
             api.event_queue.put(
                 OrderEvent(
                     api.context.current_time,
                     position.ticker, CLOSE_ORDER,
-                    available_quantity, price,
+                    position.available, price,
                     order_type=order_type,
                     local_id=_id
                 )
             )
             return _id
         else:
-            print('available_quantity == 0 , unable to close position')
+            print('position.available == 0 , unable to close position')
 
     elif ticker and quantity:
-        available_quantity = get_available_security(ticker).get('ticker', 0)
-        if quantity > available_quantity:
-            print('quantity(%s) > available_quantity(%s) , unable to close position'
-                  % (quantity, available_quantity))
-
-        if 'local_id' not in kwargs.keys():
-            kwargs['local_id'] = api.next_id()
-        api.event_queue.put(
-            OrderEvent(
-                api.context.current_time,
-                ticker, CLOSE_ORDER, quantity, price,
-                order_type=order_type,
-                **kwargs
+        for _id, available in api.portfolio.separate_close(ticker, quantity):
+            api.event_queue.put(
+                OrderEvent(
+                    api.context.current_time,
+                    ticker, CLOSE_ORDER, available, price,
+                    order_type=order_type, local_id=_id,
+                    **kwargs
+                )
             )
-        )
-        return kwargs['local_id']
 
 
 def close_limit(price, ticker=None, quantity=None, position=None):
@@ -275,46 +251,22 @@ def set_ticker_info(**ticker):
             setattr(exchange, 'ticker_info', ticker_info)
 
 
-def get_security(*tickers):
-    """
-    获取当前持仓
-    :param tickers: 持仓品种，默认返回所有
-    :return: {ticker: quantity}
-    """
-    security = {}
-    positions = api.portfolio.positions
-    if len(tickers):
-        for ticker in tickers:
-            position = positions.get(ticker, None)
-            if position:
-                security[ticker] = position.quantity
-    else:
-        for ticker, position in positions.items():
-            security[ticker] = position.quantity
-
-    return security
-
-
-def get_available_security(*tickers):
-    """
-    获取当前可用持仓
-    :param tickers: 持仓品种，默认返回所有
-    :return: {ticker: quantity}
-    """
-    security = get_security(*tickers)
-    orders = api.order.get_orders()
-    for ticker in security:
-        security[ticker] -= sum(
-            [
-                order.quantity if order.match(action=CLOSE_ORDER, ticker=ticker) else 0
-                for order in orders.values()
-            ]
-        )
-    return security
+def get_security():
+    return api.portfolio.security
 
 
 def get_positions():
-    return api.portfolio.positions
+    return dict(map(
+        lambda (_id, position): (
+            _id,
+            position.show('ticker', 'open_time', 'profit', 'quantity')
+        ),
+        api.portfolio.positions
+    ))
+
+
+def get_orders():
+    return api.order.get_orders()
 
 
 def time_limit(func):
@@ -333,3 +285,6 @@ def register_time_limit(function, topic, **limit):
 def get_portfolio(name=None):
     return api.get_portfolio(name)
 
+
+def account_info():
+    return api.portfolio.holding
