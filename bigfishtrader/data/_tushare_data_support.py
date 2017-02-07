@@ -11,9 +11,9 @@ FIELDS = ['datetime', 'open', 'high', 'close', 'low', 'volume']
 
 
 class TushareDataSupport(AbstractDataSupport):
-    def __init__(self, panel_support=None):
+    def __init__(self, context=None):
         super(TushareDataSupport, self).__init__()
-        self._panel_data = panel_support if panel_support else MultiPanelData(None)
+        self._panel_data = MultiPanelData(context)
         self._initialized = False
 
     def init(self, tickers, frequency, start=None, end=None, **kwargs):
