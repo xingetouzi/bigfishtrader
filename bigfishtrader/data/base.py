@@ -46,3 +46,16 @@ class AbstractDataSupport(HandlerCompose):
         :return:
         """
         raise NotImplementedError("should implement history()")
+
+
+class DataCollector(object):
+    def __init__(self, **setting):
+        from pymongo import MongoClient
+
+        db = setting.pop('db')
+        users = setting.pop('user', {})
+        self.client = MongoClient(**setting)
+        self.db = self.client[db]
+
+        for db in users:
+            self.client[db].authenticate(users[db]['id'], users[db]['password'])
