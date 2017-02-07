@@ -33,7 +33,7 @@ class TushareData(DataCollector):
 
     def save(self, col_name, data):
         if isinstance(data, pd.DataFrame):
-            self.db[col_name].insert([doc for index, doc in data.iterrows()])
+            self.db[col_name].insert([doc.to_dict() for index, doc in data.iterrows()])
             print (col_name, 'saved')
         elif isinstance(data, list):
             self.db[col_name].insert(data)
