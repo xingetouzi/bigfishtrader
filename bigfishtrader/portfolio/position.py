@@ -135,7 +135,10 @@ class Position(object):
             dict: a dict contains the position's content
         """
         if len(args) == 0:
-            args = self.__slots__
+            args = [
+                "ticker", "open_price", "open_time", "price", "quantity", "deposit", "close_price",
+                 "close_time", "commission", "lever", "deposit_rate", "position_id", 'profit'
+            ]
 
         return dict([(key, self.__getattribute__(key)) for key in args])
 
@@ -148,7 +151,6 @@ class PositionHandler(HandlerCompose):
     def __init__(self):
         super(PositionHandler, self).__init__()
         self._positions = {}
-        self._lock = {}
         self._handlers['on_recall'] = Handler(self.on_recall, EVENTS.RECALL)
 
     def __getitem__(self, item):
@@ -159,6 +161,12 @@ class PositionHandler(HandlerCompose):
 
     def __call__(self, *args, **kwargs):
         return self._positions
+
+    def __len__(self):
+        return len(self._positions)
+
+    def pop_item(self):
+        return self._positions.popitem()
 
     def get(self, key, default=None):
         return self._positions.get(key, default)
@@ -201,10 +209,6 @@ class PositionHandler(HandlerCompose):
             self.unlock(event.order, kwargs)
 
     @property
-    def locked(self):
-        return self._lock.copy()
-
-    @property
     def security(self):
         security = {}
         for position in self._positions.values():
@@ -212,7 +216,6 @@ class PositionHandler(HandlerCompose):
         return security
 
     def separate_close(self, ticker, close_quantity):
-
         quantity = 0
         for _id, position in self.from_ticker(ticker).items():
             available = position.available

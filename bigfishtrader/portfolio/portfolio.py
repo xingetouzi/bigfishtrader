@@ -224,6 +224,8 @@ class NewPortfolio(AbstractPortfolio):
         self._data = data
         self._cash = init_cash
         self.init_cash = init_cash
+        self.history = []
+        self.closed_positions = []
         if position_handler:
             self._positions = position_handler
         else:
@@ -232,6 +234,7 @@ class NewPortfolio(AbstractPortfolio):
 
         self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=100)
         self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, priority=100)
+        self._handlers['on_exit'] = Handler(self.close_at_stop, EVENTS.EXIT, priority=200)
 
     @property
     def positions(self):
@@ -245,19 +248,43 @@ class NewPortfolio(AbstractPortfolio):
     def equity(self):
         return self._cash + sum(
             map(
-                lambda (_id, position): position.profit + position.deposit,
-                self._positions().items()
+                lambda position: position.profit + position.deposit,
+                self._positions().values()
             )
         )
+
+    @property
+    def holding(self):
+        holding = {'cash': self._cash}
+        for _id, position in self._positions():
+            p_status = holding.setdefault(position.ticker, {})
+            quantity = p_status.get('quantity', 0)
+            p_status['quantity'] = quantity + position.quantity
+            p_status['available'] = p_status.setdefault('available', 0) + position.available
+            p_status['cost'] = (p_status.setdefault('cost', 0) * quantity +
+                                position.quantity * position.price)/p_status['quantity']
+        return holding
 
     @property
     def security(self):
         return self._positions.security
 
     def on_time(self, event, kwargs=None):
-        for position in self._positions():
-            current = self._data.current(position.ticker)
-            position.update(current.close)
+        self._time = event.time
+        for position in self._positions().values():
+            close = self._data.current(position.ticker, 'close')
+            if close == close:
+                position.update(close)
+        self.log()
+
+    def log(self):
+        """
+        log portfolio's equity and cash.
+
+        Returns:
+            None
+        """
+        self.history.append({'datetime': self._time, 'equity': self.equity, 'cash': self._cash})
 
     def on_fill(self, event, kwargs=None):
         if event.action:
@@ -275,7 +302,7 @@ class NewPortfolio(AbstractPortfolio):
 
     def open_position(self, order_id, ticker, price, quantity, open_time, commission=0, **kwargs):
         position = Position(
-            ticker, price, quantity,open_time,
+            ticker, price, quantity, open_time,
             commission, order_id=order_id, **kwargs
         )
 
@@ -283,7 +310,6 @@ class NewPortfolio(AbstractPortfolio):
 
         if self._cash >= 0:
             self._positions[position.position_id] = position
-
 
     def close_position(self, order_id, price, quantity, close_time, commission=0, new_id=None):
         position = self._positions.pop(order_id)
@@ -296,16 +322,29 @@ class NewPortfolio(AbstractPortfolio):
 
             if position.quantity == quantity:
                 position.close(price, close_time, commission)
+                self._cash += position.deposit + position.profit - commission
+                self.closed_positions.append(position)
 
             elif abs(position.quantity) > abs(quantity):
                 closed_position = position.separate(quantity, price, new_id)
                 closed_position.close(price, close_time, commission)
+                self.closed_positions.append(closed_position)
                 self._positions[position.position_id] = position
 
             else:
                 raise ValueError(
                     'quantity to be close is larger than position.quantity'
                 )
+
+    def separate_close(self, ticker, quantity):
+        return self._positions.separate_close(ticker, quantity)
+
+    def close_at_stop(self, event, kwargs=None):
+        while len(self._positions):
+            _id, position = self._positions.pop_item()
+            position.close(position.price, self._time)
+            self.closed_positions.append(position)
+
 
 if __name__ == '__main__':
     from bigfishtrader.event import FillEvent, OrderEvent, RecallEvent

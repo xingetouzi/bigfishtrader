@@ -1,7 +1,7 @@
 from bigfishtrader.engine.handler import Handler
-from bigfishtrader.event import FillEvent, EVENTS
+from bigfishtrader.event import FillEvent, RecallEvent, EVENTS
 from bigfishtrader.router.base import AbstractRouter
-from dictproxyhack import dictproxy
+
 
 class DummyExchange(AbstractRouter):
     """
@@ -25,7 +25,7 @@ class DummyExchange(AbstractRouter):
         self.orders = {}
         self._handlers = {
             "on_bar": Handler(self.on_bar, EVENTS.BAR, topic="", priority=100),
-            "on_order": Handler(self.on_order, EVENTS.ORDER, topic=".", priority=0),
+            "on_order": Handler(self.on_order, EVENTS.ORDER, topic="", priority=0),
             "on_time": Handler(self.on_time, EVENTS.TIME, priority=100),
             "on_order_instance": Handler(self.on_order_instance, EVENTS.ORDER, topic='this_bar')
         }
@@ -105,6 +105,9 @@ class DummyExchange(AbstractRouter):
         :return:
         """
         self.orders[event.local_id] = event
+        self.event_queue.put(
+            RecallEvent(event.time, event)
+        )
 
     def on_bar(self, bar_event, kwargs=None):
         """
@@ -122,9 +125,19 @@ class DummyExchange(AbstractRouter):
     def on_order_instance(self, event, kwargs=None):
         if event.order_type == EVENTS.ORDER:
             current = self._data.current(event.ticker)
+            self.event_queue.put(
+                RecallEvent(event.time, event)
+            )
             self._put_fill(event, current.close, current.datetime)
         else:
             self.on_order(event, kwargs)
 
     def get_orders(self):
-        return dictproxy(self.orders)
+        return dict(map(
+            lambda (_id, order): (
+                _id,
+                {'ticker': order.ticker, 'quantity': order.quantity,
+                 'type': order.order_type, 'action': order.action}
+            ),
+            self.orders.items()
+        ))

@@ -1,9 +1,8 @@
-from bigfishtrader.portfolio.portfolio import Portfolio
+from bigfishtrader.portfolio.portfolio import NewPortfolio
 from bigfishtrader.portfolio.context import Context
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.router.exchange import DummyExchange
 from bigfishtrader.data.support import TushareDataSupport
-from bigfishtrader.data.support import MultiPanelData
 from bigfishtrader.event import EVENTS
 try:
     from Queue import PriorityQueue
@@ -18,10 +17,10 @@ def back_test(strategy, **params):
     context = Context()
     context.register(engine)
 
-    data = TushareDataSupport(MultiPanelData(context))
+    data = TushareDataSupport(context)
     data.register(engine)
 
-    portfolio = Portfolio(data)
+    portfolio = NewPortfolio(data)
     portfolio.register(engine)
 
     router = DummyExchange(event_queue, data)
@@ -31,6 +30,9 @@ def back_test(strategy, **params):
         strategy.handle_data(context, data)
 
     engine.register(on_time, EVENTS.TIME, priority=100)
+
+    for key, value in params.items():
+        setattr(strategy, key, value)
 
     strategy.initialize_operation(event_queue, data, portfolio, engine, router, context)
 
@@ -43,7 +45,34 @@ def back_test(strategy, **params):
     engine.join()
     engine.stop()
 
-    for ticker, position in portfolio.positions.copy().items():
-        portfolio.close_position(ticker, data.current(ticker)['close'], position.quantity, context.current_time)
+    for position in portfolio.positions.copy().values():
+        portfolio.close_position(position.ticker, data.current(position.ticker)['close'], position.quantity, context.current_time)
 
     return portfolio
+
+
+def optimalize(strategy, *single, **params):
+    try:
+        key, param = params.popitem()
+
+    except KeyError:
+        params = dict(single)
+        return [(params, back_test(strategy, **params))]
+
+    result = []
+
+    if isinstance(param, list):
+        for p in param:
+            s = [(key, p)]
+            s.extend(single)
+            result.extend(
+                optimalize(strategy, *s, **params)
+            )
+    else:
+        s = [(key, param)]
+        s.extend(single)
+        result.extend(
+            optimalize(strategy, *s, **params)
+        )
+    return result
+
