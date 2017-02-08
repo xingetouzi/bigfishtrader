@@ -149,7 +149,14 @@ class OandaData(DataCollector):
                 info.close()
 
         self.api = oandapy.API(oanda_info['environment'], oanda_info['access_token'])
+        self.account_id = oanda_info['account_id']
         self.time_format = '%Y-%m-%dT%H:%M:%S.%fZ'
+        self.default_period = [
+            'M15', 'M30', 'H1', 'H4', 'D', 'M'
+        ]
+        self.MAIN_CURRENCY = [
+            'EUR_USD', 'AUD_USD', 'NZD_USD', 'GBP_USD', 'USD_CAD', 'USD_JPY'
+        ]
 
     def get_history(self, instrument, **kwargs):
         data_type = kwargs.pop('data_type', 'dict')
@@ -159,6 +166,10 @@ class OandaData(DataCollector):
             kwargs['end'] = kwargs['end'].strftime('%Y-%m-%dT%H:%M:%S.%fZ')
 
         kwargs.setdefault('candleFormat', 'midpoint')
+        kwargs.setdefault('dailyAlignment', 0)
+        kwargs.setdefault('alignmentTimezone', 'UTC')
+        print('requiring', kwargs)
+
         result = self.api.get_history(instrument=instrument, **kwargs)
 
         for candle in result['candles']:
@@ -173,29 +184,31 @@ class OandaData(DataCollector):
         try:
             result = self.get_history(instrument, **kwargs)
         except oandapy.OandaError as oe:
+            print oe.message
             if oe.error_response['code'] == 36:
                 return self.save_div(instrument, **kwargs)
             else:
                 raise oe
 
-        return self.save(
+        saved = self.save(
             '.'.join((result['instrument'], result['granularity'])),
             result['candles']
         )
+        print(saved)
+
+        return saved
 
     def save_div(self, instrument, **kwargs):
         if 'start' in kwargs:
             end = kwargs.pop('end', None)
             kwargs['count'] = 5000
             saved = self.save_history(instrument, **kwargs)
-            print(saved)
 
             kwargs.pop('count')
             if end:
                 kwargs['end'] = end
             kwargs['start'] = saved[2]
             next_saved = self.save_history(instrument, **kwargs)
-            print(next_saved)
             saved[3] += next_saved[3]
             saved[4] += next_saved[4]
             saved[2] = next_saved[2]
@@ -205,19 +218,43 @@ class OandaData(DataCollector):
 
     def save_manny(self, instruments, granularity, start, end=None, t=5):
         if isinstance(instruments, list):
-            for i in instruments:
-                self.queue.put({
-                    'instrument': i,
-                    'granularity': granularity,
-                    'start': start,
-                    'end': end
-                })
+            if isinstance(granularity, list):
+                self._save_manny(
+                    start, end, t,
+                    [(i, g) for i in instruments for g in granularity]
+                )
+
+            else:
+                self._save_manny(
+                    start, end, t,
+                    [(i, granularity) for i in instruments]
+                )
+
         else:
-            return self.save_history(instruments, granularity=granularity, start=start, end=end)
+            if isinstance(granularity, list):
+                self._save_manny(
+                    start, end, t,
+                    [(instruments, g) for g in granularity]
+                )
+
+            else:
+                self.save_history(instruments, granularity=granularity, start=start, end=end)
+
+    def _save_manny(self, start, end, t, i_g):
+        for i, g in i_g:
+            self.queue.put({
+                'instrument': i,
+                'granularity': g,
+                'start': start,
+                'end': end
+            })
 
         self.start(self.save_history, t)
         self.stop()
         self.join()
+
+    def save_main(self):
+        self.save_manny(self.MAIN_CURRENCY, self.default_period, datetime(2010, 1, 1), datetime.now())
 
     def update(self, col_name):
         doc = self.db[col_name].find_one(sort=[('datetime', -1)], projection=['time'])
@@ -226,7 +263,7 @@ class OandaData(DataCollector):
                              'please check your DataBase' % col_name)
 
         i, g = col_name.split('.')
-        return self.save_history(i, granularity=g, start=doc['time'])
+        return self.save_history(i, granularity=g, start=doc['time'], includeFirst=False)
 
     def update_manny(self, *col_names, **others):
         if len(col_names) == 0:
@@ -241,7 +278,6 @@ class OandaData(DataCollector):
 
 
 if __name__ == '__main__':
-    oanda = OandaData("D:/bigfishtrader/bigfish_oanda.json", port=10001, db='Oanda_test')
+    oanda = OandaData("D:/bigfishtrader/bigfishtrader/router/oanda_account.json", db='Oanda')
 
-    oanda.save_manny(['EUR_USD', 'USD_JPY', 'AUD_USD'], 'M30', datetime(2016, 1, 1), datetime.now())
-    oanda.save_history('EUR_USD', granularity='H1', start=datetime(2016, 1, 1), end=datetime.now())
+    oanda.save_main()
