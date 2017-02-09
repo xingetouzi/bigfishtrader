@@ -1,0 +1,172 @@
+# encoding:utf-8
+try:
+    from Queue import PriorityQueue
+except ImportError:
+    from queue import PriorityQueue
+from bigfishtrader.engine.core import Engine
+from bigfishtrader.portfolio.context import Context
+from bigfishtrader.portfolio.portfolio import NewPortfolio
+from bigfishtrader.data.support import MultiDataSupport
+from bigfishtrader.router.exchange import DummyExchange
+from bigfishtrader.event import EVENTS
+import types
+
+
+class Trader(object):
+    """
+    用于自由组织模块并进行回测
+    """
+
+    def __init__(self):
+        self.models = {}
+        self.models_settings = [
+            ('event_queue', PriorityQueue, {}),
+            ('engine', Engine, {'event_queue': 'event_queue'}),
+            ('context', Context, {}),
+            ('data', MultiDataSupport,
+             {'context': 'context', 'event_queue': 'event_queue', 'port': 10001}),
+            ('portfolio', NewPortfolio, {'data': 'data'}),
+            ('router', DummyExchange, {'event_queue': 'event_queue', 'data': 'data'})
+        ]
+        self.default = list(map(lambda x: x[0], self.models_settings))
+
+    def set_default(self, **models):
+        """
+        修改默认模块的初始化参数
+        当前默认的模块有: event_queue, engine, context, data, portfolio, router
+        输入的不是默认模块将抛出异常
+
+        :param models: data={'port': 30001, ....}
+            data模块在初始化时输入的port参数由默认参数改为30001
+        :return:
+        """
+
+        for key, value in models.items():
+            try:
+                i = self.default.index(key)
+            except ValueError:
+                raise ValueError('model %s is not a default model' % key)
+
+            self.models_settings[i][2].update(value)
+        return self
+
+    def _init_models(self, *models):
+        """
+        初始化模块, 模块将按输入的顺序初始化,
+        优先初始化默认模块, 如果输入的模块中包含默认模块将替换默认模块, 否则将在默认模块之后初始化
+
+        :param models: (name, model, params)
+            name: str, 模块名称
+            model: type<class>, 输入模块类型而不是对象
+            params: dict, 初始化时需要输入的参数
+                当模块需要其他模块作为参数时, 可直接以模块名为参数
+                也可以以一个方法为参数, 该方法需传入一个models(已经初始化的模块, dict)作为参数, 然后将返回值作为要输入的参数
+
+        :return:
+        """
+        model_setting = list(self.models_settings)
+        for m in models:
+            try:
+                i = self.default[m[0]]
+                model_setting[i] = m
+            except ValueError:
+                model_setting.append(m)
+
+        for m in model_setting:
+            name, model, kw = m[0], m[1], m[2]
+
+            self._init_model(name, model, **kw)
+
+    def register_modes(self):
+        engine = self.models['engine']
+        for name, model in self.models.items():
+            try:
+                model.register(engine)
+            except TypeError as t:
+                if name == 'engine':
+                    continue
+                else:
+                    raise t
+            except AttributeError as a:
+                if name == 'event_queue':
+                    continue
+                else:
+                    raise a
+
+    def set_model(self, name, model, **kwargs):
+        self._init_model(name, model, **kwargs)
+
+    def _init_model(self, name, model, **kwargs):
+        self.models[name] = model(
+            **dict(
+                map(
+                    lambda (key, value): (key, value(self.models)) if isinstance(value, (types.FunctionType, types.MethodType))
+                    else (key, self.models.get(value, value)),
+                    kwargs.items()
+                )
+            )
+        )
+
+    def run(self, strategy, *models, **kwargs):
+        """
+        运行一个策略, 完成后返回一个账户对象
+
+        :param strategy: 策略模块
+        :param models: 见 _init_models()
+        :param kwargs: 需要修改的策略参数
+        :return: Portfolio
+        """
+
+        self._init_models(*models)
+        self.register_modes()
+
+        for key, value in kwargs.items():
+            setattr(strategy, key, value)
+
+        context, data = self.models['context'], self.models['data']
+
+        def on_time(event, kwargs=None):
+            strategy.handle_data(context, data)
+
+        self.models['engine'].register(on_time, EVENTS.TIME, topic='.', priority=100)
+
+        strategy.initialize_operation(
+            self.models['event_queue'],
+            self.models['data'],
+            self.models['portfolio'],
+            self.models['engine'],
+            self.models['router'],
+            self.models['context'],
+        )
+
+        strategy.initialize(self.models['context'], self.models['data'])
+
+        engine = self.models['engine']
+        engine.start()
+        engine.join()
+        engine.stop()
+
+        return self.models['portfolio']
+
+
+class Model(object):
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kw = kwargs
+
+    def __str__(self):
+        return ' '.join((self.args.__str__(), self.kw.__str__(), '\n'))
+
+
+def m3(models):
+    return models['m2'].args
+
+
+if __name__ == '__main__':
+    import examples.stock_strategy as strategy
+
+    trader = Trader().set_default(data={'port': 27018, 'host': '192.168.0.103'}, portfolio={'init_cash': 200000})
+    portfolio = trader.run(strategy)
+    import pandas
+
+    print pandas.DataFrame(portfolio.history)
