@@ -133,13 +133,14 @@ class MongoDataSupport(AbstractDataSupport):
 
 
 class MultiDataSupport(AbstractDataSupport):
-    def __init__(self, context=None, **info):
+    def __init__(self, context=None, event_queue=None,**info):
         super(MultiDataSupport, self).__init__()
         self._db = info.pop('db', None)
         self._client = connect(**info)
         self._panel_data = MultiPanelData(context)
         self._initialized = False
         self.tickers = {}
+        self.event_queue = event_queue
 
         self.mapper = {}
         self.bar_general = ['open', 'high', 'low', 'close', 'volume', 'datetime']
@@ -167,6 +168,8 @@ class MultiDataSupport(AbstractDataSupport):
         self._db = ticker_type
         self.subscribe(tickers, frequency, start, end, ticker_type)
         self._initialized = True
+        if self.event_queue:
+            self.put_time_events(self.event_queue)
 
     def subscribe(self, tickers, frequency, start=None, end=None, ticker_type=None):
         """
@@ -222,7 +225,7 @@ class MultiDataSupport(AbstractDataSupport):
             for ticker in tickers:
                 f.remove(ticker)
 
-    def current(self, tickers, fields=None):
+    def current(self, tickers, fields=None, **kwargs):
         """
         获取最新数据
 
@@ -230,7 +233,22 @@ class MultiDataSupport(AbstractDataSupport):
         :param fields: str or list, [close, open, high, low, volume]
         :return: float, series or DataFrame
         """
-        return self._panel_data.current(tickers, fields)
+        try:
+            return self._panel_data.current(tickers, fields)
+        except KeyError:
+            f = self._panel_data.frequency
+            t = self.current_time
+            if isinstance(tickers, str):
+                return self.history_db(
+                    tickers, f, end=t, length=1, **kwargs
+                )
+            elif isinstance(tickers, list):
+                return pd.DataFrame(
+                    dict(map(
+                        lambda ticker: (ticker, self.history_db(ticker, f, end=t, length=1, **kwargs)),
+                        tickers
+                    ))
+                )
 
     def history(
             self, tickers, frequency, fields=None,
@@ -247,12 +265,24 @@ class MultiDataSupport(AbstractDataSupport):
         :param length: int
         :return: float, series or DataFrame
         """
+        if end and end > self._panel_data.context.current_time:
+            end = self._panel_data.context.current_time
+
         try:
-            return self._panel_data.history(
+            data = self._panel_data.history(
                 tickers, frequency, fields,
                 start, end, length
             )
+            if length:
+                if not self.match_length(data, length):
+                    raise KeyError()
+
+            return data
+
         except KeyError:
+            if not end:
+                end = self.current_time
+
             if isinstance(tickers, str):
                 return self.history_db(tickers, frequency, fields, start, end, length)
             elif isinstance(tickers, list):
@@ -260,6 +290,21 @@ class MultiDataSupport(AbstractDataSupport):
                 for ticker in tickers:
                     frames[ticker] = self.history_db(ticker, frequency, fields, start, end, length)
                 return pd.Panel.from_dict(frames)
+
+    @staticmethod
+    def match_length(frame, length):
+        if isinstance(frame, (pd.DataFrame, pd.Series)):
+            if len(frame) != length:
+                return False
+            else:
+                return True
+        elif isinstance(frame, pd.Panel):
+            if len(frame.major) != length:
+                return False
+            else:
+                return True
+        else:
+            return False
 
     def put_time_events(self, queue):
         for time_ in self._panel_data.major_axis:
@@ -321,8 +366,8 @@ class MultiDataSupport(AbstractDataSupport):
                 ).iloc[::-1]
 
         frame = frame.rename_axis(mapper, 1).reindex(columns=columns)
-        frame.index = frame['datetime']
-        return frame
+        frame.index = frame.pop('datetime')
+        return frame if len(frame) != 1 else frame.iloc[0]
 
     def key_map_transfer(self, fields, ticker_type):
         if fields:
@@ -372,6 +417,10 @@ class MultiDataSupport(AbstractDataSupport):
         )
         frame.pop('_id')
         return frame
+
+    @property
+    def current_time(self):
+        return self._panel_data.current_time
 
 
 if __name__ == "__main__":

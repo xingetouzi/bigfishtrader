@@ -1,5 +1,6 @@
 # encoding=utf-8
 from bigfishtrader.engine.handler import HandlerCompose
+from datetime import datetime
 
 
 class AbstractDataSupport(HandlerCompose):
@@ -47,15 +48,6 @@ class AbstractDataSupport(HandlerCompose):
         """
         raise NotImplementedError("should implement history()")
 
-
-class DataCollector(object):
-    def __init__(self, **setting):
-        from pymongo import MongoClient
-
-        db = setting.pop('db')
-        users = setting.pop('user', {})
-        self.client = MongoClient(**setting)
-        self.db = self.client[db]
-
-        for db in users:
-            self.client[db].authenticate(users[db]['id'], users[db]['password'])
+    @property
+    def current_time(self):
+        return datetime.now()
