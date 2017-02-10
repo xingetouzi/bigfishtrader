@@ -2,6 +2,7 @@ from datetime import datetime
 
 from bigfishtrader.data.base import AbstractDataSupport
 import pandas as pd
+from numpy import float64
 
 
 class PanelDataSupport(AbstractDataSupport):
@@ -180,10 +181,10 @@ class MultiPanelData(AbstractDataSupport):
         self._panels = {}
         self._frequency = None
         self.major_axis = None
-        self._context = context if context is not None else Context()
+        self.context = context if context is not None else Context()
 
     def set_context(self, context):
-        self._context = context
+        self.context = context
 
     def init(self, frequency, **ticker_frame):
         panel = self.insert(frequency, **ticker_frame)
@@ -214,15 +215,15 @@ class MultiPanelData(AbstractDataSupport):
         if fields is None:
             fields = slice(None)
         panel = self._panels[self._frequency]
-        end = pd.to_datetime(self._context.current_time)
+        end = pd.to_datetime(self.context.current_time)
         index = panel.major_axis.searchsorted(end, 'left')
         if index >= len(panel.major_axis):
             index = -1
 
-        # if isinstance(tickers, str):
-        #     frame = panel[tickers]
-        #     return frame[fields].iloc[index]
         if isinstance(tickers, list):
+            for ticker in tickers:
+                if ticker not in panel.items:
+                    raise KeyError('%s not in items' % ticker)
             panel = panel[tickers]
             return panel.iloc[:, index].T[fields]
         else:
@@ -248,7 +249,7 @@ class MultiPanelData(AbstractDataSupport):
                     return panel[tickers][:, begin:begin+length, fields]
 
             else:
-                end = pd.to_datetime(end) if end else pd.to_datetime(self._context.current_time)
+                end = pd.to_datetime(end) if end else pd.to_datetime(self.context.current_time)
                 stop = panel.major_axis.searchsorted(end)
 
                 if stop < len(panel.major_axis):
@@ -293,7 +294,7 @@ class MultiPanelData(AbstractDataSupport):
                 else:
                     return panel[tickers][:, :stop, fields]
         else:
-            end = pd.to_datetime(self._context.current_time)
+            end = pd.to_datetime(self.context.current_time)
             stop = panel.major_axis.searchsorted(end)
             begin = stop - length if length and (stop >= length) else None
             if stop < len(panel.major_axis):
@@ -308,3 +309,11 @@ class MultiPanelData(AbstractDataSupport):
                 return panel[tickers][:, begin:stop, fields]
         # else:
         #     raise TypeError('history() takes at least one param among start, end and length')
+
+    @property
+    def frequency(self):
+        return self._frequency
+
+    @property
+    def current_time(self):
+        return self.context.current_time

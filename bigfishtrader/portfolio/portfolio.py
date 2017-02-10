@@ -1,7 +1,7 @@
 # encoding: utf-8
 from dictproxyhack import dictproxy
 
-from bigfishtrader.portfolio.position import Position, PositionHandler
+from bigfishtrader.portfolio.position import Order, PositionHandler
 from bigfishtrader.exception import QuantityException
 from bigfishtrader.portfolio.base import AbstractPortfolio
 from bigfishtrader.engine.handler import Handler
@@ -120,7 +120,7 @@ class Portfolio(AbstractPortfolio):
         self.history.append({'datetime': self._time, 'equity': self.equity, 'cash': self._cash})
 
     def open_order(self, order_id, ticker, price, quantity, open_time, commission=0, **kwargs):
-        position = Position(
+        position = Order(
             ticker, price, quantity,
             open_time, commission, **kwargs
         )
@@ -160,7 +160,7 @@ class Portfolio(AbstractPortfolio):
         Returns:
             Position: the opened position
         """
-        position = Position(ticker, price, quantity, open_time, commission, **kwargs)
+        position = Order(ticker, price, quantity, open_time, commission, **kwargs)
         self._cash -= (position.deposit + commission)
 
         if self._cash < 0:
@@ -272,7 +272,7 @@ class NewPortfolio(AbstractPortfolio):
     def on_time(self, event, kwargs=None):
         self._time = event.time
         for position in self._positions().values():
-            close = self._data.current(position.ticker, 'close')
+            close = self._data.current(position.ticker).close
             if close == close:
                 position.update(close)
         self.log()
@@ -301,7 +301,7 @@ class NewPortfolio(AbstractPortfolio):
             )
 
     def open_position(self, order_id, ticker, price, quantity, open_time, commission=0, **kwargs):
-        position = Position(
+        position = Order(
             ticker, price, quantity, open_time,
             commission, order_id=order_id, **kwargs
         )

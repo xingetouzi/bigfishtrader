@@ -3,7 +3,7 @@ from bigfishtrader.engine.handler import HandlerCompose, Handler
 from bigfishtrader.event import EVENTS
 
 
-class Position(object):
+class Order(object):
     """
     This class presents the position of a single ticker
 
@@ -109,7 +109,7 @@ class Position(object):
             Position: new position which has the input quantity
         """
 
-        new_position = Position(
+        new_position = Order(
             self.ticker, self.open_price, quantity, self.open_time,
             self.commission*quantity/self.quantity, self.lever,
             self.deposit_rate, order_id=self.position_id
@@ -146,6 +146,32 @@ class Position(object):
     def available(self):
         return self.quantity - self.lock
 
+
+class Position(object):
+
+    def __init__(self, ticker, quantity, price, commission=0, lever=1, deposit_rate=1, lock=0):
+        self.ticker = ticker
+        self.quantity = quantity
+        self.commission = commission
+        self.cost = price
+        self.price = price
+        self.lock = lock
+        self.lever = lever
+        self.deposit_rate = deposit_rate
+
+    @property
+    def available(self):
+        return self.quantity - self.lock
+
+    @property
+    def profit(self):
+        return self.quantity * (self.price - self.cost) * self.lever * self.deposit_rate
+
+    def append(self, quantity, commission=0):
+        pass
+
+    def reduce(self, quantity, commission=0):
+        pass
 
 class PositionHandler(HandlerCompose):
     def __init__(self):
@@ -241,10 +267,10 @@ if __name__ == '__main__':
     from bigfishtrader.event import OrderEvent, RecallEvent, CLOSE_ORDER
     from datetime import datetime
 
-    p = Position('000001', 15, 2000, datetime(2017, 1, 1), order_id=101)
-    p2 = Position('000001', 15, 2000, datetime(2017, 1, 1), order_id=102)
-    p3 = Position('000001', 15, 2000, datetime(2017, 1, 1), order_id=103)
-    p4 = Position('000001', 15, -2000, datetime(2017, 1, 1), order_id=104)
+    p = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=101)
+    p2 = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=102)
+    p3 = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=103)
+    p4 = Order('000001', 15, -2000, datetime(2017, 1, 1), order_id=104)
     ph = PositionHandler()
     ph[101] = p
     ph[102] = p2

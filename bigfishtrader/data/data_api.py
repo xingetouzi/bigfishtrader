@@ -4,6 +4,7 @@ import pandas as pd
 import oandapy
 from datetime import datetime
 from threading import Thread
+import requests
 try:
     from Queue import Queue, Empty
 except:
@@ -76,10 +77,10 @@ class DataCollector(object):
         self._running = False
 
 
-class TushareData(DataCollector):
+class StockData(DataCollector):
     def __init__(self, **setting):
         setting.setdefault('db', 'HS')
-        super(TushareData, self).__init__(**setting)
+        super(StockData, self).__init__(**setting)
 
     def save_k_data(
             self, code=None, start='', end='',
@@ -129,6 +130,68 @@ class TushareData(DataCollector):
                 ktype, autype, index,
                 retry_count, pause
             )
+
+    @staticmethod
+    def get_yahoo_bar(code, retype='dict', start=None, end=None, **f):
+        """
+
+        :param code: stockCode (0700.hk, 600000.ss .....)
+        :param f:
+            a = begin month - 1
+            b = begin day
+            c = begin year
+            d = end month - 1
+            e = end day
+            f = end year
+            g = timeframe(w:week, d:day, w:week, m:month)
+        :return: DataFrame, dict
+        """
+
+        if start:
+            if isinstance(start, str):
+                start = datetime.strptime(start, '%Y-%m-%d')
+            elif not isinstance(start, datetime):
+                raise TypeError("type of start must be datetime or str('YYYY-MM-DD')")
+            f['a'] = start.month - 1
+            f['b'] = start.day
+            f['c'] = start.year
+
+        if end:
+            if isinstance(end, str):
+                end = datetime.strptime(end, '%Y-%m-%d')
+            elif not isinstance(end, datetime):
+                raise TypeError("type of end must be datetime or str('YYYY-MM-DD')")
+            f['d'] = end.month - 1
+            f['e'] = end.day
+            f['f'] = end.year
+
+        print(code, f)
+
+        url = "http://table.finance.yahoo.com/table.csv?s=%s" % code
+        param = ''.join(map(lambda (key, value): '&%s=%s' % (key, value), f.items()))
+        url += param + '&ignore=.csv'
+        data = requests.get(url, timeout=10)
+        lines = data.text.split('\n')
+        lines.pop()
+        columns = list(map(lambda w: w.lower(), lines[0].split(',')))
+        docs = []
+        for line in lines[1:]:
+            line = line.split(',')
+            doc = {'datetime': datetime.strptime(line[0], '%Y-%m-%d')}
+
+            for i in range(1, len(columns)):
+                doc[columns[i]] = float(line[i])
+            if doc['volume'] == 0:
+                continue
+
+            docs.append(doc)
+
+        docs.reverse()
+
+        if retype == 'dict':
+            return docs
+        elif retype == 'DataFrame':
+            return pd.DataFrame(docs)
 
 
 class OandaData(DataCollector):
@@ -278,6 +341,10 @@ class OandaData(DataCollector):
 
 
 if __name__ == '__main__':
-    oanda = OandaData("D:/bigfishtrader/bigfishtrader/router/oanda_account.json", db='Oanda')
+    # oanda = OandaData("D:/bigfishtrader/bigfishtrader/router/oanda_account.json", db='Oanda')
 
-    oanda.save_main()
+    # oanda.save_main()
+
+    stock = StockData(port=10001, db='stock_test')
+
+    print stock.get_yahoo_bar('000002.sz', 'DataFrame', '2016-01-01')

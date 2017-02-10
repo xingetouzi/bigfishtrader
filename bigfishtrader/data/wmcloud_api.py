@@ -49,7 +49,7 @@ class Client(object):
         response = requests.get(url, headers=self.header)
         try:
             return json.loads(response.text)
-        except Exception:
+        except SyntaxError:
             return response.text
 
     def request_url(self, api, **kwargs):

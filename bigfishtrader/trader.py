@@ -25,10 +25,11 @@ class Trader(object):
             ('context', Context, {}),
             ('data', MultiDataSupport,
              {'context': 'context', 'event_queue': 'event_queue', 'port': 10001}),
-            ('portfolio', NewPortfolio, {'data': 'data'}),
+            ('portfolio', lambda models, **kwargs: NewPortfolio(models['data'], **kwargs), {}),
             ('router', DummyExchange, {'event_queue': 'event_queue', 'data': 'data'})
         ]
         self.default = list(map(lambda x: x[0], self.models_settings))
+        self.initialized = False
 
     def set_default(self, **models):
         """
@@ -50,6 +51,13 @@ class Trader(object):
             self.models_settings[i][2].update(value)
         return self
 
+    def initialize(self, *models, **params):
+        self.set_default(**params)
+        self._init_models(*models)
+        self.register_modes()
+        self.initialized = True
+        return self
+
     def _init_models(self, *models):
         """
         初始化模块, 模块将按输入的顺序初始化,
@@ -57,17 +65,18 @@ class Trader(object):
 
         :param models: (name, model, params)
             name: str, 模块名称
-            model: type<class>, 输入模块类型而不是对象
+            model: type<class>, 输入模块类型或方法而不是对象
             params: dict, 初始化时需要输入的参数
                 当模块需要其他模块作为参数时, 可直接以模块名为参数
                 也可以以一个方法为参数, 该方法需传入一个models(已经初始化的模块, dict)作为参数, 然后将返回值作为要输入的参数
 
         :return:
         """
+
         model_setting = list(self.models_settings)
         for m in models:
             try:
-                i = self.default[m[0]]
+                i = self.default.index(m[0])
                 model_setting[i] = m
             except ValueError:
                 model_setting.append(m)
@@ -75,7 +84,10 @@ class Trader(object):
         for m in model_setting:
             name, model, kw = m[0], m[1], m[2]
 
-            self._init_model(name, model, **kw)
+            if isinstance(model, (types.FunctionType, types.MethodType)):
+                self.models[name] = model(self.models, **kw)
+            else:
+                self._init_model(name, model, **kw)
 
     def register_modes(self):
         engine = self.models['engine']
@@ -107,7 +119,7 @@ class Trader(object):
             )
         )
 
-    def run(self, strategy, *models, **kwargs):
+    def back_test(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,  **kwargs):
         """
         运行一个策略, 完成后返回一个账户对象
 
@@ -116,14 +128,14 @@ class Trader(object):
         :param kwargs: 需要修改的策略参数
         :return: Portfolio
         """
-
-        self._init_models(*models)
-        self.register_modes()
-
-        for key, value in kwargs.items():
-            setattr(strategy, key, value)
+        if not self.initialized:
+            raise Exception('Models not initialized, please call initialize()')
 
         context, data = self.models['context'], self.models['data']
+
+        data.init(tickers, frequency, start, end, ticker_type)
+        context.tickers = tickers
+        context.portfolio = self.models['portfolio']
 
         def on_time(event, kwargs=None):
             strategy.handle_data(context, data)
@@ -139,12 +151,17 @@ class Trader(object):
             self.models['context'],
         )
 
-        strategy.initialize(self.models['context'], self.models['data'])
+        for key, value in kwargs.items():
+            setattr(strategy, key, value)
+
+        strategy.initialize(context, data)
 
         engine = self.models['engine']
         engine.start()
         engine.join()
         engine.stop()
+
+        self.initialized = False
 
         return self.models['portfolio']
 
@@ -165,8 +182,8 @@ def m3(models):
 if __name__ == '__main__':
     import examples.stock_strategy as strategy
 
-    trader = Trader().set_default(data={'port': 27018, 'host': '192.168.0.103'}, portfolio={'init_cash': 200000})
-    portfolio = trader.run(strategy)
+    trader = Trader().initialize(data={'port': 27018, 'host': '192.168.0.103'}, portfolio={'init_cash': 200000})
+    portfolio = trader.back_test(strategy, '000001', 'D', ticker_type='HS')
     import pandas
 
     print pandas.DataFrame(portfolio.history)

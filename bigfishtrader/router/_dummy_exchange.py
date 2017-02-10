@@ -66,7 +66,7 @@ class DummyExchange(AbstractRouter):
                 self.orders.pop(order.loacl_id, None)
 
     def _fill_order(self, order, bar):
-        self._put_fill(order, bar.open, bar.datetime)
+        self._put_fill(order, bar.open, bar.name)
 
     def _fill_limit(self, order, bar):
         if order.action:
@@ -84,18 +84,18 @@ class DummyExchange(AbstractRouter):
 
         if order.quantity > 0 and bar.low < order.price:
             price = order.price if bar.open >= order.price else bar.open
-            self._put_fill(order, price, bar.datetime)
+            self._put_fill(order, price, bar.name)
         elif order.quantity < 0 and bar.high > order.price:
             price = order.price if bar.open <= order.price else bar.open
-            self._put_fill(order, price, bar.datetime)
+            self._put_fill(order, price, bar.name)
 
     def _stop_open(self, order, bar):
         if order.quantity > 0 and bar.high > order.price:
             price = order.price if bar.open <= order.price else bar.open
-            self._put_fill(order, price, bar.datetime)
+            self._put_fill(order, price, bar.name)
         elif order.quantity < 0 and bar.low < order.price:
             price = order.price if bar.open >= order.price else bar.open
-            self._put_fill(order, price, bar.datetime)
+            self._put_fill(order, price, bar.name)
 
     def on_order(self, event, kwargs=None):
         """
@@ -128,7 +128,7 @@ class DummyExchange(AbstractRouter):
             self.event_queue.put(
                 RecallEvent(event.time, event)
             )
-            self._put_fill(event, current.close, current.datetime)
+            self._put_fill(event, current.close, current.name)
         else:
             self.on_order(event, kwargs)
 
