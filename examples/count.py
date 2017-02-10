@@ -5,7 +5,7 @@ from dateutil.parser import parse
 import codecs
 
 if __name__ == "__main__":
-    filename = "oanda_linux.log"
+    filename = "ctp_windows.log"
     tz = pytz.timezone("Asia/Shanghai")
     tick_start_local = []
     tick_end_local = []
@@ -19,6 +19,7 @@ if __name__ == "__main__":
     last_tick_start_local = None
     last_tick_end_local = None
     last_tick_exchange = None
+    count = 0
     with codecs.open(filename, "r", encoding="utf-8") as f:
         for line in f.readlines():
             line = line.replace("\n", "")
@@ -43,10 +44,13 @@ if __name__ == "__main__":
                 local_ts = parse(dts).replace(tzinfo=tz)
                 order_sent.append(local_ts)
             elif "placed" in content:
-                exchange_ts = parse(line.split("at ")[-1]).replace(tzinfo=tz)
-                local_ts = parse(dts).replace(tzinfo=tz)
-                order_placed.append(local_ts)
-                place_timestamp.append(exchange_ts)
+                count += 1
+                if count == 2:
+                    exchange_ts = parse(line.split("at ")[-1]).replace(tzinfo=tz)
+                    local_ts = parse(dts).replace(tzinfo=tz)
+                    order_placed.append(local_ts)
+                    place_timestamp.append(exchange_ts)
+                    count = 0
             elif "filled" in content:
                 exchange_ts = parse(line.split("at ")[-1]).replace(tzinfo=tz)
                 local_ts = parse(dts).replace(tzinfo=tz)
@@ -71,13 +75,15 @@ if __name__ == "__main__":
     print(result)
     result.to_csv("result.csv")
     delta = pd.DataFrame()
+    delta["d0"] = result["tick_start"] - result["tick_timestamp"]
     delta["d1"] = result["tick_end"] - result["tick_start"]
     delta["d2"] = result["order_generated"] - result["tick_end"]
     delta["d3"] = result["order_sent"] - result["order_generated"]
-    delta["d4"] = result["order_filled"] - result["order_sent"]
+    delta["d4"] = result["order_placed"] - result["order_sent"]
+    delta["d5"] = result["order_filled"] - result["order_sent"]
     # delta["tick_to_placing"] = result["placing_timestamp"] - result["tick_timestamp"]
     # delta["tick_to_filling"] = result["filling_timestamp"] - result["tick_timestamp"]
-    delta = pd.DataFrame(delta.values.astype(float), columns=["d1", "d2", "d3", "d4"])
+    delta = pd.DataFrame(delta.values.astype(float), columns=["d0", "d1", "d2", "d3", "d4", "d5"])
     temp = delta.copy()
     delta.index = delta.index.astype(str)
     delta = delta.append(pd.Series(temp.apply(np.mean, axis=0), name="mean"))

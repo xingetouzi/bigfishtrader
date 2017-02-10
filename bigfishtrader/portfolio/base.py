@@ -54,7 +54,8 @@ class AbstractPortfolio(HandlerCompose):
     """
     Portfolio的抽象基类。
     """
-    def get_positions(self):
+    @property
+    def positions(self):
         """
         返回当前持仓，用户调用
 
@@ -65,7 +66,8 @@ class AbstractPortfolio(HandlerCompose):
         """
         raise NotImplementedError("Should implement get_positions")
 
-    def get_cash(self):
+    @property
+    def cash(self):
         """
         返回当前账户现金，用户调用
 
@@ -75,3 +77,6 @@ class AbstractPortfolio(HandlerCompose):
             NotImplementedError: Should implement get_cash
         """
         raise NotImplementedError("Should implement get_cash")
+
+    def get_security(self, *args):
+        pass

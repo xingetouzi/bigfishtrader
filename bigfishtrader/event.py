@@ -1,6 +1,6 @@
 from enum import Enum
 from bigfishtrader.const import *
-import nanotime
+from datetime import datetime
 
 
 class EVENTS(Enum):
@@ -12,6 +12,11 @@ class EVENTS(Enum):
     STOP = 5
     CANCEL = 6
     TIME = 7
+    MODIFY = 8
+    CONFIRM = 9
+    CONFIG = 10
+    RECALL = 11
+    POSITION = 12
     EXIT = 999
 
 
@@ -33,7 +38,7 @@ class Event(object):
         self.priority = priority
         self.topic = topic
         self.time = timestamp
-        self.local_time = nanotime.now()
+        self.local_time = datetime.now()
 
     def to_dict(self):
         return {field: getattr(self, field) for field in self.__slots__}
@@ -87,8 +92,8 @@ class BarEvent(Event):
     """
     __slots__ = ["ticker", "time", "open", "high", "low", "close", "volume"]
 
-    def __init__(self, ticker, timestamp, openPrice, highPrice, lowPrice, closePrice, volume):
-        super(BarEvent, self).__init__(EVENTS.BAR, 1, timestamp)
+    def __init__(self, ticker, timestamp, openPrice, highPrice, lowPrice, closePrice, volume, topic=''):
+        super(BarEvent, self).__init__(EVENTS.BAR, 1, timestamp, topic)
         self.ticker = ticker
         self.time = timestamp
         self.open = openPrice
@@ -104,19 +109,22 @@ class OrderEvent(Event):
     will be handled by Simulation or Trade section
     """
     __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag", "order_type",
-                 "exchange_id"]
+                 "take_profit", "stop_lost"]
 
-    def __init__(self, timestamp, ticker, action, quantity, price=None, order_type=EVENTS.ORDER, tag=None, local_id=0):
-        super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp)
+    def __init__(self, timestamp, ticker, action, quantity,
+                 price=None, order_type=EVENTS.ORDER, tag=None,
+                 local_id=0, take_profit=0, stop_lost=0, topic=''):
+        super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp, topic)
         self.price = price
         self.ticker = ticker
         self.action = action
         self.quantity = quantity
         self.tag = tag
         self.local_id = local_id
-        self.exchange_id = None
         self.status = ORDERSTATUS.UNFILL
         self.order_type = order_type
+        self.take_profit = take_profit
+        self.stop_lost = stop_lost
 
     def match(self, **conditions):
         for key, value in conditions.items():
@@ -124,6 +132,18 @@ class OrderEvent(Event):
                 return False
 
         return True
+
+    def to_fill(
+            self, timestamp, price, commission=0, lever=1, deposit_rate=1,
+            position_id=None, external_id=None, topic=''
+    ):
+        return FillEvent(
+            timestamp, self.ticker, self.action, self.quantity,
+            price, commission, lever, deposit_rate,
+            local_id=self.local_id,
+            position_id=position_id if position_id else self.local_id,
+            external_id=external_id
+        )
 
 
 class CancelEvent(Event):
@@ -133,8 +153,8 @@ class CancelEvent(Event):
     """
     __slots__ = ["conditions"]
 
-    def __init__(self, **conditions):
-        super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, nanotime.now())
+    def __init__(self, topic='', **conditions):
+        super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, datetime.now(), topic)
         self.conditions = conditions
 
 
@@ -147,10 +167,12 @@ class FillEvent(Event):
     update portfolio information
     """
     __slots__ = ["time", "ticker", "action", "quantity", "price", "profit", "commission", "lever", "deposit_rate",
-                 "local_id", "exchange_id", "position_id"]
+                 "local_id", "external_id", "position_id", "fill_type"]
 
-    def __init__(self, timestamp, ticker, action, quantity, price, commission=0, lever=1, deposit_rate=1):
-        super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp)
+    def __init__(self, timestamp, ticker, action, quantity, price,
+                 commission=0, lever=1, deposit_rate=1, fill_type='position',
+                 local_id=None, position_id=None, external_id=None, topic=''):
+        super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp, topic)
         self.ticker = ticker
         self.action = action
         self.quantity = quantity
@@ -159,9 +181,10 @@ class FillEvent(Event):
         self.commission = commission
         self.lever = lever
         self.deposit_rate = deposit_rate
-        self.local_id = None
-        self.exchange_id = None
-        self.position_id = None
+        self.fill_type = fill_type
+        self.position_id = position_id
+        self.local_id = local_id
+        self.external_id = external_id
 
 
 class TimeEvent(Event):
@@ -171,8 +194,64 @@ class TimeEvent(Event):
         super(TimeEvent, self).__init__(EVENTS.TIME, 1, timestamp, topic)
 
 
+class ModifyEvent(Event):
+    __slots__ = ["modify", "order_id"]
+
+    def __init__(self, timestamp, order_id, topic='', **modify):
+        super(ModifyEvent, self).__init__(EVENTS.MODIFY, 0, timestamp, topic)
+        self.order_id = order_id
+        self.modify = modify
+
+
+class ConfirmEvent(Event):
+    __slots__ = ["info"]
+
+    def __init__(self, timestamp, topic='', **info):
+        super(ConfirmEvent, self).__init__(EVENTS.CONFIRM, 0, timestamp, topic)
+        self.info = info
+
+
+class ConfigEvent(Event):
+    __slots__ = ["config"]
+
+    def __init__(self, timestamp, topic='', **config):
+        super(ConfigEvent, self).__init__(EVENTS.CONFIG, -1, timestamp, topic)
+        self.config = config
+
+
+class RecallEvent(Event):
+    __slots__ = ['order', 'lock']
+
+    def __init__(self, timestamp, order, lock=True, topic=''):
+        super(RecallEvent, self).__init__(EVENTS.RECALL, 0, timestamp, topic)
+        self.order = order
+        self.lock = lock
+
+
 class ExitEvent(Event):
     __slots__ = []
 
     def __init__(self):
-        super(ExitEvent, self).__init__(EVENTS.EXIT, 999, nanotime.now())
+        super(ExitEvent, self).__init__(EVENTS.EXIT, 999, datetime.now())
+
+
+class PositionEvent(Event):
+    """
+
+    """
+    __slots__ = ["ticker", "exchange", "direction", "volume", "price", ""]
+
+    def __init__(self, priority, timestamp):
+        super(PositionEvent, self).__init__(EVENTS.POSITION, priority, timestamp)
+        self.ticker = None
+        self.exchange = None
+        self.direction = None
+        self.volume = None
+
+    @property
+    def cli_ticker(self):
+        return self.exchange + self.ticker
+
+
+if __name__ == '__main__':
+    pass
