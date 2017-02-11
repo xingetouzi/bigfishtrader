@@ -336,6 +336,9 @@ class NewPortfolio(AbstractPortfolio):
                     'quantity to be close is larger than position.quantity'
                 )
 
+            # print 'close', position.show()
+            # print close_time, self._data.current_time
+
     def separate_close(self, ticker, quantity):
         return self._positions.separate_close(ticker, quantity)
 

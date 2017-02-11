@@ -228,7 +228,7 @@ def slippage_value(order, price):
             (order.quantity < 0 and order.action == 0):
         return api.slippage
     else:
-        return api.slippage
+        return -api.slippage
 
 
 def slippage_pct(order, price):
@@ -277,7 +277,7 @@ def time_limit(func):
 
 
 def register_time_limit(function, topic, **limit):
-    api.register_handler(function, EVENTS.TIME, topic)
+    api.register_handler(function, EVENTS.TIME, topic, limit.pop('priority', 100))
 
     api.data.put_limit_time(api.event_queue, topic, **limit)
 

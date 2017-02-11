@@ -318,8 +318,14 @@ class MultiDataSupport(AbstractDataSupport):
 
     @staticmethod
     def _time_match(time, **condition):
+        import types
         for key, value in condition.items():
-            if getattr(time, key) != value:
+            attr = getattr(time, key)
+            if isinstance(attr, (
+                    types.MethodType, types.FunctionType, types.BuiltinMethodType, types.BuiltinFunctionType
+            )):
+                attr = attr()
+            if attr != value:
                 return False
 
         return True
@@ -415,12 +421,24 @@ class MultiDataSupport(AbstractDataSupport):
                 self._client[db][col_name].find(filter_, projection, *args, **kwargs)
             )
         )
-        frame.pop('_id')
+        try:
+            frame.pop('_id')
+        except KeyError:
+            raise KeyError("Unable to find required data in %s.%s, please check your MongoDB" % (db, col_name))
+
         return frame
 
     @property
     def current_time(self):
         return self._panel_data.current_time
+
+    def can_trade(self, ticker):
+        current = self.current(ticker, self._panel_data.frequency)
+        if current.name == self.current_time and current.close == current.close:
+            return True
+        else:
+            return False
+
 
 
 if __name__ == "__main__":

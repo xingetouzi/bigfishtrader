@@ -19,16 +19,16 @@ class Trader(object):
 
     def __init__(self):
         self.models = {}
-        self.models_settings = [
+        self.default_settings = [
             ('event_queue', PriorityQueue, {}),
             ('engine', Engine, {'event_queue': 'event_queue'}),
             ('context', Context, {}),
             ('data', MultiDataSupport,
-             {'context': 'context', 'event_queue': 'event_queue', 'port': 10001}),
+             {'context': 'context', 'event_queue': 'event_queue', 'port': 27017}),
             ('portfolio', lambda models, **kwargs: NewPortfolio(models['data'], **kwargs), {}),
             ('router', DummyExchange, {'event_queue': 'event_queue', 'data': 'data'})
         ]
-        self.default = list(map(lambda x: x[0], self.models_settings))
+        self.default = list(map(lambda x: x[0], self.default_settings))
         self.initialized = False
 
     def set_default(self, **models):
@@ -48,7 +48,7 @@ class Trader(object):
             except ValueError:
                 raise ValueError('model %s is not a default model' % key)
 
-            self.models_settings[i][2].update(value)
+            self.default_settings[i][2].update(value)
         return self
 
     def initialize(self, *models, **params):
@@ -73,7 +73,7 @@ class Trader(object):
         :return:
         """
 
-        model_setting = list(self.models_settings)
+        model_setting = list(self.default_settings)
         for m in models:
             try:
                 i = self.default.index(m[0])
@@ -118,6 +118,29 @@ class Trader(object):
                 )
             )
         )
+
+    def backtest(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,  **kwargs):
+        if not self.initialized:
+            raise Exception('Models not initialized, please call initialize()')
+
+        context, data = self.models['context'], self.models['data']
+
+        data.init(tickers, frequency, start, end, ticker_type)
+        context.tickers = [tickers] if isinstance(tickers, str) else tickers
+
+        s = strategy(**self.models)
+        s.register(self.models['engine'])
+        s.init_params(**kwargs)
+        s.initialize()
+
+        engine = self.models['engine']
+        engine.start()
+        engine.join()
+        engine.stop()
+
+        self.initialized = False
+
+        return self.models['portfolio']
 
     def back_test(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,  **kwargs):
         """
