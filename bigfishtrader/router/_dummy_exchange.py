@@ -26,7 +26,7 @@ class DummyExchange(AbstractRouter):
         self._handlers = {
             "on_bar": Handler(self.on_bar, EVENTS.BAR, topic="", priority=100),
             "on_order": Handler(self.on_order, EVENTS.ORDER, topic="", priority=0),
-            "on_time": Handler(self.on_time, EVENTS.TIME, priority=100),
+            "on_time": Handler(self.on_time, EVENTS.TIME, priority=200),
             "on_order_instance": Handler(self.on_order_instance, EVENTS.ORDER, topic='this_bar')
         }
         self.handle_order = {

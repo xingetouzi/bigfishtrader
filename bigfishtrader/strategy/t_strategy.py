@@ -43,9 +43,7 @@ if __name__ == '__main__':
     import pandas as pd
     from datetime import datetime
 
-    p = Trader().initialize(
-        data={'port': 10001}
-    ).backtest(
+    p = Trader().initialize().backtest(
         TestStrategy,
         ['000001', '600016', '600036', '600000', '601166'], 'D',
         start=datetime(2015, 1, 1), ticker_type='HS'

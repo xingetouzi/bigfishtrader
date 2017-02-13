@@ -232,7 +232,7 @@ class NewPortfolio(AbstractPortfolio):
             self._positions = PositionHandler()
             self._handlers['on_recall'] = Handler(self._positions.on_recall, EVENTS.RECALL)
 
-        self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=100)
+        self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
         self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, priority=100)
         self._handlers['on_exit'] = Handler(self.close_at_stop, EVENTS.EXIT, priority=200)
 

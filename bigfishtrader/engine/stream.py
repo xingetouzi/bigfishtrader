@@ -36,7 +36,7 @@ class PriorityList(object):
         """
         if value not in self._i:
             pos = bisect.bisect(self._p, -priority)
-            self._p.insert(pos, priority)
+            self._p.insert(pos, -priority)
             self._v.insert(pos, value)
             self._i[value] = pos
 
