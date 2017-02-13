@@ -44,6 +44,10 @@ class DummyExchange(AbstractRouter):
         return 0
 
     def _put_fill(self, order, price, timestamp):
+        if price != price:
+            print("%s is not able to trade at %s" % (order.ticker, timestamp))
+            return
+
         fill = FillEvent(
             timestamp, order.ticker,
             order.action, order.quantity,
@@ -141,3 +145,26 @@ class DummyExchange(AbstractRouter):
             ),
             self.orders.items()
         ))
+
+
+class PracticeExchange(DummyExchange):
+    def __init__(self, event_queue, data, portfolio, exchange_name=None, **ticker_info):
+        super(PracticeExchange, self).__init__(event_queue, data, exchange_name, **ticker_info)
+        self.portfolio = portfolio
+
+    def _put_fill(self, order, price, timestamp):
+        if price != price:
+            print("%s is not able to trade at %s" % (order.ticker, timestamp))
+            return
+
+        fill = FillEvent(
+            timestamp, order.ticker,
+            order.action, order.quantity,
+            price + self.calculate_slippage(order, price),
+            self.calculate_commission(order, price),
+            local_id=order.local_id, position_id=order.local_id,
+            topic=order.topic, **self.ticker_info.get(order.ticker, {})
+        )
+        self.orders.pop(order.local_id, None)
+
+        self.portfolio.on_fill(fill)
