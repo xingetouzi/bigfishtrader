@@ -7,7 +7,7 @@ from bigfishtrader.engine.core import Engine
 from bigfishtrader.portfolio.context import Context
 from bigfishtrader.portfolio.portfolio import NewPortfolio
 from bigfishtrader.data.support import MultiDataSupport
-from bigfishtrader.router.exchange import DummyExchange
+from bigfishtrader.router.exchange import DummyExchange, PracticeExchange
 from bigfishtrader.event import EVENTS
 import types
 
@@ -18,6 +18,11 @@ class Trader(object):
     """
 
     def __init__(self):
+        self.init_settings()
+        self.initialized = False
+
+    def init_settings(self):
+        self.settings = {}
         self.models = {}
         self.default_settings = [
             ('event_queue', PriorityQueue, {}),
@@ -29,7 +34,17 @@ class Trader(object):
             ('router', DummyExchange, {'event_queue': 'event_queue', 'data': 'data'})
         ]
         self.default = list(map(lambda x: x[0], self.default_settings))
-        self.initialized = False
+        self['default'] = self.default_settings
+
+
+    def __getitem__(self, item):
+        self.default_settings = self.settings[item]
+        self.default = list(map(lambda x: x[0], self.default_settings))
+
+        return self
+
+    def __setitem__(self, key, value):
+        self.settings[key] = value
 
     def set_default(self, **models):
         """
@@ -54,7 +69,7 @@ class Trader(object):
     def initialize(self, *models, **params):
         self.set_default(**params)
         self._init_models(*models)
-        self.register_modes()
+        self.register_models()
         self.initialized = True
         return self
 
@@ -89,7 +104,7 @@ class Trader(object):
             else:
                 self._init_model(name, model, **kw)
 
-    def register_modes(self):
+    def register_models(self):
         engine = self.models['engine']
         for name, model in self.models.items():
             try:
@@ -189,24 +204,23 @@ class Trader(object):
         return self.models['portfolio']
 
 
-class Model(object):
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kw = kwargs
+class PracticeTrader(Trader):
 
-    def __str__(self):
-        return ' '.join((self.args.__str__(), self.kw.__str__(), '\n'))
-
-
-def m3(models):
-    return models['m2'].args
+    def init_settings(self):
+        self.models = {}
+        self.default_settings = [
+            ('event_queue', PriorityQueue, {}),
+            ('engine', Engine, {'event_queue': 'event_queue'}),
+            ('context', Context, {}),
+            ('data', MultiDataSupport,
+             {'context': 'context', 'event_queue': 'event_queue', 'port': 27017}),
+            ('portfolio', lambda models, **kwargs: NewPortfolio(models['data'], **kwargs), {}),
+            ('router', PracticeExchange,
+             {'event_queue': 'event_queue', 'data': 'data', 'portfolio': 'portfolio'})
+        ]
+        self.default = list(map(lambda x: x[0], self.default_settings))
+        self.settings = {'default': self.default_settings}
 
 
 if __name__ == '__main__':
-    import examples.stock_strategy as strategy
-
-    trader = Trader().initialize(data={'port': 27018, 'host': '192.168.0.103'}, portfolio={'init_cash': 200000})
-    portfolio = trader.back_test(strategy, '000001', 'D', ticker_type='HS')
-    import pandas
-
-    print pandas.DataFrame(portfolio.history)
+    pass

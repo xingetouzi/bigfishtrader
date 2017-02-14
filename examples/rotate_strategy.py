@@ -43,16 +43,11 @@ class RotateStrategy(Strategy):
 
 
 if __name__ == '__main__':
-    from bigfishtrader.trader import Trader
-    from bigfishtrader.router.exchange import PracticeExchange
+    from bigfishtrader.trader import PracticeTrader
     import pandas as pd
     from datetime import datetime
 
-    p = Trader().initialize(
-        ('router', lambda models, **kwargs: PracticeExchange(
-            models['event_queue'], models['data'], models['portfolio']
-        ), {})
-    ).backtest(
+    p = PracticeTrader().initialize().backtest(
         RotateStrategy,
         ['000001', '600016', '600036', '600000', '601166'], 'D',
         start=datetime(2015, 1, 1), ticker_type='HS', period=15
