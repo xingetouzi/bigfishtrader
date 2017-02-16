@@ -5,7 +5,7 @@ except ImportError:
     from queue import PriorityQueue
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.portfolio.context import Context
-from bigfishtrader.portfolio.portfolio import NewPortfolio
+from bigfishtrader.portfolio.portfolio import OrderPortfolio
 from bigfishtrader.data.support import MultiDataSupport
 from bigfishtrader.router.exchange import DummyExchange, PracticeExchange
 from bigfishtrader.event import EVENTS
@@ -30,7 +30,7 @@ class Trader(object):
             ('context', Context, {}),
             ('data', MultiDataSupport,
              {'context': 'context', 'event_queue': 'event_queue', 'port': 27017}),
-            ('portfolio', lambda models, **kwargs: NewPortfolio(models['data'], **kwargs), {}),
+            ('portfolio', lambda models, **kwargs: OrderPortfolio(models['data'], **kwargs), {}),
             ('router', DummyExchange, {'event_queue': 'event_queue', 'data': 'data'})
         ]
         self.default = list(map(lambda x: x[0], self.default_settings))
@@ -214,7 +214,9 @@ class PracticeTrader(Trader):
             ('context', Context, {}),
             ('data', MultiDataSupport,
              {'context': 'context', 'event_queue': 'event_queue', 'port': 27017}),
-            ('portfolio', lambda models, **kwargs: NewPortfolio(models['data'], **kwargs), {}),
+            ('portfolio', lambda models, **kwargs: OrderPortfolio(
+                models['event_queue'], models['data'], **kwargs
+            ), {}),
             ('router', PracticeExchange,
              {'event_queue': 'event_queue', 'data': 'data', 'portfolio': 'portfolio'})
         ]

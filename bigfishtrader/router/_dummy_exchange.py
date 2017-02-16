@@ -165,6 +165,7 @@ class PracticeExchange(DummyExchange):
             local_id=order.local_id, position_id=order.local_id,
             topic=order.topic, **self.ticker_info.get(order.ticker, {})
         )
+
         self.orders.pop(order.local_id, None)
 
         self.portfolio.on_fill(fill)

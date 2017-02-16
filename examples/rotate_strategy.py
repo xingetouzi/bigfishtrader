@@ -10,15 +10,16 @@ class RotateStrategy(Strategy):
         self.period = 10
 
     def handle_data(self):
-        for key, value in self.portfolio.security.items():
-            if key not in self.context.target:
-                if self.data.can_trade(key):
-                    self.close_position(key, value)
+        for ticker, available in self.portfolio.security.items():
+            if ticker not in self.context.target:
+                if self.data.can_trade(ticker) and available:
+                    self.portfolio.send_close(ticker=ticker, quantity=available)
 
         for ticker in self.context.target:
             if ticker not in self.portfolio.security.keys():
                 if self.data.can_trade(ticker):
-                    self.open_position(ticker, 1000)
+                    # self.open_position(ticker, 1000)
+                    self.portfolio.send_open(ticker=ticker, quantity=1000)
 
     def week_end(self):
         target = {}
@@ -39,26 +40,31 @@ class RotateStrategy(Strategy):
                     break
 
         self.context.target = list(target.keys())
-        print self.context.target
+        print self.context.current_time, self.context.target
 
 
 if __name__ == '__main__':
     from bigfishtrader.trader import PracticeTrader
+    from bigfishtrader.portfolio.portfolio import PositionPortfolio
     import pandas as pd
     from datetime import datetime
 
-    p = PracticeTrader().initialize().backtest(
+    p = PracticeTrader().initialize(
+        ('portfolio', PositionPortfolio,
+        {'event_queue': 'event_queue', 'data': 'data', 'init_cash': 200000})
+    ).backtest(
         RotateStrategy,
         ['000001', '600016', '600036', '600000', '601166'], 'D',
         start=datetime(2015, 1, 1), ticker_type='HS', period=15
     )
 
-    print pd.DataFrame(
-        p.history
-    )
+    # print pd.DataFrame(
+    #     p.history
+    # )
 
     print pd.DataFrame(
-        [position.show() for position in p.closed_positions]
+        p.trades
     )
+
 
 

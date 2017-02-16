@@ -1,11 +1,11 @@
 # encoding: utf-8
 from dictproxyhack import dictproxy
 
-from bigfishtrader.portfolio.position import Order, PositionHandler
+from bigfishtrader.portfolio.position import Order, Position, OrderHandler
 from bigfishtrader.exception import QuantityException
 from bigfishtrader.portfolio.base import AbstractPortfolio
 from bigfishtrader.engine.handler import Handler
-from bigfishtrader.event import EVENTS
+from bigfishtrader.event import EVENTS, OPEN_ORDER, CLOSE_ORDER, OrderEvent
 import pandas as pd
 
 
@@ -33,7 +33,7 @@ class Portfolio(AbstractPortfolio):
         self._positions = {}
         self._orders = {}
         self.closed_positions = []
-        self.history = []
+        self._history = []
         self._data = data
         self._time = None
         self.__position_ref = 0
@@ -218,23 +218,189 @@ class Portfolio(AbstractPortfolio):
         pass
 
 
-class NewPortfolio(AbstractPortfolio):
-    def __init__(self, data, position_handler=None, init_cash=100000):
-        super(NewPortfolio, self).__init__()
+class PositionPortfolio(AbstractPortfolio):
+    def __init__(self, event_queue, data, init_cash=100000):
+        super(PositionPortfolio, self).__init__()
+        self.event_queue = event_queue
         self._data = data
         self._cash = init_cash
         self.init_cash = init_cash
-        self.history = []
+        self._positions = {}
+        self._history_positions = []
+        self._trades = []
+        self._orders = []
+        self._info = []
+        self._id = 0
+
+        self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
+        self._handlers['on_recall'] = Handler(self.on_recall, EVENTS.RECALL, priority=150)
+        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, topic='', priority=100)
+        self._handlers['on_exit'] = Handler(self.on_exit, EVENTS.EXIT, priority=200)
+
+
+    @property
+    def next_id(self):
+        self._id += 1
+        return self._id
+
+    @property
+    def positions(self):
+        return self._positions
+
+    @property
+    def history(self):
+        return self._history_positions
+
+    @property
+    def trades(self):
+        return self._trades
+
+    @property
+    def consignations(self):
+        return self._orders
+
+    @property
+    def cash(self):
+        return self._cash
+
+    @property
+    def security(self):
+        return dict([(ticker, position.available) for ticker, position in self._positions.items()])
+
+    @property
+    def equity(self):
+        return self._cash + sum(map(lambda p: p.value, self._positions.values()))
+
+    def on_time(self, event, kwargs=None):
+        for ticker, position in self._positions.items():
+            close = self._data.current(ticker).close
+            if close == close:
+                position.price = close
+            show = position.show('ticker', 'quantity', 'price', 'profit', 'value', 'cost_price', 'commission')
+            show['datetime'] = event.time
+            self._history_positions.append(show)
+
+        self._info.append(
+            {'datetime': event.time, 'cash': self._cash, 'equity': self.equity},
+        )
+
+    def on_fill(self, event, kwargs=None):
+        if event.action:
+            self.open_position(
+                event.time, event.ticker,
+                event.quantity, event.price,
+                event.commission
+            )
+        else:
+            self.close_position(
+                event.time, event.ticker,
+                event.quantity, event.price,
+                event.commission
+            )
+
+    def on_recall(self, event, kwargs=None):
+        order = event.order
+        if event.lock:
+            position = self._positions.get(order.ticker, None)
+            if position:
+                position.lock(order.quantity)
+        else:
+            position = self._positions.get(order.ticker, None)
+            if position:
+                position.unlock(order.quantity)
+
+
+    def on_exit(self, event, kwargs=None):
+        for ticker, position in self._positions.items():
+            self.close_position(
+                self._data.current_time, ticker, position.quantity, position.price
+            )
+
+
+    def open_position(self, timestamp, ticker, quantity, price, commission=0, **kwargs):
+        position = Position(ticker, quantity, price, commission,**kwargs)
+        self._cash -= (position.cost + commission)
+
+        old = self._positions.get(ticker, None)
+        if old:
+            old += position
+        else:
+            self._positions[ticker] = position
+
+        self._trades.append(
+            {'datetime': timestamp, 'ticker': ticker, 'quantity': quantity,
+             'price': price, 'commission': commission ,'action': 'open'},
+        )
+
+    def close_position(self, timestamp, ticker, quantity, price, commission=0):
+        position = self._positions.get(ticker, None)
+        if position:
+            self._cash += position.close(price, quantity, commission) - commission
+            if position.quantity == 0:
+                self._positions.pop(ticker)
+            self._trades.append(
+                {'datetime': timestamp, 'ticker': ticker, 'quantity': quantity,
+                 'price': price, 'commission': commission ,'action': 'close'},
+            )
+
+    def send_open(self, ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwargs):
+        local_id = self.next_id
+        self.event_queue.put(
+            OrderEvent(
+                self._data.current_time,
+                ticker, OPEN_ORDER, quantity, price,
+                order_type=order_type,
+                local_id=local_id,
+                **kwargs
+            )
+        )
+        return local_id
+
+    def send_close(self, ticker, quantity=None, price=None, order_type=EVENTS.ORDER, **kwargs):
+        position = self._positions.get(ticker, None)
+        if position:
+            available = position.available
+            if quantity:
+                if quantity * available <= 0:
+                    pass
+                elif abs(quantity) > abs(available):
+                    quantity = available
+            else:
+                quantity = available
+
+            self.event_queue.put(
+                OrderEvent(
+                    self._data.current_time, ticker, CLOSE_ORDER,
+                    quantity, price, order_type, local_id=self.next_id,
+                    **kwargs
+                )
+            )
+
+
+class OrderPortfolio(AbstractPortfolio):
+    def __init__(self, event_queue, data, position_handler=None, init_cash=100000):
+        super(OrderPortfolio, self).__init__()
+        self.event_queue = event_queue
+        self._data = data
+        self._cash = init_cash
+        self.init_cash = init_cash
+        self._history = []
         self.closed_positions = []
+        self._id = 0
         if position_handler:
             self._positions = position_handler
         else:
-            self._positions = PositionHandler()
+            self._positions = OrderHandler()
             self._handlers['on_recall'] = Handler(self._positions.on_recall, EVENTS.RECALL)
 
         self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
         self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, topic='', priority=100)
         self._handlers['on_exit'] = Handler(self.close_at_stop, EVENTS.EXIT, priority=200)
+
+    @property
+    def next_id(self):
+        self._id += 1
+        return self._id
 
     @property
     def positions(self):
@@ -268,6 +434,10 @@ class NewPortfolio(AbstractPortfolio):
     @property
     def security(self):
         return self._positions.security
+
+    @property
+    def history(self):
+        return self._history
 
     def on_time(self, event, kwargs=None):
         self._time = event.time
@@ -349,9 +519,50 @@ class NewPortfolio(AbstractPortfolio):
             self.closed_positions.append(position)
 
 
+    def send_open(self, ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwargs):
+        local_id = self.next_id
+        self.event_queue.put(
+            OrderEvent(
+                self._data.current_time,
+                ticker, OPEN_ORDER, quantity, price,
+                order_type=order_type,
+                local_id=local_id,
+                **kwargs
+            )
+        )
+        return local_id
+
+    def send_close(self, order_id=None, ticker=None, quantity=None, price=None, order_type=EVENTS.ORDER, **kwargs):
+        if order_id:
+            order = self._positions[order_id]
+            if order.available:
+                self.event_queue.put(
+                    OrderEvent(
+                        self._data.current_time,
+                        order.ticker, CLOSE_ORDER,
+                        order.available, price,
+                        order_type=order_type,
+                        local_id=order_id,
+                        **kwargs
+                    )
+                )
+                return order_id
+            else:
+                print('position.available == 0 , unable to close position')
+        elif ticker and quantity:
+            for _id, available in self.separate_close(ticker, quantity):
+                self.event_queue.put(
+                    OrderEvent(
+                        self._data.current_time,
+                        ticker, CLOSE_ORDER, available, price,
+                        order_type=order_type, local_id=_id,
+                        **kwargs
+                    )
+                )
+
 if __name__ == '__main__':
     from bigfishtrader.event import FillEvent, OrderEvent, RecallEvent
-    portfolio = NewPortfolio(None)
+    portfolio = OrderPortfolio(None, None)
 
     fill = FillEvent('2017-01-01', '000001', 1, 2000, 20,
                      local_id=1001, position_id=1001)
