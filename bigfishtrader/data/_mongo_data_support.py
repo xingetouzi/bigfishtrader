@@ -433,7 +433,7 @@ class MultiDataSupport(AbstractDataSupport):
         return self._panel_data.current_time
 
     def can_trade(self, ticker):
-        current = self.current(ticker, self._panel_data.frequency)
+        current = self.current(ticker)
         if current.name == self.current_time and current.close == current.close:
             return True
         else:

@@ -36,7 +36,6 @@ class Trader(object):
         self.default = list(map(lambda x: x[0], self.default_settings))
         self['default'] = self.default_settings
 
-
     def __getitem__(self, item):
         self.default_settings = self.settings[item]
         self.default = list(map(lambda x: x[0], self.default_settings))
@@ -66,8 +65,8 @@ class Trader(object):
             self.default_settings[i][2].update(value)
         return self
 
-    def initialize(self, *models, **params):
-        self.set_default(**params)
+    def initialize(self, *models, **settings):
+        self.set_default(**settings)
         self._init_models(*models)
         self.register_models()
         self.initialized = True
@@ -155,6 +154,8 @@ class Trader(object):
 
         self.initialized = False
 
+        print(kwargs, 'accomplish')
+
         return self.models['portfolio']
 
     def back_test(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,  **kwargs):
@@ -162,7 +163,6 @@ class Trader(object):
         运行一个策略, 完成后返回一个账户对象
 
         :param strategy: 策略模块
-        :param models: 见 _init_models()
         :param kwargs: 需要修改的策略参数
         :return: Portfolio
         """
@@ -203,6 +203,39 @@ class Trader(object):
 
         return self.models['portfolio']
 
+    def optimization(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,
+                     models=(), settings={}, **params):
+        portfolios = []
+        for k in self.exhaustion(**params):
+            portfolio = self.initialize(
+                *models, **settings
+            ).backtest(
+                strategy, tickers, frequency,
+                start, end, ticker_type, **k
+            )
+
+            k['portfolio'] = portfolio
+            portfolios.append(k)
+
+        return portfolios
+
+    def exhaustion(self, **kwargs):
+        """
+        generator, 穷举所有的参数组合
+
+        :param kwargs:
+        :return: dict
+        """
+        key, values = kwargs.popitem()
+        if len(kwargs):
+            for value in values:
+                for d in self.exhaustion(**kwargs):
+                    d[key] = value
+                    yield d
+        else:
+            for value in values:
+                yield {key: value}
+
 
 class PracticeTrader(Trader):
 
@@ -225,4 +258,6 @@ class PracticeTrader(Trader):
 
 
 if __name__ == '__main__':
-    pass
+    trader = Trader()
+    for t in trader.exhaustion(a=range(0, 3), b=range(0, 5, 2)):
+        print t

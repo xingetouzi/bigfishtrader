@@ -30,7 +30,12 @@ class Strategy(HandlerCompose):
         return self._id
 
     def initialize(self):
-        pass
+        """
+        初始化设定
+        :return:
+        """
+
+        raise NotImplementedError('Should implement initialize()')
 
     def handle_data(self):
         pass
@@ -50,7 +55,6 @@ class Strategy(HandlerCompose):
             func()
 
         self.engine.register(event_handler, EVENTS.TIME, topic, priority)
-
 
     def open_position(self, ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwargs):
         local_id = self.next_id
@@ -134,16 +138,20 @@ class Strategy(HandlerCompose):
                 if unit == 'value':
                     setattr(
                         exchange, "calculate_commission",
-                        lambda order, price:
-                        abs(order.quantity)*price*buy_cost if order.action
-                        else abs(order.quantity)*price*sell_cost
+                        lambda order, price: max(
+                            abs(order.quantity)*price*buy_cost if order.action
+                            else abs(order.quantity)*price*sell_cost,
+                            min_cost
+                        )
                     )
                 elif unit == 'share':
                     setattr(
                         exchange, "calculate_commission",
-                        lambda order, price:
-                        abs(order.quantity)*buy_cost if order.action
-                        else abs(order.quantity)*sell_cost
+                        lambda order, price: max(
+                            abs(order.quantity)*buy_cost if order.action
+                            else abs(order.quantity)*sell_cost,
+                            min_cost
+                        )
                     )
 
             if calculate_function:

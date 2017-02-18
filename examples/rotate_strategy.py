@@ -3,11 +3,13 @@ from bigfishtrader.strategy.base import Strategy
 
 class RotateStrategy(Strategy):
 
+    period = 10
+
     def initialize(self):
+        self.set_commission(0.0005, 0.0005, 'value', 5)
         self.ticker = self.context.tickers[0]
         self.context.target = []
         self.time_limit(self.week_end, isoweekday=5, priority=101)
-        self.period = 10
 
     def handle_data(self):
         for ticker, available in self.portfolio.security.items():
@@ -40,7 +42,6 @@ class RotateStrategy(Strategy):
                     break
 
         self.context.target = list(target.keys())
-        print self.context.current_time, self.context.target
 
 
 if __name__ == '__main__':
@@ -49,22 +50,40 @@ if __name__ == '__main__':
     import pandas as pd
     from datetime import datetime
 
-    p = PracticeTrader().initialize(
-        ('portfolio', PositionPortfolio,
-        {'event_queue': 'event_queue', 'data': 'data', 'init_cash': 200000})
-    ).backtest(
+    # p = PracticeTrader().initialize(
+    #     (
+    #         'portfolio', PositionPortfolio,
+    #         {'event_queue': 'event_queue', 'data': 'data', 'init_cash': 200000}
+    #     ),
+    #     data={'port': 27018, 'host': '192.168.0.103'}
+    # ).backtest(
+    #     RotateStrategy,
+    #     ['000001', '600016', '600036', '600000', '601166'], 'D',
+    #     start=datetime(2015, 1, 1), ticker_type='HS', period=15
+    # )
+
+    trader = PracticeTrader()
+
+    o = trader.optimization(
         RotateStrategy,
         ['000001', '600016', '600036', '600000', '601166'], 'D',
-        start=datetime(2015, 1, 1), ticker_type='HS', period=15
+        start=datetime(2015, 1, 1), ticker_type='HS',
+        models=[(
+            'portfolio', PositionPortfolio,
+            {'event_queue': 'event_queue', 'data': 'data', 'init_cash': 200000}
+        )],
+        settings={'data': {'port': 10001}},
+        period=range(5, 21, 5)
     )
 
+    print o
     # print pd.DataFrame(
     #     p.history
     # )
 
-    print pd.DataFrame(
-        p.trades
-    )
+    # print pd.DataFrame(
+    #     p.trades
+    # )
 
 
 
