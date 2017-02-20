@@ -5,9 +5,9 @@ except ImportError:
     from queue import PriorityQueue
 from bigfishtrader.engine.core import Engine
 from bigfishtrader.portfolio.context import Context
-from bigfishtrader.portfolio.portfolio import NewPortfolio
+from bigfishtrader.portfolio.portfolio import OrderPortfolio
 from bigfishtrader.data.support import MultiDataSupport
-from bigfishtrader.router.exchange import DummyExchange
+from bigfishtrader.router.exchange import DummyExchange, PracticeExchange
 from bigfishtrader.event import EVENTS
 import types
 
@@ -18,18 +18,32 @@ class Trader(object):
     """
 
     def __init__(self):
+        self.init_settings()
+        self.initialized = False
+
+    def init_settings(self):
+        self.settings = {}
         self.models = {}
-        self.models_settings = [
+        self.default_settings = [
             ('event_queue', PriorityQueue, {}),
             ('engine', Engine, {'event_queue': 'event_queue'}),
             ('context', Context, {}),
             ('data', MultiDataSupport,
-             {'context': 'context', 'event_queue': 'event_queue', 'port': 10001}),
-            ('portfolio', lambda models, **kwargs: NewPortfolio(models['data'], **kwargs), {}),
+             {'context': 'context', 'event_queue': 'event_queue', 'port': 27017}),
+            ('portfolio', lambda models, **kwargs: OrderPortfolio(models['data'], **kwargs), {}),
             ('router', DummyExchange, {'event_queue': 'event_queue', 'data': 'data'})
         ]
-        self.default = list(map(lambda x: x[0], self.models_settings))
-        self.initialized = False
+        self.default = list(map(lambda x: x[0], self.default_settings))
+        self['default'] = self.default_settings
+
+    def __getitem__(self, item):
+        self.default_settings = self.settings[item]
+        self.default = list(map(lambda x: x[0], self.default_settings))
+
+        return self
+
+    def __setitem__(self, key, value):
+        self.settings[key] = value
 
     def set_default(self, **models):
         """
@@ -48,13 +62,13 @@ class Trader(object):
             except ValueError:
                 raise ValueError('model %s is not a default model' % key)
 
-            self.models_settings[i][2].update(value)
+            self.default_settings[i][2].update(value)
         return self
 
-    def initialize(self, *models, **params):
-        self.set_default(**params)
+    def initialize(self, *models, **settings):
+        self.set_default(**settings)
         self._init_models(*models)
-        self.register_modes()
+        self.register_models()
         self.initialized = True
         return self
 
@@ -73,7 +87,7 @@ class Trader(object):
         :return:
         """
 
-        model_setting = list(self.models_settings)
+        model_setting = list(self.default_settings)
         for m in models:
             try:
                 i = self.default.index(m[0])
@@ -89,7 +103,7 @@ class Trader(object):
             else:
                 self._init_model(name, model, **kw)
 
-    def register_modes(self):
+    def register_models(self):
         engine = self.models['engine']
         for name, model in self.models.items():
             try:
@@ -119,12 +133,36 @@ class Trader(object):
             )
         )
 
+    def backtest(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,  **kwargs):
+        if not self.initialized:
+            raise Exception('Models not initialized, please call initialize()')
+
+        context, data = self.models['context'], self.models['data']
+
+        data.init(tickers, frequency, start, end, ticker_type)
+        context.tickers = [tickers] if isinstance(tickers, str) else tickers
+
+        s = strategy(**self.models)
+        s.register(self.models['engine'])
+        s.init_params(**kwargs)
+        s.initialize()
+
+        engine = self.models['engine']
+        engine.start()
+        engine.join()
+        engine.stop()
+
+        self.initialized = False
+
+        print(kwargs, 'accomplish')
+
+        return self.models['portfolio']
+
     def back_test(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,  **kwargs):
         """
         运行一个策略, 完成后返回一个账户对象
 
         :param strategy: 策略模块
-        :param models: 见 _init_models()
         :param kwargs: 需要修改的策略参数
         :return: Portfolio
         """
@@ -165,25 +203,61 @@ class Trader(object):
 
         return self.models['portfolio']
 
+    def optimization(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,
+                     models=(), settings={}, **params):
+        portfolios = []
+        for k in self.exhaustion(**params):
+            portfolio = self.initialize(
+                *models, **settings
+            ).backtest(
+                strategy, tickers, frequency,
+                start, end, ticker_type, **k
+            )
 
-class Model(object):
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kw = kwargs
+            k['portfolio'] = portfolio
+            portfolios.append(k)
 
-    def __str__(self):
-        return ' '.join((self.args.__str__(), self.kw.__str__(), '\n'))
+        return portfolios
+
+    def exhaustion(self, **kwargs):
+        """
+        generator, 穷举所有的参数组合
+
+        :param kwargs:
+        :return: dict
+        """
+        key, values = kwargs.popitem()
+        if len(kwargs):
+            for value in values:
+                for d in self.exhaustion(**kwargs):
+                    d[key] = value
+                    yield d
+        else:
+            for value in values:
+                yield {key: value}
 
 
-def m3(models):
-    return models['m2'].args
+class PracticeTrader(Trader):
+
+    def init_settings(self):
+        self.models = {}
+        self.default_settings = [
+            ('event_queue', PriorityQueue, {}),
+            ('engine', Engine, {'event_queue': 'event_queue'}),
+            ('context', Context, {}),
+            ('data', MultiDataSupport,
+             {'context': 'context', 'event_queue': 'event_queue', 'port': 27017}),
+            ('portfolio', lambda models, **kwargs: OrderPortfolio(
+                models['event_queue'], models['data'], **kwargs
+            ), {}),
+            ('router', PracticeExchange,
+             {'event_queue': 'event_queue', 'data': 'data', 'portfolio': 'portfolio'})
+        ]
+        self.default = list(map(lambda x: x[0], self.default_settings))
+        self.settings = {'default': self.default_settings}
 
 
 if __name__ == '__main__':
-    import examples.stock_strategy as strategy
-
-    trader = Trader().initialize(data={'port': 27018, 'host': '192.168.0.103'}, portfolio={'init_cash': 200000})
-    portfolio = trader.back_test(strategy, '000001', 'D', ticker_type='HS')
-    import pandas
-
-    print pandas.DataFrame(portfolio.history)
+    trader = Trader()
+    for t in trader.exhaustion(a=range(0, 3), b=range(0, 5, 2)):
+        print t

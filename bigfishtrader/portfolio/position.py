@@ -148,34 +148,83 @@ class Order(object):
 
 
 class Position(object):
+    __slots__ = ['ticker', 'quantity', 'commission', 'cost_price', 'price',
+                 'locked', 'others']
 
-    def __init__(self, ticker, quantity, price, commission=0, lever=1, deposit_rate=1, lock=0):
+    def __init__(self, ticker, quantity, price, commission=0, lock=0, **others):
         self.ticker = ticker
         self.quantity = quantity
         self.commission = commission
-        self.cost = price
+        self.cost_price = price
         self.price = price
-        self.lock = lock
-        self.lever = lever
-        self.deposit_rate = deposit_rate
+        self.locked = lock
+        self.others = others
 
     @property
     def available(self):
-        return self.quantity - self.lock
+        return self.quantity - self.locked
 
     @property
     def profit(self):
-        return self.quantity * (self.price - self.cost) * self.lever * self.deposit_rate
+        return self.quantity * (self.price - self.cost_price)
 
-    def append(self, quantity, commission=0):
-        pass
+    @property
+    def value(self):
+        return self.quantity * self.price
 
-    def reduce(self, quantity, commission=0):
-        pass
+    @property
+    def cost(self):
+        return self.cost_price * self.quantity
 
-class PositionHandler(HandlerCompose):
+    def __add__(self, other):
+        if isinstance(other, Position):
+            if self.ticker == other.ticker:
+                self.append(other.price, other.quantity, other.commission)
+                self.locked += other.locked
+                return self
+            else:
+                raise ValueError("tickers of the 2 positions (%s and %s) are not equal" % (self.ticker, other.ticker))
+        else:
+            raise TypeError("The type of other is %s not Position" % type(other))
+
+    def append(self, price, quantity, commission=0):
+        self.cost_price = (self.quantity * self.cost_price + quantity * price)/(self.quantity + quantity)
+        self.quantity += quantity
+        self.commission += commission
+
+    def close(self, price, quantity, commission=0):
+        self.unlock(quantity)
+        self.price = price
+        value = self.value
+        self.quantity -= quantity
+        self.cost_price = (value - self.value)/self.quantity if self.quantity else 0
+        self.commission += commission
+        return price*quantity
+
+    def lock(self, quantity):
+        if (quantity * self.locked >= 0):
+            self.locked += quantity
+        else:
+            raise ValueError('Direction Error')
+
+    def unlock(self, quantity):
+        if (quantity * self.locked >= 0):
+            if (abs(self.locked) > abs(quantity)) :
+                self.locked -= quantity
+            else:
+                self.locked = 0
+        else:
+            raise ValueError('Direction Error')
+
+    def show(self, *args):
+        return dict(
+            map(lambda attr: (attr, getattr(self, attr)), args)
+        )
+
+
+class OrderHandler(HandlerCompose):
     def __init__(self):
-        super(PositionHandler, self).__init__()
+        super(OrderHandler, self).__init__()
         self._positions = {}
         self._handlers['on_recall'] = Handler(self.on_recall, EVENTS.RECALL)
 
@@ -271,7 +320,7 @@ if __name__ == '__main__':
     p2 = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=102)
     p3 = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=103)
     p4 = Order('000001', 15, -2000, datetime(2017, 1, 1), order_id=104)
-    ph = PositionHandler()
+    ph = OrderHandler()
     ph[101] = p
     ph[102] = p2
     ph[103] = p3

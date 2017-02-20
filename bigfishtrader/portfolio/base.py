@@ -54,29 +54,100 @@ class AbstractPortfolio(HandlerCompose):
     """
     Portfolio的抽象基类。
     """
+
     @property
     def positions(self):
         """
-        返回当前持仓，用户调用
+        返回当前持仓对象
 
-        Returns:
-            当前持仓
-        Raises:
-            NotImplementedError: Should implement get_positions
+        :return: dict, {ticker: position} or {order_id: order}
         """
         raise NotImplementedError("Should implement get_positions")
 
     @property
     def cash(self):
         """
-        返回当前账户现金，用户调用
+        返回当前可用现金
 
-        Returns:
-            当前账户现金
-        Raises:
-            NotImplementedError: Should implement get_cash
+        :return:
         """
+
         raise NotImplementedError("Should implement get_cash")
 
-    def get_security(self, *args):
+    @property
+    def equity(self):
+        """
+        返回当前账户净值
+
+        :return: float
+        """
+        return None
+
+    @property
+    def security(self):
+        """
+        返回当前可用持仓
+
+        :return: dict, {ticker: available_quantity}
+        """
+        return None
+
+    @property
+    def history(self):
+        """
+        返回历史持仓
+
+        :return:
+        """
+        return None
+
+    @property
+    def info(self):
+        """
+        返回账户历史信息
+
+        :return:
+        """
+        return None
+
+    @property
+    def consignations(self):
+        """
+        返回委托记录
+
+        :return:
+        """
+        return None
+
+    @property
+    def trades(self):
+        """
+        返回成交记录
+
+        :return:
+        """
+        return None
+
+    def send_open(self, **kwargs):
+        """
+        开仓
+        :param kwargs:
+        :return:
+        """
+        pass
+
+    def send_close(self, **kwargs):
+        """
+        平仓
+        :param kwargs:
+        :return:
+        """
+        pass
+
+    def cancel_order(self, **kwargs):
+        """
+        取消订单
+        :param kwargs:
+        :return:
+        """
         pass
