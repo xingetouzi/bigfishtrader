@@ -69,7 +69,7 @@ class AbstractPortfolio(HandlerCompose):
         """
         返回当前可用现金
 
-        :return:
+        :return: float
         """
 
         raise NotImplementedError("Should implement get_cash")
@@ -131,7 +131,7 @@ class AbstractPortfolio(HandlerCompose):
     def send_open(self, **kwargs):
         """
         开仓
-        :param kwargs:
+        :param kwargs: 参数，根据经纪商或交易所不同会有改动
         :return:
         """
         pass
@@ -139,7 +139,7 @@ class AbstractPortfolio(HandlerCompose):
     def send_close(self, **kwargs):
         """
         平仓
-        :param kwargs:
+        :param kwargs: 参数，根据经纪商或交易所不同会有改动
         :return:
         """
         pass
@@ -147,7 +147,7 @@ class AbstractPortfolio(HandlerCompose):
     def cancel_order(self, **kwargs):
         """
         取消订单
-        :param kwargs:
+        :param kwargs: 参数，根据经纪商或交易所不同会有改动
         :return:
         """
         pass

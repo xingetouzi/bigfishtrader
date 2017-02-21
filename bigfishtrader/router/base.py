@@ -42,41 +42,12 @@ class AbstractRouter(HandlerCompose):
         """
         raise NotImplementedError("Should implement on_order")
 
-    def on_bar(self, bar_event, kwargs=None):
+    @property
+    def orders(self):
         """
-        处理BarEvent
+        返回当前未成交订单
 
-        Args:
-            bar_event (bigfishtrader.event.BarEvent): BAR数据事件
-            kwargs (dict): 共享数据字典,存储工作流中需要传递的数据，如需传递数据，
-                请将其key和value含义写入文档中。
-
-        Returns:
-            None
-
-        Raises:
-            NotImplementedError: Should implement on_bar
+        :return: dict, {order_id: order}
         """
-        raise NotImplementedError("Should implement on_bar")
 
-    def get_orders(self):
-        """
-        被用户调用，返回未成交订单
-
-        Returns:
-            None
-
-        Raises:
-            NotImplementedError: Should implement get_orders
-        """
-        raise NotImplementedError("Should implement get_orders")
-
-    # @property
-    # def orders(self):
-    #     """
-    #     返回当前未成交订单
-    #
-    #     :return: dict, {order_id: order}
-    #     """
-    #
-    #     return None
+        return None

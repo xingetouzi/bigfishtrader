@@ -5,10 +5,11 @@ from bigfishtrader.event import EVENTS
 
 class Order(object):
     """
-    This class presents the position of a single ticker
+    This class presents an existing order in the portfolio.
 
-    update() is called when a new price data (Tick or Bar) arrives
-    or when the position is to be closed
+    Commonly, it will be created by a portfolio when the portfolio handles a FillEvent
+
+    update() is called when a new TimeEvent arrives
 
     separate() is called when the portfolio handler has to
     close part of this position.
@@ -148,10 +149,25 @@ class Order(object):
 
 
 class Position(object):
+    """
+    持仓对象，对应的管理模式为以ticker管理
+
+    """
+
     __slots__ = ['ticker', 'quantity', 'commission', 'cost_price', 'price',
                  'locked', 'others']
 
     def __init__(self, ticker, quantity, price, commission=0, lock=0, **others):
+        """
+
+        :param ticker: str, 品种名
+        :param quantity: float or int, 数量
+        :param price: float, 价格
+        :param commission: float or int, 佣金
+        :param lock: float or int, 被锁数量
+        :param others:
+        :return:
+        """
         self.ticker = ticker
         self.quantity = quantity
         self.commission = commission
@@ -162,18 +178,34 @@ class Position(object):
 
     @property
     def available(self):
+        """
+        当前可交易数量
+        :return:
+        """
         return self.quantity - self.locked
 
     @property
     def profit(self):
+        """
+        当前累计利润
+        :return:
+        """
         return self.quantity * (self.price - self.cost_price)
 
     @property
     def value(self):
+        """
+        当前净值
+        :return:
+        """
         return self.quantity * self.price
 
     @property
     def cost(self):
+        """
+        当前持仓成本
+        :return:
+        """
         return self.cost_price * self.quantity
 
     def __add__(self, other):
@@ -188,11 +220,25 @@ class Position(object):
             raise TypeError("The type of other is %s not Position" % type(other))
 
     def append(self, price, quantity, commission=0):
+        """
+        对同一品种增加仓位
+        :param price: float or int, 成交价格
+        :param quantity: float or int, 成交数量
+        :param commission: float or int, 成交佣金
+        :return:
+        """
         self.cost_price = (self.quantity * self.cost_price + quantity * price)/(self.quantity + quantity)
         self.quantity += quantity
         self.commission += commission
 
     def close(self, price, quantity, commission=0):
+        """
+        对当前品种平仓
+        :param price: 成交价格
+        :param quantity: 成交数量
+        :param commission: 成交佣金
+        :return:
+        """
         self.unlock(quantity)
         self.price = price
         value = self.value
@@ -202,14 +248,14 @@ class Position(object):
         return price*quantity
 
     def lock(self, quantity):
-        if (quantity * self.locked >= 0):
+        if quantity * self.locked >= 0:
             self.locked += quantity
         else:
             raise ValueError('Direction Error')
 
     def unlock(self, quantity):
-        if (quantity * self.locked >= 0):
-            if (abs(self.locked) > abs(quantity)) :
+        if quantity * self.locked >= 0:
+            if abs(self.locked) > abs(quantity):
                 self.locked -= quantity
             else:
                 self.locked = 0

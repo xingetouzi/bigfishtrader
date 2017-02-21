@@ -22,7 +22,7 @@ class DummyExchange(AbstractRouter):
         self.ticker_info = ticker_information
         self.exchange_name = exchange_name
         self._data = data
-        self.orders = {}
+        self._orders = {}
         self._handlers = {
             "on_bar": Handler(self.on_bar, EVENTS.BAR, topic="", priority=100),
             "on_order": Handler(self.on_order, EVENTS.ORDER, topic="", priority=0),
@@ -78,9 +78,9 @@ class DummyExchange(AbstractRouter):
         :param event:
         :return:
         """
-        for order in self.orders.values():
+        for order in self._orders.values():
             if order.match(event.conditions):
-                self.orders.pop(order.loacl_id, None)
+                self._orders.pop(order.loacl_id, None)
 
     def _fill_order(self, order, bar):
         self._put_fill(order, bar.open, bar.name)
@@ -121,7 +121,7 @@ class DummyExchange(AbstractRouter):
         :param kwargs:
         :return:
         """
-        self.orders[event.order_id] = event
+        self._orders[event.order_id] = event
         self.event_queue.put(
             RecallEvent(event.time, event)
         )
@@ -132,11 +132,11 @@ class DummyExchange(AbstractRouter):
         :param kwargs:
         :return:
         """
-        for order in self.orders.values():
+        for order in self._orders.values():
             self.handle_order[order.order_type](order, bar_event)
 
     def on_time(self, event, kwargs=None):
-        for _id, order in self.orders.copy().items():
+        for _id, order in self._orders.copy().items():
             self.handle_order[order.order_type](order, self._data.current(order.ticker))
 
     def on_order_instance(self, event, kwargs=None):
@@ -156,7 +156,7 @@ class DummyExchange(AbstractRouter):
                 {'ticker': order.ticker, 'quantity': order.quantity,
                  'type': order.order_type, 'action': order.action}
             ),
-            self.orders.items()
+            self._orders.items()
         ))
 
 
