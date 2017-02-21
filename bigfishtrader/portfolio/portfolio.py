@@ -27,7 +27,6 @@ class PositionPortfolio(AbstractPortfolio):
         self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, topic='', priority=100)
         self._handlers['on_exit'] = Handler(self.on_exit, EVENTS.EXIT, priority=200)
 
-
     @property
     def next_id(self):
         self._id += 1
@@ -60,6 +59,10 @@ class PositionPortfolio(AbstractPortfolio):
     @property
     def equity(self):
         return self._cash + sum(map(lambda p: p.value, self._positions.values()))
+
+    @property
+    def info(self):
+        return self._info
 
     def on_time(self, event, kwargs=None):
         for ticker, position in self._positions.items():
@@ -106,7 +109,7 @@ class PositionPortfolio(AbstractPortfolio):
             )
 
     def open_position(self, timestamp, ticker, quantity, price, commission=0, **kwargs):
-        position = Position(ticker, quantity, price, commission,**kwargs)
+        position = Position(ticker, quantity, price, commission, **kwargs)
         self._cash -= (position.cost + commission)
 
         old = self._positions.get(ticker, None)
@@ -117,7 +120,7 @@ class PositionPortfolio(AbstractPortfolio):
 
         self._trades.append(
             {'datetime': timestamp, 'ticker': ticker, 'quantity': quantity,
-             'price': price, 'commission': commission ,'action': 'open'},
+             'price': price, 'commission': commission, 'action': 'open'},
         )
 
     def close_position(self, timestamp, ticker, quantity, price, commission=0):
@@ -132,6 +135,19 @@ class PositionPortfolio(AbstractPortfolio):
             )
 
     def send_open(self, ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwargs):
+        """
+        开仓
+
+        :param ticker: str, 品种名
+        :param quantity: float or int, 数量
+        :param price: float or int, 目标价, 如果是市价单可缺省
+        :param order_type: enum, 下单类型
+            EVENTS.ORDER: 市价单
+            EVENTS.LIMIT: 限价单
+            EVENTS.STOP: 停损单
+        :param kwargs: 其他信息
+        :return:
+        """
         local_id = self.next_id
         self.event_queue.put(
             OrderEvent(
@@ -145,9 +161,26 @@ class PositionPortfolio(AbstractPortfolio):
         return local_id
 
     def send_close(self, ticker, quantity=None, price=None, order_type=EVENTS.ORDER, **kwargs):
+        """
+        平仓
+
+        :param ticker: str, 品种名
+        :param quantity: float or int, 数量, 如果缺省则平掉全部当前可交易的仓位
+        :param price: float or int, 目标价, 如果是市价单可缺省
+        :param order_type: enum, 下单类型
+            EVENTS.ORDER: 市价单
+            EVENTS.LIMIT: 限价单
+            EVENTS.STOP: 停损单
+        :param kwargs: 其他信息
+        :return:
+        """
         position = self._positions.get(ticker, None)
         if position:
             available = position.available
+            if not available:
+                print "available quantity of %s is 0" % ticker
+                return
+
             if quantity:
                 if quantity * available <= 0:
                     pass
@@ -173,13 +206,15 @@ class OrderPortfolio(AbstractPortfolio):
         self._cash = init_cash
         self.init_cash = init_cash
         self._history = []
+        self._trades = []
+        self._info = []
         self.closed_positions = []
         self._id = 0
         if position_handler:
-            self._positions = position_handler
+            self._orders = position_handler
         else:
-            self._positions = OrderHandler()
-            self._handlers['on_recall'] = Handler(self._positions.on_recall, EVENTS.RECALL)
+            self._orders = OrderHandler()
+            self._handlers['on_recall'] = Handler(self._orders.on_recall, EVENTS.RECALL)
 
         self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
         self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, topic='', priority=100)
@@ -192,7 +227,7 @@ class OrderPortfolio(AbstractPortfolio):
 
     @property
     def positions(self):
-        return dictproxy(self._positions())
+        return dictproxy(self._orders())
 
     @property
     def cash(self):
@@ -203,25 +238,17 @@ class OrderPortfolio(AbstractPortfolio):
         return self._cash + sum(
             map(
                 lambda position: position.profit + position.deposit,
-                self._positions().values()
+                self._orders().values()
             )
         )
 
     @property
-    def holding(self):
-        holding = {'cash': self._cash}
-        for _id, position in self._positions():
-            p_status = holding.setdefault(position.ticker, {})
-            quantity = p_status.get('quantity', 0)
-            p_status['quantity'] = quantity + position.quantity
-            p_status['available'] = p_status.setdefault('available', 0) + position.available
-            p_status['cost'] = (p_status.setdefault('cost', 0) * quantity +
-                                position.quantity * position.price)/p_status['quantity']
-        return holding
+    def security(self):
+        return self._orders.security
 
     @property
-    def security(self):
-        return self._positions.security
+    def info(self):
+        return self._info
 
     @property
     def history(self):
@@ -229,10 +256,13 @@ class OrderPortfolio(AbstractPortfolio):
 
     def on_time(self, event, kwargs=None):
         self._time = event.time
-        for position in self._positions().values():
-            close = self._data.current(position.ticker).close
+        for order in self._orders().values():
+            close = self._data.current(order.ticker).close
             if close == close:
-                position.update(close)
+                order.update(close)
+            show = order.show('ticker', 'open_time', 'open_price', 'quantity', 'deposit', 'commission', 'profit')
+            show['datetime'] = event.time
+            self._history.append(show)
         self.log()
 
     def log(self):
@@ -242,7 +272,7 @@ class OrderPortfolio(AbstractPortfolio):
         Returns:
             None
         """
-        self.history.append({'datetime': self._time, 'equity': self.equity, 'cash': self._cash})
+        self._info.append({'datetime': self._time, 'equity': self.equity, 'cash': self._cash})
 
     def on_fill(self, event, kwargs=None):
         if event.action:
@@ -264,13 +294,16 @@ class OrderPortfolio(AbstractPortfolio):
             commission, order_id=order_id, **kwargs
         )
 
-        self._cash -= (position.deposit + commission)
+        if self._cash >= (position.deposit + commission):
+            self._cash -= (position.deposit + commission)
+            self._orders[position.position_id] = position
+            self._trades.append({'datetime': open_time, 'action': 'close',
+                                 'commission': commission, 'price': price,
+                                 'ticker': position.ticker, 'quantity': quantity})
 
-        if self._cash >= 0:
-            self._positions[position.position_id] = position
 
     def close_position(self, order_id, price, quantity, close_time, commission=0, new_id=None):
-        position = self._positions.pop(order_id)
+        position = self._orders.pop(order_id)
 
         if position:
             if position.quantity * quantity <= 0:
@@ -284,28 +317,29 @@ class OrderPortfolio(AbstractPortfolio):
                 self.closed_positions.append(position)
 
             elif abs(position.quantity) > abs(quantity):
-                closed_position = position.separate(quantity, price, new_id)
-                closed_position.close(price, close_time, commission)
-                self.closed_positions.append(closed_position)
-                self._positions[position.position_id] = position
+                closed = position.separate(quantity, price, new_id)
+                closed.close(price, close_time, commission)
+                self._cash += closed.deposit + closed.profit - commission
+                self.closed_positions.append(closed)
+                self._orders[position.position_id] = position
 
             else:
                 raise ValueError(
                     'quantity to be close is larger than position.quantity'
                 )
 
-            # print 'close', position.show()
-            # print close_time, self._data.current_time
+            self._trades.append({'datetime': close_time, 'action': 'close',
+                                 'commission': commission, 'price': price,
+                                 'ticker': position.ticker, 'quantity': quantity})
 
     def separate_close(self, ticker, quantity):
-        return self._positions.separate_close(ticker, quantity)
+        return self._orders.separate_close(ticker, quantity)
 
     def close_at_stop(self, event, kwargs=None):
-        while len(self._positions):
-            _id, position = self._positions.pop_item()
+        while len(self._orders):
+            _id, position = self._orders.pop_item()
             position.close(position.price, self._time)
             self.closed_positions.append(position)
-
 
     def send_open(self, ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwargs):
         local_id = self.next_id
@@ -321,8 +355,23 @@ class OrderPortfolio(AbstractPortfolio):
         return local_id
 
     def send_close(self, order_id=None, ticker=None, quantity=None, price=None, order_type=EVENTS.ORDER, **kwargs):
+        """
+
+        :param order_id: int, 订单号, 按指定的订单号平仓
+        :param ticker: str, 持仓品种, 平掉该品种的仓位, 但实际上还是以订单的方式平仓
+        order_id 和 ticker 需输入一个
+
+        :param quantity: float or int, 数量
+        :param price: float or int, 目标价, 如果是市价单可缺省
+        :param order_type: enum, 下单类型
+            EVENTS.ORDER: 市价单
+            EVENTS.LIMIT: 限价单
+            EVENTS.STOP: 停损单
+        :param kwargs: 其他信息
+        :return:
+        """
         if order_id:
-            order = self._positions[order_id]
+            order = self._orders[order_id]
             if order.available:
                 self.event_queue.put(
                     OrderEvent(

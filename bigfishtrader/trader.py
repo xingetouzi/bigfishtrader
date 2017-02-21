@@ -3,13 +3,97 @@ try:
     from Queue import PriorityQueue
 except ImportError:
     from queue import PriorityQueue
+import types
+
 from bigfishtrader.engine.core import Engine
-from bigfishtrader.portfolio.context import Context
-from bigfishtrader.portfolio.portfolio import OrderPortfolio
+from bigfishtrader.context import Context
+from bigfishtrader.portfolio.portfolio import OrderPortfolio, PositionPortfolio
 from bigfishtrader.data.support import MultiDataSupport
 from bigfishtrader.router.exchange import DummyExchange, PracticeExchange
 from bigfishtrader.event import EVENTS
-import types
+
+
+class ModelHandler(object):
+    def __init__(self, *models):
+        self.settings = list(models)
+        self.series = [model[0] for model in self.models]
+        self.models = {}
+        self.initialized = False
+
+    def __getitem__(self, item):
+        return self.models[item]
+
+    def __setitem__(self, key, value):
+        self.models[key] = value
+
+    def copy(self, *models):
+        settings = self.settings
+        for model in models:
+            try:
+                index = self.series.index(model[0])
+            except ValueError:
+                settings.append(model)
+            else:
+                settings[index] = model
+
+        return ModelHandler(settings)
+
+    def reset(self, *models):
+        self.__init__(*models)
+
+    def update(self, *models, **kwargs):
+        for model in models:
+            self._update(model)
+
+    def _update(self, model_package):
+        try:
+            index = self.series.index(model_package[0])
+        except ValueError:
+            self.settings.append(model_package)
+            self.series = [model[0] for model in self.models]
+            return
+
+        self.settings[index] = model_package
+
+    def initialize(self):
+        self.init_models()
+        self.register_models()
+        self.initialized = True
+
+    def init_models(self):
+        for name, model, kw in self.settings:
+            if isinstance(model, (types.FunctionType, types.MethodType)):
+                self.models[name] = model(self.models, **kw)
+            else:
+                self._init_model(name, model, **kw)
+
+    def _init_model(self, name, model, **kwargs):
+        self.models[name] = model(
+            **dict(
+                map(
+                    lambda (key, value): (key, value(self.models))
+                    if isinstance(value, (types.FunctionType, types.MethodType))
+                    else (key, self.models.get(value, value)),
+                    kwargs.items()
+                )
+            )
+        )
+
+    def register_models(self):
+        engine = self.models['engine']
+        for name, model in self.models.items():
+            try:
+                model.register(engine)
+            except TypeError as te:
+                if name == 'engine':
+                    continue
+                else:
+                    raise te
+            except AttributeError as ae:
+                if name == 'event_queue':
+                    continue
+                else:
+                    raise ae
 
 
 class Trader(object):
@@ -30,8 +114,8 @@ class Trader(object):
             ('context', Context, {}),
             ('data', MultiDataSupport,
              {'context': 'context', 'event_queue': 'event_queue', 'port': 27017}),
-            ('portfolio', lambda models, **kwargs: OrderPortfolio(models['data'], **kwargs), {}),
-            ('router', DummyExchange, {'event_queue': 'event_queue', 'data': 'data'})
+            ('portfolio', lambda models, **kwargs: OrderPortfolio(models['data'], models['event_queue'], **kwargs), {}),
+            ('router', DummyExchange, {'event_queue': 'event_queue', 'data': 'data'}),
         ]
         self.default = list(map(lambda x: x[0], self.default_settings))
         self['default'] = self.default_settings
@@ -66,6 +150,17 @@ class Trader(object):
         return self
 
     def initialize(self, *models, **settings):
+        """
+
+        :param models: tuple, 需要更改或添加的模块
+            输入的格式为: (name, model, params)
+                name: str, 模块名, 如果与默认模块相同会替换默认模块, 否则添加到模块列表的尾部
+                model: type or function, 未初始化的模块或是一个返回模块对象的函数
+                    function: 函数接收的第一个参数为models(包含了已生成模块的字典), params 作为其他参数输入
+                params: dict, 模块生成所需的参数, 当模块需要其他模块作为参数时, 可直接以模块名为参数
+        :param settings: 修改默认模块的参数
+        :return: self
+        """
         self.set_default(**settings)
         self._init_models(*models)
         self.register_models()
@@ -82,7 +177,6 @@ class Trader(object):
             model: type<class>, 输入模块类型或方法而不是对象
             params: dict, 初始化时需要输入的参数
                 当模块需要其他模块作为参数时, 可直接以模块名为参数
-                也可以以一个方法为参数, 该方法需传入一个models(已经初始化的模块, dict)作为参数, 然后将返回值作为要输入的参数
 
         :return:
         """
@@ -102,6 +196,8 @@ class Trader(object):
                 self.models[name] = model(self.models, **kw)
             else:
                 self._init_model(name, model, **kw)
+
+        self.models['context'].link(**self.models)
 
     def register_models(self):
         engine = self.models['engine']
@@ -134,6 +230,18 @@ class Trader(object):
         )
 
     def backtest(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,  **kwargs):
+        """
+        运行一个策略，完成后返回账户
+
+        :param strategy: Strategy, 继承自策略基类的策略
+        :param tickers: str or list, 品种, 可以是单个也可以是多个
+        :param frequency: str, 时间周期, 以数据库中的命名为准
+        :param start: datetime, 开始时间
+        :param end: datetime, 结束时间
+        :param ticker_type: 品种类型, 以数据库中的 db name 为准
+        :param kwargs: 策略运行时需要修改的策略参数
+        :return: Portfolio
+        """
         if not self.initialized:
             raise Exception('Models not initialized, please call initialize()')
 
@@ -169,32 +277,21 @@ class Trader(object):
         if not self.initialized:
             raise Exception('Models not initialized, please call initialize()')
 
-        context, data = self.models['context'], self.models['data']
+        context, data, engine = self.models['context'], self.models['data'], self.models['engine']
 
         data.init(tickers, frequency, start, end, ticker_type)
         context.tickers = tickers
-        context.portfolio = self.models['portfolio']
 
         def on_time(event, kwargs=None):
             strategy.handle_data(context, data)
 
         self.models['engine'].register(on_time, EVENTS.TIME, topic='.', priority=100)
 
-        strategy.initialize_operation(
-            self.models['event_queue'],
-            self.models['data'],
-            self.models['portfolio'],
-            self.models['engine'],
-            self.models['router'],
-            self.models['context'],
-        )
-
         for key, value in kwargs.items():
             setattr(strategy, key, value)
 
         strategy.initialize(context, data)
 
-        engine = self.models['engine']
         engine.start()
         engine.join()
         engine.stop()
@@ -247,9 +344,7 @@ class PracticeTrader(Trader):
             ('context', Context, {}),
             ('data', MultiDataSupport,
              {'context': 'context', 'event_queue': 'event_queue', 'port': 27017}),
-            ('portfolio', lambda models, **kwargs: OrderPortfolio(
-                models['event_queue'], models['data'], **kwargs
-            ), {}),
+            ('portfolio', PositionPortfolio, {'data': 'data', 'event_queue': 'event_queue'}),
             ('router', PracticeExchange,
              {'event_queue': 'event_queue', 'data': 'data', 'portfolio': 'portfolio'})
         ]
