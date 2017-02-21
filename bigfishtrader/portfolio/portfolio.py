@@ -245,17 +245,18 @@ class OrderPortfolio(AbstractPortfolio):
         self.history.append({'datetime': self._time, 'equity': self.equity, 'cash': self._cash})
 
     def on_fill(self, event, kwargs=None):
-        if event.action:
+        fill = event.data
+        if fill.action:
             self.open_position(
-                event.position_id, event.ticker, event.price,
-                event.quantity, event.time, event.commission,
-                deposit_rate=event.deposit_rate, lever=event.lever
+                fill.position_id, fill.ticker, fill.price,
+                fill.quantity, fill.time, fill.commission,
+                deposit_rate=fill.deposit_rate, lever=fill.lever
             )
         else:
             self.close_position(
-                event.position_id, event.price,
-                event.quantity, event.time,
-                event.commission, event.external_id
+                fill.position_id, fill.price,
+                fill.quantity, fill.time,
+                fill.commission, fill.order_ext_id
             )
 
     def open_position(self, order_id, ticker, price, quantity, open_time, commission=0, **kwargs):
@@ -293,9 +294,6 @@ class OrderPortfolio(AbstractPortfolio):
                 raise ValueError(
                     'quantity to be close is larger than position.quantity'
                 )
-
-            # print 'close', position.show()
-            # print close_time, self._data.current_time
 
     def separate_close(self, ticker, quantity):
         return self._positions.separate_close(ticker, quantity)
@@ -347,3 +345,36 @@ class OrderPortfolio(AbstractPortfolio):
                         **kwargs
                     )
                 )
+if __name__ == '__main__':
+    from bigfishtrader.event import FillEvent, OrderEvent, RecallEvent, Fill
+    portfolio = NewPortfolio(None)
+    fill = Fill()
+    fill.time = "2017-01-01"
+    fill.ticker = "000001"
+    fill.action = 1
+    fill.price = 2000
+    fill.quantity = 20
+    fill.order_id = 1001
+    fill.position_id = 1001
+    fill_event = FillEvent(fill, timestamp=fill.time)
+    fill_close = Fill()
+    fill_close.time = "2017-01-01"
+    fill_close.ticker = "000001"
+    fill_close.action = 0
+    fill_close.price = 1000
+    fill_close.quantity = 20
+    fill_close.order_id = 1001
+    fill_close.position_id = 1001
+    fill_close.order_ext_id = 1002
+    fill_close_event = FillEvent(fill_close, timestamp=fill_close.time)
+    o1 = OrderEvent('2017-01-01', '000001', 1, 1000, 21, EVENTS.LIMIT, order_id=1001)
+    r1 = RecallEvent('2017-01-01', o1)
+
+    portfolio.on_fill(fill_event)
+    print portfolio.security
+
+    portfolio._positions.on_recall(r1)
+    print portfolio.security
+
+    portfolio.on_fill(fill_close_event)
+    print portfolio.security

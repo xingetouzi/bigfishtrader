@@ -14,7 +14,7 @@ class StreamEnd(Exception):
 
 class PriorityList(object):
     """
-    list of which items sorted by its priority
+    List of which items sorted by its priority
     and inserting timestamp if have same priority,
     maintained by bisect (binary search)
     """
@@ -25,7 +25,7 @@ class PriorityList(object):
 
     def put(self, priority, value):
         """
-        insert a item of given value and priority to the PriorityList
+        Insert a item of given value and priority to the PriorityList
 
         Args:
             priority(int): item's priority
@@ -42,7 +42,7 @@ class PriorityList(object):
 
     def remove(self, value):
         """
-        remove item of given value from the PriorityList
+        Remove item of given value from the PriorityList
 
         Args:
             value: item's value
@@ -58,6 +58,7 @@ class PriorityList(object):
 
     def __contains__(self, value):
         """
+        Check whether value is in this PriorityList
 
         Args:
             value: item's value
@@ -69,6 +70,7 @@ class PriorityList(object):
 
     def __iter__(self):
         """
+        Get iterator of this PriorityList
 
         Returns:
             iter(iterator): the PriorityList's iterator
@@ -77,6 +79,7 @@ class PriorityList(object):
 
     def __len__(self):
         """
+        Get the length of this PriorityList
 
         Returns:
             len(int): the PriorityList's length
@@ -86,19 +89,20 @@ class PriorityList(object):
 
 class StreamManager(object):
     """
-    manager all event stream
+    Manager all event stream
     """
     def __init__(self):
         self._streams = {}
 
     def get_iter(self, stream, topic):
         """
-        search for handlers chain in given event stream under given topic
+        Search for handlers chain in given event stream under given topic
 
-        :param stream: event stream
-        :param topic: topic
-        :rtype: chain
-        :return: chain of the handlers
+        Args:
+            stream(bigfishtrader.event.EVENTS): type of event stream
+            topic(str): topic of event
+        Returns:
+            chain: chain of the handlers
         """
         if stream in self._streams:
             handlers = self._streams[stream]
@@ -114,45 +118,49 @@ class StreamManager(object):
                         head.append(handlers[path])
                     if path_ in handlers:
                         tail.appendleft(handlers[path_])
-            return chain(*chain(head, tail))
-        return chain([])
+                    path += "."
+                return chain(*chain(head, tail))
+            return chain([])
 
     def register_stream(self, stream):
         """
-        register given new event stream
+        Register given new event stream
 
-        :param stream: event stream
-        :type stream: bigfishtrader.event.EVENTS
-        :return: None
+        Args:
+            stream(bigfishtrader.event.EVENTS):
+
+        Returns:
+            None
         """
         if stream not in self._streams:
             self._streams[stream] = {}
 
     def unregister_stream(self, stream):
         """
-        remove given event stream
+        Remove given event stream
 
-        :param stream: event stream
-        :type stream: bigfishtrader.event.EVENTS
-        :return: None
+        Args:
+            stream(bigfishtrader.event.EVENTS): event stream
+
+        Returns:
+            None
         """
         if stream in self._streams:
             del self._streams[stream]
 
     def register_handler(self, handler, stream, topic=".", priority=0):
         """
-        register a handler in given event stream under given topic with
+        Register a handler in given event stream under given topic with
         given priority.
 
-        :param handler: handler
-        :type handler: function
-        :param stream: event stream
-        :type stream: bigfishtrader.event.EVENTS
-        :param topic: topic
-        :type topic: str
-        :param priority: priority
-        :type priority: int
-        :return: None
+        Args:
+            handler(bigfishtrader.engine.handler.Handler): event handler
+            stream(bigfishtrader.event.EVENTS): type of event stream
+            topic(str): topic of event
+            priority(int): priority of handler
+
+        Returns:
+            None
         """
         self.register_stream(stream)
         handlers = self._streams[stream]
@@ -162,15 +170,15 @@ class StreamManager(object):
 
     def unregister_handler(self, handler, stream, topic="."):
         """
-        unregister a handler in given event stream under given topic.
+        Unregister a handler in given event stream under given topic.
 
-        :param handler: handler
-        :type handler: function
-        :param stream: event stream
-        :type stream: bigfishtrader.event.EVENTS
-        :param topic: topic
-        :type topic: str
-        :return: None
+        Args:
+            handler(bigfishtrader.engine.handler.Handler): event handler
+            stream(bigfishtrader.event.EVENTS): type of event stream
+            topic(str): topic of event
+
+        Returns:
+            None
         """
         if stream not in self._streams:
             return

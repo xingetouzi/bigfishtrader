@@ -34,8 +34,8 @@ class LogRecorder(HandlerCompose):
 
     def on_order_begin(self, event, kwargs=None):
         self._count += 1
-        event.local_id = self._count
-        self._logger.info("Order <Ref: %s> has been generated" % event.local_id)
+        event.order_id = self._count
+        self._logger.info("Order <Ref: %s> has been generated" % event.order_id)
 
     def on_order_end(self, event, kwarg=None):
         """
@@ -48,7 +48,7 @@ class LogRecorder(HandlerCompose):
 
         """
 
-        self._logger.info("Order <Ref: %s> has been sent" % event.local_id)
+        self._logger.info("Order <Ref: %s> has been sent" % event.order_id)
 
     def on_fill(self, event, kwarg=None):
         """
@@ -60,4 +60,5 @@ class LogRecorder(HandlerCompose):
         Returns:
 
         """
-        self._logger.info("Order <ID: %s> has been filled at %s" % (event.exchange_id, event.time.isoformat()))
+        fill = event.data
+        self._logger.info("Order <ID: %s> has been filled at %s" % (fill.order_ext_id, fill.time.isoformat()))

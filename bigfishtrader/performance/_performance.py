@@ -342,11 +342,6 @@ class ReportSheet(WindowFactorPerformance):
     @property
     @cache_calculator
     def trade_details(self):
-        print("")
-
-    @property
-    @cache_calculator
-    def trade_details(self):
         df = self._fills[["position_id", "local_id", "time", "ticker", "action", "price", "quantity", "profit",
                           "commission"]]
         dct = {k: v for k, v in df.groupby(["ticker"])}

@@ -41,8 +41,8 @@ class OrderBookHandler(AbstractOrderHandler):
         :type kwargs: dict
         """
         self._order_ref += 1
-        order.local_id = self._order_ref
-        self._orders[order.local_id] = order
+        order.order_id = self._order_ref
+        self._orders[order.order_id] = order
 
     def on_fill(self, fill, kwargs=None):
         """
@@ -55,5 +55,5 @@ class OrderBookHandler(AbstractOrderHandler):
 
         """
         self._fill_ref += 1
-        fill.local_id = self._fill_ref
-        self._fills[fill.local_id] = fill
+        fill.order_id = self._fill_ref
+        self._fills[fill.order_id] = fill

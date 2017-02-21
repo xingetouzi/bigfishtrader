@@ -53,9 +53,9 @@ class OandaRouter(AbstractRouter):
             }
             if event.order_type == EVENTS.ORDER:
                 params["type"] = "market"
-            event.local_id = self.api.sendOrder(params)
+            event.order_id = self.api.sendOrder(params)
         else:
-            event.local_id = self.api.closeTrade(event.exchange_id)
+            event.order_id = self.api.closeTrade(event.exchange_id)
 
     def get_orders(self):
         pass

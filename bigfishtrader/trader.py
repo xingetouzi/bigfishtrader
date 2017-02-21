@@ -126,7 +126,8 @@ class Trader(object):
         self.models[name] = model(
             **dict(
                 map(
-                    lambda (key, value): (key, value(self.models)) if isinstance(value, (types.FunctionType, types.MethodType))
+                    lambda (key, value): (key, value(self.models)) if isinstance(value,
+                                                                                 (types.FunctionType, types.MethodType))
                     else (key, self.models.get(value, value)),
                     kwargs.items()
                 )
@@ -258,6 +259,7 @@ class PracticeTrader(Trader):
 
 
 if __name__ == '__main__':
+    from bokeh.plotting import figure, output_file, show
     trader = Trader()
     for t in trader.exhaustion(a=range(0, 3), b=range(0, 5, 2)):
         print t

@@ -1,4 +1,2 @@
-from _performance import *
-import _performance
-__all__ = _performance.__all__
-
+from ._performance import *
+from ._performance import __all__

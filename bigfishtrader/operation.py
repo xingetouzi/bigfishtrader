@@ -46,7 +46,7 @@ def order_close(position_id=None, quantity=None, price=None, position=None):
         OrderEvent(
             api.context.current_time, position.ticker,
             CLOSE_ORDER, quantity, price,
-            local_id=position.position_id,
+            order_id=position.position_id,
             topic='oanda'
         )
     )
@@ -76,7 +76,7 @@ def open_position(ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwarg
             api.context.current_time,
             ticker, OPEN_ORDER, quantity, price,
             order_type=order_type,
-            local_id=local_id,
+            order_id=local_id,
             **kwargs
         )
     )
@@ -119,7 +119,7 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
                     position.ticker, CLOSE_ORDER,
                     position.available, price,
                     order_type=order_type,
-                    local_id=_id
+                    order_id=_id
                 )
             )
             return _id
@@ -132,7 +132,7 @@ def close_position(ticker=None, quantity=None, price=None, order_type=EVENTS.ORD
                 OrderEvent(
                     api.context.current_time,
                     ticker, CLOSE_ORDER, available, price,
-                    order_type=order_type, local_id=_id,
+                    order_type=order_type, order_id=_id,
                     **kwargs
                 )
             )

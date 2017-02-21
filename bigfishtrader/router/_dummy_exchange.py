@@ -1,5 +1,5 @@
 from bigfishtrader.engine.handler import Handler
-from bigfishtrader.event import FillEvent, RecallEvent, EVENTS
+from bigfishtrader.event import FillEvent, RecallEvent, EVENTS, Fill
 from bigfishtrader.router.base import AbstractRouter
 
 
@@ -44,20 +44,33 @@ class DummyExchange(AbstractRouter):
         return 0
 
     def _put_fill(self, order, price, timestamp):
+        """
+
+        Args:
+            order(bigfishtrader.event.OrderEvent):
+            price:
+            timestamp:
+
+        Returns:
+
+        """
         if price != price:
             print("%s is not able to trade at %s" % (order.ticker, timestamp))
             return
-
-        fill = FillEvent(
-            timestamp, order.ticker,
-            order.action, order.quantity,
-            price + self.calculate_slippage(order, price),
-            self.calculate_commission(order, price),
-            local_id=order.local_id, position_id=order.local_id,
-            topic=order.topic, **self.ticker_info.get(order.ticker, {})
-        )
-        self.orders.pop(order.local_id, None)
-        self.event_queue.put(fill)
+        fill = Fill()
+        fill.time = timestamp
+        fill.ticker = order.ticker
+        fill.quantity = order.quantity
+        fill.action = order.action
+        fill.price = price + self.calculate_slippage(order, price)
+        fill.commission = self.calculate_commission(order, price)
+        fill.order_id = order.order_id
+        fill.position_id = order.order_id
+        for k, v in self.ticker_info.get(order.ticker, {}):
+            setattr(fill, k, v)
+        event = FillEvent(fill, timestamp=timestamp, topic=order.topic)
+        self.orders.pop(order.order_id, None)
+        self.event_queue.put(event)
 
     def on_cancel(self, event, kwargs=None):
         """
@@ -108,7 +121,7 @@ class DummyExchange(AbstractRouter):
         :param kwargs:
         :return:
         """
-        self.orders[event.local_id] = event
+        self.orders[event.order_id] = event
         self.event_queue.put(
             RecallEvent(event.time, event)
         )
@@ -157,15 +170,19 @@ class PracticeExchange(DummyExchange):
             print("%s is not able to trade at %s" % (order.ticker, timestamp))
             return
 
-        fill = FillEvent(
-            timestamp, order.ticker,
-            order.action, order.quantity,
-            price + self.calculate_slippage(order, price),
-            self.calculate_commission(order, price),
-            local_id=order.local_id, position_id=order.local_id,
-            topic=order.topic, **self.ticker_info.get(order.ticker, {})
-        )
-
-        self.orders.pop(order.local_id, None)
-
-        self.portfolio.on_fill(fill)
+        fill = Fill()
+        fill.topic = order.topic
+        fill.time = timestamp
+        fill.ticker = order.ticker
+        fill.quantity = order.quantity
+        fill.action = order.action
+        fill.price = price + self.calculate_slippage(order, price)
+        fill.commission = self.calculate_commission(order, price)
+        fill.order_id = order.order_id
+        fill.position_id = order.order_id
+        for k, v in self.ticker_info.get(order.ticker, {}):
+            setattr(fill, k, v)
+        print(fill.to_dict())
+        event = FillEvent(fill, timestamp=timestamp, topic=order.topic)
+        self.orders.pop(order.order_id, None)
+        self.portfolio.on_fill(event)

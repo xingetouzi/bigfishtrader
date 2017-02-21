@@ -63,35 +63,35 @@ class PortfolioHandler(AbstractPortfolioHandler):
         Returns:
             None
         """
-
-        if event.fill_type == 'position':
-            if event.action == OPEN_ORDER:
+        fill = event.data
+        if fill.fill_type == 'position':
+            if fill.action == OPEN_ORDER:
                 position = self.portfolio.open_position(
-                    event.ticker, event.price,
-                    event.quantity, event.time,
-                    event.commission
+                    fill.ticker, fill.price,
+                    fill.quantity, fill.time,
+                    fill.commission
                 )
                 if position:
-                    event.position_id = position.identifier
-            elif event.action == CLOSE_ORDER:
+                    fill.position_id = position.identifier
+            elif fill.action == CLOSE_ORDER:
                 position = self.portfolio.close_position(
-                    event.ticker, event.price,
-                    event.quantity, event.time,
-                    event.commission
+                    fill.ticker, fill.price,
+                    fill.quantity, fill.time,
+                    fill.commission
                 )
-                event.profit = position.profit
-                event.position_id = position.identifier
-        elif event.fill_type == 'order':
-            if event.action == OPEN_ORDER:
+                fill.profit = position.profit
+                fill.position_id = position.identifier
+        elif fill.fill_type == 'order':
+            if fill.action == OPEN_ORDER:
                 self.portfolio.open_order(
-                    event.external_id, event.ticker, event.price,
-                    event.quantity, event.time, event.commission,
-                    lever=event.lever, deposit_rate=event.deposit_rate
+                    fill.order_ext_id, fill.ticker, fill.price,
+                    fill.quantity, fill.time, fill.commission,
+                    lever=fill.lever, deposit_rate=fill.deposit_rate
                 )
-            elif event.action == CLOSE_ORDER:
+            elif fill.action == CLOSE_ORDER:
                 self.portfolio.close_order(
-                    event.external_id, event.price, event.quantity,
-                    event.time, event.commission
+                    fill.order_ext_id, fill.price, fill.quantity,
+                    fill.time, fill.commission
                 )
 
     def on_confirm(self, event, kwargs=None):

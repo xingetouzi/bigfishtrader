@@ -23,11 +23,9 @@ class OandaExchange(AbstractRouter):
         self._orders = {}
 
         if trade_type == 'paper':
-
             self._handlers["on_order"] = Handler(self.on_order_paper, EVENTS.ORDER, topic="oanda", priority=0)
             self._handlers["on_time"] = Handler(self.on_time_paper, EVENTS.TIME, topic=".", priority=100)
             self._handlers["on_modify"] = Handler(self.on_modify_paper, EVENTS.MODIFY, topic='oanda')
-
 
     @staticmethod
     def calculate_commission(order, price):
