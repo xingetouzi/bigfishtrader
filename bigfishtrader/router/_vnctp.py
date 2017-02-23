@@ -1,17 +1,16 @@
-import time
 import json
 import logging
-from weakref import proxy
+import time
 from datetime import datetime
-
-from ctpgateway.myMainEngine import MyMainEngine
-from ctpgateway.eventType import EVENT_TICK
-from ctpgateway.vtConstant import PRICETYPE_MARKETPRICE_, DIRECTION_LONG, DIRECTION_SHORT, OFFSET_OPEN, OFFSET_CLOSE, \
-    STATUS_ALLTRADED, STATUS_UNKNOWN
-from ctpgateway.vtGateway import VtOrderReq
+from weakref import proxy
 
 from bigfishtrader.engine.handler import HandlerCompose, Handler
 from bigfishtrader.event import EVENTS, OPEN_ORDER, CLOSE_ORDER, FillEvent, TickEvent
+from bigfishtrader.vt.ctpGateway import EVENT_TICK
+from bigfishtrader.vt.ctpGateway import MyMainEngine
+from bigfishtrader.vt.ctpGateway import PRICETYPE_MARKETPRICE_, DIRECTION_LONG, DIRECTION_SHORT, OFFSET_OPEN, OFFSET_CLOSE, \
+    STATUS_ALLTRADED, STATUS_UNKNOWN
+from bigfishtrader.vt.ctpGateway import VtOrderReq
 
 
 class VnCtpMainEngine(MyMainEngine):

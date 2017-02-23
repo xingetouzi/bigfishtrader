@@ -2,7 +2,6 @@ from datetime import datetime
 from talib import abstract
 import pandas as pd
 
-
 fast = 10
 slow = 15
 
@@ -24,8 +23,8 @@ def handle_data(context, data):
         if not data.can_trade(ticker):
             continue
 
-        ma_fast = abstract.MA(data.history(ticker, 'D', length=fast+1), timeperiod=fast, price='close').dropna()
-        ma_slow = abstract.MA(data.history(ticker, 'D', length=slow+1), timeperiod=slow, price='close').dropna()
+        ma_fast = abstract.MA(data.history(ticker, 'D', length=fast + 1), timeperiod=fast, price='close').dropna()
+        ma_slow = abstract.MA(data.history(ticker, 'D', length=slow + 1), timeperiod=slow, price='close').dropna()
 
         if ma_slow[0] < ma_fast[0] and ma_slow[1] > ma_fast[1]:
             portfolio.send_close(ticker)
@@ -34,8 +33,8 @@ def handle_data(context, data):
         if not data.can_trade(ticker):
             continue
 
-        ma_fast = abstract.MA(data.history(ticker, 'D', length=fast+1), timeperiod=fast, price='close').dropna()
-        ma_slow = abstract.MA(data.history(ticker, 'D', length=slow+1), timeperiod=slow, price='close').dropna()
+        ma_fast = abstract.MA(data.history(ticker, 'D', length=fast + 1), timeperiod=fast, price='close').dropna()
+        ma_slow = abstract.MA(data.history(ticker, 'D', length=slow + 1), timeperiod=slow, price='close').dropna()
 
         if ma_slow[0] > ma_fast[0] and ma_slow[1] < ma_fast[1]:
             portfolio.send_open(ticker, 1000)
@@ -50,7 +49,7 @@ if __name__ == '__main__':
 
     trader = PracticeTrader()
 
-    p = trader.initialize(data={'port': 27018, 'host': '192.168.1.103'}).back_test(
+    p = trader.initialize(data={'port': 27018, 'host': '192.168.0.103'}).back_test(
         __import__('MA_strategy'),
         ['000001'], 'D', datetime(2016, 1, 1),
         ticker_type='HS', fast=10, slow=15
@@ -63,7 +62,3 @@ if __name__ == '__main__':
     print pd.DataFrame(
         p.trades
     )
-
-
-
-

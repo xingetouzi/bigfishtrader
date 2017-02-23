@@ -2,7 +2,6 @@ from bigfishtrader.strategy.base import Strategy
 
 
 class RotateStrategy(Strategy):
-
     period = 10
 
     def initialize(self):
@@ -30,7 +29,7 @@ class RotateStrategy(Strategy):
                 continue
 
             close = self.data.history(ticker, 'D', length=self.period)['close']
-            up = close[-1]/close.min()
+            up = close[-1] / close.min()
             if len(target) < 2:
                 target[ticker] = up
                 continue
@@ -72,7 +71,7 @@ if __name__ == '__main__':
             'portfolio', PositionPortfolio,
             {'event_queue': 'event_queue', 'data': 'data', 'init_cash': 200000}
         )],
-        settings={'data': {'port': 10001}},
+        settings={'data': {"host": "192.168.1.103", 'port': 27018}},
         period=range(5, 21, 5)
     )
 
@@ -84,6 +83,3 @@ if __name__ == '__main__':
     # print pd.DataFrame(
     #     p.trades
     # )
-
-
-

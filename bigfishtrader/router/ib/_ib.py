@@ -12,7 +12,8 @@ import ib.ext.Execution
 from ib.opt import ibConnection, message
 from bigfishtrader.router.gateway import Gateway
 from bigfishtrader.router.ib.constants import *
-from bigfishtrader.event import TickEvent, FillEvent, Fill
+from bigfishtrader.event import TickEvent, FillEvent
+from bigfishtrader.model import Fill
 
 
 class BFWrapper(object):
