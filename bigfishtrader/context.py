@@ -1,4 +1,5 @@
 # encoding:utf-8
+from functools import wraps
 from bigfishtrader.engine.handler import HandlerCompose, Handler
 from bigfishtrader.event import *
 
@@ -80,29 +81,32 @@ class Context(HandlerCompose):
         :return:
         """
         exchange = self.router
-        if exchange:
-            if buy_cost and sell_cost and unit:
-                if unit == 'value':
-                    setattr(
-                        exchange, "calculate_commission",
-                        lambda order, price: max(
-                            abs(order.quantity)*price*buy_cost if order.action
-                            else abs(order.quantity)*price*sell_cost,
-                            min_cost
-                        )
-                    )
-                elif unit == 'share':
-                    setattr(
-                        exchange, "calculate_commission",
-                        lambda order, price: max(
-                            abs(order.quantity)*buy_cost if order.action
-                            else abs(order.quantity)*sell_cost,
-                            min_cost
-                        )
+        if not exchange:
+            return
+        if buy_cost and sell_cost and unit:
+            if unit == 'value':
+
+                @wraps(exchange.calculate_commission)
+                def calculate_commission(order, price):
+                    return max(
+                        abs(order.orderQty) * price * (buy_cost if order.action == ACTION.OPEN.value else sell_cost),
+                        min_cost
                     )
 
-            if calculate_function:
-                setattr(exchange, "calculate_commission", calculate_function)
+                exchange.calculate_commission = calculate_commission
+            elif unit == 'share':
+
+                @wraps(exchange.calculate_commission)
+                def calculate_commission(order, price):
+                    return max(
+                        abs(order.quantity) * (buy_cost if order.action == ACTION.OPEN.value else sell_cost),
+                        min_cost
+                    )
+
+                exchange.calculate_commission = calculate_commission
+
+        if calculate_function:
+            exchange.calculate_commission = wraps(exchange.calculate_commission)(calculate_function)
 
     def set_slippage(self, value=0, unit='pct', function=None):
         """
@@ -127,20 +131,20 @@ class Context(HandlerCompose):
                 if unit == 'pct':
                     setattr(
                         exchange, 'calculate_slippage',
-                        lambda order, price: value*price if (order.quantity > 0 and order.action) or
-                        (order.quantity < 0 and order.action == 0)
-                        else -value*price
+                        lambda order, price: value * price if (order.quantity > 0 and order.action) or
+                                                              (order.quantity < 0 and order.action == 0)
+                        else -value * price
                     )
                 elif unit == 'value':
                     setattr(
                         exchange, 'calculate_slippage',
                         lambda order, price: value if (order.quantity > 0 and order.action) or
-                        (order.quantity < 0 and order.action == 0)
+                                                      (order.quantity < 0 and order.action == 0)
                         else -value
                     )
             elif function:
                 setattr(exchange, 'calculate_slippage', function)
 
+
 if __name__ == '__main__':
     pass
-

@@ -133,7 +133,7 @@ class MongoDataSupport(AbstractDataSupport):
 
 
 class MultiDataSupport(AbstractDataSupport):
-    def __init__(self, context=None, event_queue=None,**info):
+    def __init__(self, context=None, event_queue=None, **info):
         super(MultiDataSupport, self).__init__()
         self._db = info.pop('db', None)
         self._client = connect(**info)
@@ -440,9 +440,7 @@ class MultiDataSupport(AbstractDataSupport):
             return False
 
 
-
 if __name__ == "__main__":
-
     setting = {
         "host": "192.168.1.103",
         "port": 27018,

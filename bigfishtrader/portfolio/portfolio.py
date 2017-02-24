@@ -4,7 +4,9 @@ from dictproxyhack import dictproxy
 from bigfishtrader.portfolio.position import Order, Position, OrderHandler
 from bigfishtrader.portfolio.base import AbstractPortfolio
 from bigfishtrader.engine.handler import Handler
-from bigfishtrader.event import EVENTS, OPEN_ORDER, CLOSE_ORDER, OrderEvent
+from bigfishtrader.event import EVENTS, OrderEvent
+from bigfishtrader.model import OrderReq
+from bigfishtrader.const import ACTION, ORDERTYPE
 import pandas as pd
 
 
@@ -24,7 +26,7 @@ class PositionPortfolio(AbstractPortfolio):
 
         self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
         self._handlers['on_recall'] = Handler(self.on_recall, EVENTS.RECALL, priority=150)
-        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, topic='', priority=100)
+        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.EXECUTION, topic='', priority=100)
         self._handlers['on_exit'] = Handler(self.on_exit, EVENTS.EXIT, priority=200)
 
     @property
@@ -78,29 +80,30 @@ class PositionPortfolio(AbstractPortfolio):
         )
 
     def on_fill(self, event, kwargs=None):
-        if event.action:
+        fill = event.data
+        if fill.action == ACTION.OPEN.value:
             self.open_position(
-                event.time, event.ticker,
-                event.quantity, event.price,
-                event.commission
+                fill.time, fill.ticker,
+                fill.quantity, fill.price,
+                fill.commission
             )
-        else:
+        elif fill.action == ACTION.CLOSE.value:
             self.close_position(
-                event.time, event.ticker,
-                event.quantity, event.price,
-                event.commission
+                fill.time, fill.ticker,
+                fill.quantity, fill.price,
+                fill.commission
             )
 
     def on_recall(self, event, kwargs=None):
         order = event.order
         if event.lock:
-            position = self._positions.get(order.ticker, None)
+            position = self._positions.get(order.symbol, None)
             if position:
-                position.lock(order.quantity)
+                position.lock(order.orderQty)
         else:
-            position = self._positions.get(order.ticker, None)
+            position = self._positions.get(order.symbol, None)
             if position:
-                position.unlock(order.quantity)
+                position.unlock(order.orderQty)
 
     def on_exit(self, event, kwargs=None):
         for ticker, position in self._positions.items():
@@ -131,48 +134,49 @@ class PositionPortfolio(AbstractPortfolio):
                 self._positions.pop(ticker)
             self._trades.append(
                 {'datetime': timestamp, 'ticker': ticker, 'quantity': quantity,
-                 'price': price, 'commission': commission ,'action': 'close'},
+                 'price': price, 'commission': commission, 'action': 'close'},
             )
 
-    def send_open(self, ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwargs):
+    def send_open(self, ticker, quantity, price=None, order_type=ORDERTYPE.MARKET, **kwargs):
         """
         开仓
 
-        :param ticker: str, 品种名
-        :param quantity: float or int, 数量
-        :param price: float or int, 目标价, 如果是市价单可缺省
-        :param order_type: enum, 下单类型
-            EVENTS.ORDER: 市价单
-            EVENTS.LIMIT: 限价单
-            EVENTS.STOP: 停损单
-        :param kwargs: 其他信息
-        :return:
-        """
-        local_id = self.next_id
-        self.event_queue.put(
-            OrderEvent(
-                self._data.current_time,
-                ticker, OPEN_ORDER, quantity, price,
-                order_type=order_type,
-                local_id=local_id,
-                **kwargs
-            )
-        )
-        return local_id
+        Args:
+            ticker(str): 品种名
+            quantity(float|int): 数量
+            price(float|int): 目标价, 如果是市价单可缺省
+            order_type(ORDERTYPE): enum
+            kwargs: 其他信息
 
-    def send_close(self, ticker, quantity=None, price=None, order_type=EVENTS.ORDER, **kwargs):
+        Returns:
+            str|int: client-side order identity
+        """
+        order = OrderReq()
+        order.clOrdID = self.next_id
+        order.symbol = ticker
+        order.action = ACTION.OPEN.value
+        order.ordType = order_type.value
+        order.price = price
+        order.orderQty = quantity
+        order.transactTime = self._data.current_time
+        for k, v in kwargs.items():
+            setattr(order, k, v)
+        self.event_queue.put(OrderEvent(order, timestamp=self._data.current_time, topic=ticker))
+        return order.clOrdID
+
+    def send_close(self, ticker, quantity=None, price=None, order_type=ORDERTYPE.MARKET, **kwargs):
         """
         平仓
 
-        :param ticker: str, 品种名
-        :param quantity: float or int, 数量, 如果缺省则平掉全部当前可交易的仓位
-        :param price: float or int, 目标价, 如果是市价单可缺省
-        :param order_type: enum, 下单类型
-            EVENTS.ORDER: 市价单
-            EVENTS.LIMIT: 限价单
-            EVENTS.STOP: 停损单
-        :param kwargs: 其他信息
-        :return:
+        Args:
+            ticker(str): 品种名
+            quantity(float|int): 数量, 如果缺省则平掉全部当前可交易的仓位
+            price(float|int): 目标价, 如果是市价单可缺省
+            order_type(ORDERTYPE): 下单类型
+            kwargs: 其他信息
+
+        Returns:
+            None
         """
         position = self._positions.get(ticker, None)
         if position:
@@ -188,14 +192,17 @@ class PositionPortfolio(AbstractPortfolio):
                     quantity = available
             else:
                 quantity = available
-
-            self.event_queue.put(
-                OrderEvent(
-                    self._data.current_time, ticker, CLOSE_ORDER,
-                    quantity, price, order_type, local_id=self.next_id,
-                    **kwargs
-                )
-            )
+            order = OrderReq()
+            order.clOrdID = self.next_id
+            order.symbol = ticker
+            order.action = ACTION.CLOSE.value  # 使用基础类型
+            order.ordType = order_type.value  # 使用基础类型
+            order.price = price
+            order.orderQty = quantity
+            order.transactTime = self._data.current_time
+            for k, v in kwargs.items():
+                setattr(order, k, v)
+            self.event_queue.put(OrderEvent(order, timestamp=self._data.current_time, topic=ticker))
 
 
 class OrderPortfolio(AbstractPortfolio):
@@ -217,7 +224,7 @@ class OrderPortfolio(AbstractPortfolio):
             self._handlers['on_recall'] = Handler(self._orders.on_recall, EVENTS.RECALL)
 
         self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
-        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, topic='', priority=100)
+        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.EXECUTION, topic='', priority=100)
         self._handlers['on_exit'] = Handler(self.close_at_stop, EVENTS.EXIT, priority=200)
 
     @property
@@ -275,17 +282,18 @@ class OrderPortfolio(AbstractPortfolio):
         self._info.append({'datetime': self._time, 'equity': self.equity, 'cash': self._cash})
 
     def on_fill(self, event, kwargs=None):
-        if event.action:
+        fill = event.data
+        if fill.action == ACTION.OPEN.value:
             self.open_position(
-                event.position_id, event.ticker, event.price,
-                event.quantity, event.time, event.commission,
-                deposit_rate=event.deposit_rate, lever=event.lever
+                fill.position_id, fill.ticker, fill.price,
+                fill.quantity, fill.time, fill.commission,
+                deposit_rate=fill.deposit_rate, lever=fill.lever
             )
-        else:
+        elif fill.action == ACTION.CLOSE.value:
             self.close_position(
-                event.position_id, event.price,
-                event.quantity, event.time,
-                event.commission, event.external_id
+                fill.position_id, fill.price,
+                fill.quantity, fill.time,
+                fill.commission, fill.order_ext_id
             )
 
     def open_position(self, order_id, ticker, price, quantity, open_time, commission=0, **kwargs):
@@ -300,7 +308,6 @@ class OrderPortfolio(AbstractPortfolio):
             self._trades.append({'datetime': open_time, 'action': 'close',
                                  'commission': commission, 'price': price,
                                  'ticker': position.ticker, 'quantity': quantity})
-
 
     def close_position(self, order_id, price, quantity, close_time, commission=0, new_id=None):
         position = self._orders.pop(order_id)
@@ -341,58 +348,80 @@ class OrderPortfolio(AbstractPortfolio):
             position.close(position.price, self._time)
             self.closed_positions.append(position)
 
-    def send_open(self, ticker, quantity, price=None, order_type=EVENTS.ORDER, **kwargs):
-        local_id = self.next_id
-        self.event_queue.put(
-            OrderEvent(
-                self._data.current_time,
-                ticker, OPEN_ORDER, quantity, price,
-                order_type=order_type,
-                local_id=local_id,
-                **kwargs
-            )
-        )
-        return local_id
-
-    def send_close(self, order_id=None, ticker=None, quantity=None, price=None, order_type=EVENTS.ORDER, **kwargs):
+    def send_open(self, ticker, quantity, price=None, order_type=ORDERTYPE.MARKET, **kwargs):
         """
+        开仓
 
-        :param order_id: int, 订单号, 按指定的订单号平仓
-        :param ticker: str, 持仓品种, 平掉该品种的仓位, 但实际上还是以订单的方式平仓
-        order_id 和 ticker 需输入一个
+        Args:
+            ticker(str): 品种名
+            quantity(float|int): 数量
+            price(float|int): 目标价, 如果是市价单可缺省
+            order_type(ORDERTYPE): enum
+            kwargs: 其他信息
 
-        :param quantity: float or int, 数量
-        :param price: float or int, 目标价, 如果是市价单可缺省
-        :param order_type: enum, 下单类型
-            EVENTS.ORDER: 市价单
-            EVENTS.LIMIT: 限价单
-            EVENTS.STOP: 停损单
-        :param kwargs: 其他信息
-        :return:
+        Returns:
+            str|int: client-side order identity
+        """
+        order = OrderReq()
+        order.clOrdID = self.next_id
+        order.symbol = ticker
+        order.action = ACTION.OPEN.value
+        order.ordType = order_type.value
+        order.price = price
+        order.orderQty = quantity
+        order.transactTime = self._data.current_time
+        for k, v in kwargs.items():
+            setattr(order, k, v)
+        self.event_queue.put(OrderEvent(order, timestamp=self._data.current_time, topic=ticker))
+        return order.clOrdID
+
+    def send_close(self, ticker=None, quantity=None, price=None, order_type=ORDERTYPE.MARKET, order_id=None, **kwargs):
+        """
+        平仓
+
+        Args:
+            ticker(str): 品种名
+            quantity(float|int): 数量, 如果缺省则平掉全部当前可交易的仓位
+            price(float|int): 目标价, 如果是市价单可缺省
+            order_type(ORDERTYPE): 下单类型
+            order_id(str): 订单ID
+            kwargs: 其他信息
+
+        Returns:
+            str| list of str: close order's identity
         """
         if order_id:
             order = self._orders[order_id]
+            order_new = OrderReq()
+            order_new.clOrdID = self.next_id
+            order_new.symbol = order.ticker
+            order_new.ordType = order_type
+            order_new.orderQty = order.available
+            order_new.action = ACTION.CLOSE.value
+            order_new.price = price
+            order_new.transactTime = self._data.current_time
+            order_new.clOrdIDLink = order_id  # TODO 处理oanda的这种订单关联方式
+            for k, v in kwargs.items():
+                setattr(order_new, k, v)
             if order.available:
-                self.event_queue.put(
-                    OrderEvent(
-                        self._data.current_time,
-                        order.ticker, CLOSE_ORDER,
-                        order.available, price,
-                        order_type=order_type,
-                        local_id=order_id,
-                        **kwargs
-                    )
-                )
-                return order_id
+                self.event_queue.put(OrderEvent(order_new, timestamp=self._data.current_time, topic=order.ticker))
+                return order_new.clOrdID
             else:
                 print('position.available == 0 , unable to close position')
         elif ticker and quantity:
+            order_news = []
             for _id, available in self.separate_close(ticker, quantity):
-                self.event_queue.put(
-                    OrderEvent(
-                        self._data.current_time,
-                        ticker, CLOSE_ORDER, available, price,
-                        order_type=order_type, local_id=_id,
-                        **kwargs
-                    )
-                )
+                order_new = OrderReq()
+                order_new.clOrdID = self.next_id
+                order_new.symbol = ticker
+                order_new.ordType = order_type
+                order_new.orderQty = available
+                order_new.action = ACTION.CLOSE.value
+                order_new.price = price
+                order_new.transactTime = self._data.current_time
+                order_new.clOrdIDLink = _id
+                for k, v in kwargs.items():
+                    setattr(order_new, k, v)
+                self.event_queue.put(OrderEvent(order_new, timestamp=self._data.current_time, topic=ticker))
+                order_news.append(order_new.clOrdID)
+            return order_news

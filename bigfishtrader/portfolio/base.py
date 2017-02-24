@@ -39,7 +39,7 @@ class AbstractPortfolioHandler(HandlerCompose):
         处理FillEvent
 
         Args:
-            event(bigfishtrader.event.FillEvent): FillEvent
+            event(bigfishtrader.event.ExecutionEvent): FillEvent
             kwargs(dict): 共享数据字典
 
         Returns:
