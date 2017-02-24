@@ -312,7 +312,7 @@ class OrderHandler(HandlerCompose):
         return positions
 
     def lock(self, order, kwargs=None):
-        position = self._positions.get(order.order_id, None)
+        position = self._positions.get(order.clOrdID, None)
         if position:
             if position.available / order.quantity >= 1:
                 position.lock += order.quantity

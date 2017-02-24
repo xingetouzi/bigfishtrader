@@ -12,8 +12,8 @@ import ib.ext.Execution
 from ib.opt import ibConnection, message
 from bigfishtrader.router.gateway import Gateway
 from bigfishtrader.router.ib.constants import *
-from bigfishtrader.event import TickEvent, FillEvent
-from bigfishtrader.model import Fill
+from bigfishtrader.event import TickEvent, ExecutionEvent
+from bigfishtrader.model import ExecutionData
 
 
 class BFWrapper(object):
@@ -91,7 +91,7 @@ class BFWrapper(object):
         reqId = msg.reqId
         contract = msg.contract
         execution = msg.execution
-        fill = Fill()
+        fill = ExecutionData()
         fill.time = parse(execution.m_time)
         fill.ticker = contract
         fill.action = execution.m_side
@@ -101,7 +101,7 @@ class BFWrapper(object):
         fill.order_ext_id = execution.m_permId
         fill.avg_price = execution.m_avgPrice
         fill.account = execution.m_acctNumber
-        event = FillEvent(
+        event = ExecutionEvent(
             fill,
             timestamp=execution.m_time
         )
@@ -112,8 +112,8 @@ class BFWrapper(object):
 
 
 class IbGateway(Gateway):
-    def __init__(self, event_engine, name):
-        super(IbGateway, self).__init__(event_engine, name)
+    def __init__(self, eventEngine, gatewayName):
+        super(IbGateway, self).__init__(eventEngine, gatewayName)
         self.ib_wrapper = BFWrapper(self)
 
     @staticmethod

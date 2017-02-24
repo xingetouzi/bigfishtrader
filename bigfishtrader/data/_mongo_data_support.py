@@ -440,7 +440,6 @@ class MultiDataSupport(AbstractDataSupport):
             return False
 
 
-
 if __name__ == "__main__":
     setting = {
         "host": "192.168.0.103",

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import pytz
 
 from bigfishtrader.engine.handler import Handler
-from bigfishtrader.event import EVENTS, TickEvent, OPEN_ORDER, CLOSE_ORDER, FillEvent
+from bigfishtrader.event import EVENTS, TickEvent, OPEN_ORDER, CLOSE_ORDER, ExecutionEvent
 from bigfishtrader.router.base import AbstractRouter
 from bigfishtrader.router.oanda.vnoanda import OandaApi, FUNCTIONCODE_STREAMPRICES, FUNCTIONCODE_GETINSTRUMENTS
 
@@ -202,7 +202,7 @@ class BFOandaApi(OandaApi):
         if "transaction" in data:
             transaction = data["transaction"]
             if transaction["type"] == "MARKET_ORDER_CREATE":
-                event = FillEvent(
+                event = ExecutionEvent(
                     self._get_datetime(transaction["time"]),
                     transaction["instrument"],
                     OPEN_ORDER,
@@ -212,7 +212,7 @@ class BFOandaApi(OandaApi):
                 event.exchange_id = str(transaction["id"])
                 self.event_queue.put(event)
             elif transaction["type"] == "TRADE_CLOSE":
-                event = FillEvent(
+                event = ExecutionEvent(
                     self._get_datetime(transaction["time"]),
                     transaction["instrument"],
                     CLOSE_ORDER,

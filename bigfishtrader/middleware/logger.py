@@ -15,7 +15,7 @@ class LogRecorder(HandlerCompose):
         self._handlers["on_tick_end"] = Handler(self.on_tick_end, EVENTS.TICK, topic=".", priority=-200)
         self._handlers["on_order_begin"] = Handler(self.on_order_begin, EVENTS.ORDER, topic="", priority=200)
         self._handlers["on_order_end"] = Handler(self.on_order_end, EVENTS.ORDER, topic=".", priority=-200)
-        self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.FILL, topic="", priority=100)
+        self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.EXECUTION, topic="", priority=100)
 
     def on_tick_begin(self, event, kwarg=None):
         """
@@ -54,7 +54,7 @@ class LogRecorder(HandlerCompose):
         """
 
         Args:
-            event(bigfishtrader.event.FillEvent):
+            event(bigfishtrader.event.ExecutionEvent):
             kwarg(dct):
 
         Returns:

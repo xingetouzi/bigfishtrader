@@ -1,6 +1,6 @@
 import oandapy
 import json
-from bigfishtrader.event import EVENTS, FillEvent, OPEN_ORDER, CLOSE_ORDER, OrderEvent
+from bigfishtrader.event import EVENTS, ExecutionEvent, OPEN_ORDER, CLOSE_ORDER, OrderEvent
 from bigfishtrader.router.base import AbstractRouter
 from bigfishtrader.engine.handler import Handler
 from dictproxyhack import dictproxy
@@ -50,7 +50,7 @@ class OandaExchange(AbstractRouter):
 
     def _put_fill(self, _id, timestamp, ticker, action, quantity, price, commission, **kwargs):
         self.event_queue.put(
-            FillEvent(
+            ExecutionEvent(
                 timestamp, ticker, action,
                 quantity, price, commission,
                 topic='oanda',

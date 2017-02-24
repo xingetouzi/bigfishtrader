@@ -351,7 +351,7 @@ class ReportSheet(WindowFactorPerformance):
             trade["direction"] = trade["position_id"].apply(lambda x: temp[x])
             trade["volume"] = trade["quantity"].abs()
             trade["entry"] = trade["action"].apply(
-                lambda x: ACTION.IN.value if x else ACTION.OUT.value)
+                lambda x: ACTION.OPEN.value if x else ACTION.CLOSE.value)
             # commission is separated from profit
             trade["profit"] = trade["profit"].fillna(0) - trade["commission"].fillna(0)
             trade.rename_axis({"local_id": "trade_id"}, axis=1)
@@ -379,7 +379,7 @@ class ReportSheet(WindowFactorPerformance):
             total = pd.DataFrame()
             total["profit"] = trade.groupby("position_id")["profit"].sum()
             total["direction"] = trade.groupby("position_id")["direction"].last()
-            total["volume"] = abs(trade[trade["entry"] == ACTION.IN.value]["volume"]).sum()
+            total["volume"] = abs(trade[trade["entry"] == ACTION.OPEN.value]["volume"]).sum()
             long_ = total[total["direction"] == DIRECTION.LONG.value]
             short = total[total["direction"] == DIRECTION.SHORT.value]
             temp = [total, long_, short]

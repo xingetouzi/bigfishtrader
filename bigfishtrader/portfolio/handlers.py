@@ -31,7 +31,7 @@ class PortfolioHandler(AbstractPortfolioHandler):
             else Portfolio(init_cash)
         # self._handlers["on_bar"] = Handler(self.on_bar, EVENTS.BAR, topic=".", priority=10)
         # self._handlers["on_tick"] = Handler(self.on_tick, EVENTS.TICK, topic=".", priority=10)
-        self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.FILL, topic="", priority=10)
+        self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.EXECUTION, topic="", priority=10)
         self._handlers["on_time"] = Handler(self.on_time, EVENTS.TIME, topic="", priority=10)
         # self._handlers["on_confirm"] = Handler(self.on_confirm, EVENTS.CANCEL, topic=".", priority=100)
 
@@ -57,7 +57,7 @@ class PortfolioHandler(AbstractPortfolioHandler):
         update portfolio's positions when there is a FillEvent
 
         Args:
-            event(bigfishtrader.event.FillEvent): FillEvent
+            event(bigfishtrader.event.ExecutionEvent): FillEvent
             kwargs(dict): dict for sharing data
 
         Returns:

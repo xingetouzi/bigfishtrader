@@ -1,7 +1,9 @@
 # encoding:utf-8
+import logging
 
 from bigfishtrader.engine.handler import HandlerCompose, Handler
-from bigfishtrader.event import EVENTS
+from bigfishtrader.event import *
+from bigfishtrader.adapter import VtAdapter
 
 
 class Gateway(HandlerCompose):
@@ -9,66 +11,112 @@ class Gateway(HandlerCompose):
     信息交换网关
     """
 
-    def __init__(self, event_engine, name):
+    def __init__(self, eventEngine, gatewayName):
         """
 
         Args:
-            event_engine(bigfishtrader.engine.core.EventEngine):
-            name:
+            eventEngine(bigfishtrader.engine.core.EventEngine):
+            gatewayName:
 
         Returns:
 
         """
         super(Gateway, self).__init__()
-        self.event_engine = event_engine
+        self.eventEngine = eventEngine
         self._handlers = {
             "on_order": Handler(self.send_order, EVENTS.ORDER, topic="", priority=0)
         }
-        self.name = name
+        self.gatewayName = gatewayName
 
-    def on_tick(self, event):
-        """市场深度行情推送"""
-        self.event_engine.event_queue.put(event)
+    def onTick(self, tick):
+        """
+        市场深度行情推送
 
-    def on_execution(self, event):
-        """订单执行回报"""
-        pass
+        Args:
+            tick(bigfishtrader.vt.vtGateway.VtTickData)
 
-    def on_order(self, event):
-        """订单回报"""
-        pass
+        Returns:
+            None
+        """
+        tick_ = VtAdapter.transform(tick)
+        event = TickEvent(tick_, topic=tick_.symbol)
+        self.eventEngine.event_queue.put(event)
 
-    def on_position(self, event):
+    def onTrade(self, trade):
+        """
+        订单执行回报
+
+        Args:
+            trade(bigfishtrader.vt.vtGateway.VtTradeData):
+        """
+        execution = VtAdapter.transform(trade)
+        event = ExecutionEvent(execution)
+        self.eventEngine.event_queue.put(event)
+
+    def onOrder(self, order):
+        """
+        订单回报
+
+        Args:
+            order(bigfishtrader.vt.vtGateway.VtOrderData):
+        """
+        order_status = VtAdapter.transform(order)
+        event = OrderStatusEvent(order_status, topic=order_status.gClOrderID)
+        self.eventEngine.event_queue.put(event)
+
+    def onPosition(self, position):
         """
         仓位信息回报
 
         Args:
-            event:
+            position(bigfishtrader.vt.vtGateway.VtPositionData):
         """
-        pass
+        position_ = VtAdapter.transform(position)
+        event = PositionEvent(position, topic=position_.symbol)
+        self.eventEngine.event_queue.put(event)
 
-    def on_account(self, event):
+    def onAccount(self, action):
         """
         账户信息回报
 
         Args:
-            event:
+            action(bigfishtrader.vt.vtGateway.VtAccountData):
+
+        Returns:
+            None
         """
         pass
 
-    def on_error(self, event):
+    def onError(self, error):
         """
         错误回报
 
         Args:
-            event:
+            error(bigfishtrader.vt.vtGateway.VtErrorData):
+
+        Returns:
+            None
         """
-        pass
+        logging.error(" ".join([
+            error.gatewayName, error.errorTime, error.errorID,
+            error.errorMsg, error.additionalInfo
+        ]))
 
-    def on_log(self, event):
-        pass
+    def onLog(self, log):
+        """
+        记录日志
 
-    def on_contract(self, event):
+        Args:
+            log(bigfishtrader.vt.vtGateway.VtLogData):
+
+        Returns:
+            None
+        """
+        logging.info(" ".join([
+            log.gatewayName, log.logTime, log.logContent
+        ]))
+
+    def onContract(self, event):
         pass
 
     def send_order(self, event):

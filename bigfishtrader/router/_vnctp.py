@@ -5,12 +5,12 @@ from datetime import datetime
 from weakref import proxy
 
 from bigfishtrader.engine.handler import HandlerCompose, Handler
-from bigfishtrader.event import EVENTS, OPEN_ORDER, CLOSE_ORDER, FillEvent, TickEvent
-from bigfishtrader.vt.ctpGateway import EVENT_TICK
-from bigfishtrader.vt.ctpGateway import MyMainEngine
-from bigfishtrader.vt.ctpGateway import PRICETYPE_MARKETPRICE_, DIRECTION_LONG, DIRECTION_SHORT, OFFSET_OPEN, OFFSET_CLOSE, \
+from bigfishtrader.event import EVENTS,  ExecutionEvent, TickEvent
+from ctpgateway.eventType import EVENT_TICK
+from ctpgateway.myMainEngine import MyMainEngine
+from ctpgateway.vtConstant import PRICETYPE_MARKETPRICE_, DIRECTION_LONG, DIRECTION_SHORT, OFFSET_OPEN, OFFSET_CLOSE, \
     STATUS_ALLTRADED, STATUS_UNKNOWN
-from bigfishtrader.vt.ctpGateway import VtOrderReq
+from ctpgateway.vtGateway import VtOrderReq
 
 
 class VnCtpMainEngine(MyMainEngine):
@@ -85,7 +85,7 @@ class VnCtpRouter(HandlerCompose):
         """
         t_str = datetime.now().strftime("%Y%m%d") + vt_order.orderTime
         dt = datetime.strptime(t_str, "%Y%m%d%H:%M:%S")
-        fill_event = FillEvent(
+        fill_event = ExecutionEvent(
             dt,
             vt_order.symbol,
             OPEN_ORDER if vt_order.offset == OFFSET_OPEN else CLOSE_ORDER,

@@ -5,7 +5,7 @@ from bigfishtrader.portfolio.position import Order, Position, OrderHandler
 from bigfishtrader.portfolio.base import AbstractPortfolio
 from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import EVENTS, OrderEvent
-from bigfishtrader.model import Order as OrderData
+from bigfishtrader.model import OrderReq
 from bigfishtrader.const import ACTION, ORDERTYPE
 import pandas as pd
 
@@ -26,7 +26,7 @@ class PositionPortfolio(AbstractPortfolio):
 
         self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
         self._handlers['on_recall'] = Handler(self.on_recall, EVENTS.RECALL, priority=150)
-        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, topic='', priority=100)
+        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.EXECUTION, topic='', priority=100)
         self._handlers['on_exit'] = Handler(self.on_exit, EVENTS.EXIT, priority=200)
 
     @property
@@ -81,13 +81,13 @@ class PositionPortfolio(AbstractPortfolio):
 
     def on_fill(self, event, kwargs=None):
         fill = event.data
-        if fill.action == ACTION.IN:
+        if fill.action == ACTION.OPEN.value:
             self.open_position(
                 fill.time, fill.ticker,
                 fill.quantity, fill.price,
                 fill.commission
             )
-        elif fill.action == ACTION.OUT:
+        elif fill.action == ACTION.CLOSE.value:
             self.close_position(
                 fill.time, fill.ticker,
                 fill.quantity, fill.price,
@@ -151,18 +151,18 @@ class PositionPortfolio(AbstractPortfolio):
         Returns:
             str|int: client-side order identity
         """
-        order = OrderData()
-        order.cliOrdID = self.next_id
+        order = OrderReq()
+        order.clOrdID = self.next_id
         order.symbol = ticker
-        order.action = ACTION.IN
-        order.ordType = order_type
+        order.action = ACTION.OPEN.value
+        order.ordType = order_type.value
         order.price = price
         order.orderQty = quantity
         order.transactTime = self._data.current_time
         for k, v in kwargs.items():
             setattr(order, k, v)
         self.event_queue.put(OrderEvent(order, timestamp=self._data.current_time, topic=ticker))
-        return order.cliOrdID
+        return order.clOrdID
 
     def send_close(self, ticker, quantity=None, price=None, order_type=ORDERTYPE.MARKET, **kwargs):
         """
@@ -192,11 +192,11 @@ class PositionPortfolio(AbstractPortfolio):
                     quantity = available
             else:
                 quantity = available
-            order = OrderData()
-            order.cliOrdID = self.next_id
+            order = OrderReq()
+            order.clOrdID = self.next_id
             order.symbol = ticker
-            order.action = ACTION.OUT
-            order.ordType = order_type
+            order.action = ACTION.CLOSE.value  # 使用基础类型
+            order.ordType = order_type.value  # 使用基础类型
             order.price = price
             order.orderQty = quantity
             order.transactTime = self._data.current_time
@@ -224,7 +224,7 @@ class OrderPortfolio(AbstractPortfolio):
             self._handlers['on_recall'] = Handler(self._orders.on_recall, EVENTS.RECALL)
 
         self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
-        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.FILL, topic='', priority=100)
+        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.EXECUTION, topic='', priority=100)
         self._handlers['on_exit'] = Handler(self.close_at_stop, EVENTS.EXIT, priority=200)
 
     @property
@@ -283,13 +283,13 @@ class OrderPortfolio(AbstractPortfolio):
 
     def on_fill(self, event, kwargs=None):
         fill = event.data
-        if fill.action == ACTION.IN:
+        if fill.action == ACTION.OPEN.value:
             self.open_position(
                 fill.position_id, fill.ticker, fill.price,
                 fill.quantity, fill.time, fill.commission,
                 deposit_rate=fill.deposit_rate, lever=fill.lever
             )
-        elif fill.action == ACTION.OUT:
+        elif fill.action == ACTION.CLOSE.value:
             self.close_position(
                 fill.position_id, fill.price,
                 fill.quantity, fill.time,
@@ -362,18 +362,18 @@ class OrderPortfolio(AbstractPortfolio):
         Returns:
             str|int: client-side order identity
         """
-        order = OrderData()
-        order.cliOrdID = self.next_id
+        order = OrderReq()
+        order.clOrdID = self.next_id
         order.symbol = ticker
-        order.action = ACTION.IN
-        order.ordType = order_type
+        order.action = ACTION.OPEN.value
+        order.ordType = order_type.value
         order.price = price
         order.orderQty = quantity
         order.transactTime = self._data.current_time
         for k, v in kwargs.items():
             setattr(order, k, v)
         self.event_queue.put(OrderEvent(order, timestamp=self._data.current_time, topic=ticker))
-        return order.cliOrdID
+        return order.clOrdID
 
     def send_close(self, ticker=None, quantity=None, price=None, order_type=ORDERTYPE.MARKET, order_id=None, **kwargs):
         """
@@ -392,36 +392,36 @@ class OrderPortfolio(AbstractPortfolio):
         """
         if order_id:
             order = self._orders[order_id]
-            order_new = OrderData()
-            order_new.cliOrdID = self.next_id
+            order_new = OrderReq()
+            order_new.clOrdID = self.next_id
             order_new.symbol = order.ticker
             order_new.ordType = order_type
             order_new.orderQty = order.available
-            order_new.action = ACTION.OUT
+            order_new.action = ACTION.CLOSE.value
             order_new.price = price
             order_new.transactTime = self._data.current_time
-            order_new.cliOrdIDLink = order_id  # TODO 处理oanda的这种订单关联方式
+            order_new.clOrdIDLink = order_id  # TODO 处理oanda的这种订单关联方式
             for k, v in kwargs.items():
                 setattr(order_new, k, v)
             if order.available:
                 self.event_queue.put(OrderEvent(order_new, timestamp=self._data.current_time, topic=order.ticker))
-                return order_new.cliOrdID
+                return order_new.clOrdID
             else:
                 print('position.available == 0 , unable to close position')
         elif ticker and quantity:
             order_news = []
             for _id, available in self.separate_close(ticker, quantity):
-                order_new = OrderData()
-                order_new.cliOrdID = self.next_id
+                order_new = OrderReq()
+                order_new.clOrdID = self.next_id
                 order_new.symbol = ticker
                 order_new.ordType = order_type
                 order_new.orderQty = available
-                order_new.action = ACTION.OUT
+                order_new.action = ACTION.CLOSE.value
                 order_new.price = price
                 order_new.transactTime = self._data.current_time
-                order_new.cliOrdIDLink = _id
+                order_new.clOrdIDLink = _id
                 for k, v in kwargs.items():
                     setattr(order_new, k, v)
                 self.event_queue.put(OrderEvent(order_new, timestamp=self._data.current_time, topic=ticker))
-                order_news.append(order_new.cliOrdID)
+                order_news.append(order_new.clOrdID)
             return order_news

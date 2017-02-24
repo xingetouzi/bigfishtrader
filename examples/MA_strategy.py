@@ -48,8 +48,8 @@ if __name__ == '__main__':
     from bigfishtrader.trader import PracticeTrader
 
     trader = PracticeTrader()
-
-    p = trader.initialize(data={'port': 27018, 'host': '192.168.0.103'}).back_test(
+    trader["data"].kwargs.update({'port': 27018, 'host': '192.168.0.103'})
+    p = trader.initialize().back_test(
         __import__('MA_strategy'),
         ['000001'], 'D', datetime(2016, 1, 1),
         ticker_type='HS', fast=10, slow=15

@@ -17,15 +17,22 @@ class ORDERTYPE(Enum):
 
 
 class ORDERSTATUS(Enum):
-    UNFILL = 0
-    FILL = 1
+    NOTTRADED = "未成交"
+    PARTTRADED = "部分成交"
+    ALLTRADED = "全部成交"
+    CANCELLED = "已撤销"
+    UNKNOWN = "未知"
 
 
 class DIRECTION(Enum):
-    LONG = "多头"
-    SHORT = "空头"
+    NONE = "无方向"
+    LONG = "多"
+    SHORT = "空"
+    UNKNOWN = "未知"
 
 
 class ACTION(Enum):
-    IN = "开"
-    OUT = "平"
+    NONE = "无开平"
+    OPEN = "开仓"
+    CLOSE = "平仓"
+    UNKNOWN = "未知"

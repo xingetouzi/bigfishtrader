@@ -132,7 +132,7 @@ def run(db_setting, account_info):
     engine.register(on_test, EVENTS.TIME, '.', priority=90)
     # engine.register(on_tick, EVENTS.TICK, '.', priority=0)
     # engine.register(partial(on_tick_close, id_="10610756920"), EVENTS.TICK, ".", priority=0)
-    engine.register(on_fill, EVENTS.FILL, '.', priority=100)
+    engine.register(on_fill, EVENTS.EXECUTION, '.', priority=100)
     # start engine
     for item in engine._stream_manager.get_iter(EVENTS.ORDER, topic=""):
         print(item)

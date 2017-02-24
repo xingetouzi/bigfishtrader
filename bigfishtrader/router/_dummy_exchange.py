@@ -1,8 +1,8 @@
 # encoding: utf-8
 from enum import Enum
 from bigfishtrader.engine.handler import Handler
-from bigfishtrader.event import FillEvent, RecallEvent, EVENTS
-from bigfishtrader.model import Fill
+from bigfishtrader.event import ExecutionEvent, RecallEvent, EVENTS
+from bigfishtrader.model import ExecutionData
 from bigfishtrader.const import ORDERTYPE, ACTION
 from bigfishtrader.router.base import AbstractRouter
 
@@ -40,9 +40,9 @@ class DummyExchange(AbstractRouter):
             "on_time": Handler(self.on_time, EVENTS.TIME, priority=200),
         }
         self.handle_order = {
-            ORDERTYPE.MARKET: self._fill_order,
-            ORDERTYPE.LIMIT: self._fill_limit,
-            ORDERTYPE.STOP: self._fill_stop
+            ORDERTYPE.MARKET.value: self._fill_order,
+            ORDERTYPE.LIMIT.value: self._fill_limit,
+            ORDERTYPE.STOP.value: self._fill_stop
         }
 
     @staticmethod
@@ -57,7 +57,7 @@ class DummyExchange(AbstractRouter):
         """
 
         Args:
-            order(bigfishtrader.model.Order):
+            order(bigfishtrader.model.OrderReq):
             price:
             timestamp:
 
@@ -67,19 +67,19 @@ class DummyExchange(AbstractRouter):
         if price != price:
             print("%s is not able to trade at %s" % (order.symbol, timestamp))
             return
-        fill = Fill()
+        fill = ExecutionData()
         fill.time = timestamp
         fill.ticker = order.symbol
         fill.quantity = order.orderQty
         fill.action = order.action
         fill.price = price + self.calculate_slippage(order, price)
         fill.commission = self.calculate_commission(order, price)
-        fill.order_id = order.cliOrdID
-        fill.position_id = order.cliOrdID
+        fill.order_id = order.clOrdID
+        fill.position_id = order.clOrdID
         for k, v in self.ticker_info.get(order.symbol, {}):
             setattr(fill, k, v)
-        event = FillEvent(fill, timestamp=timestamp, topic=order.symbol)
-        self._orders.pop(order.cliOrdID, None)
+        event = ExecutionEvent(fill, timestamp=timestamp, topic=order.symbol)
+        self._orders.pop(order.clOrdID, None)
         self.event_queue.put(event)
 
     def on_cancel(self, event, kwargs=None):
@@ -103,21 +103,21 @@ class DummyExchange(AbstractRouter):
         deal with limit order
 
         Args:
-            order(bigfishtrader.model.Order):
+            order(bigfishtrader.model.OrderReq):
             bar:
 
         Returns:
             None
         """
-        if order.action == ACTION.IN:
+        if order.action == ACTION.OPEN.value:
             self._limit_open(order, bar)
-        elif order.action == ACTION.OUT:
+        elif order.action == ACTION.CLOSE.value:
             self._stop_open(order, bar)
 
     def _fill_stop(self, order, bar):
-        if order.action == ACTION.IN:
+        if order.action == ACTION.OPEN.value:
             self._stop_open(order, bar)
-        elif order.action == ACTION.OUT:
+        elif order.action == ACTION.CLOSE.value:
             self._limit_open(order, bar)
 
     def _limit_open(self, order, bar):
@@ -125,7 +125,7 @@ class DummyExchange(AbstractRouter):
         deal with limit open order
 
         Args:
-            order(bigfishtrader.model.Order):
+            order(bigfishtrader.model.OrderReq):
             bar:
 
         Returns:
@@ -142,7 +142,7 @@ class DummyExchange(AbstractRouter):
     def _stop_open(self, order, bar):
         """
         Args:
-            order(bigfishtrader.model.Order):
+            order(bigfishtrader.model.OrderReq):
             bar:
 
         Returns:
@@ -185,7 +185,7 @@ class DummyExchange(AbstractRouter):
             current = self._data.current(order.symbol)
             self._put_fill(order, current.close, current.name)  # 直接成交
         else:
-            self._orders[order.cliOrdID] = order  # 放入交易所orderbook留给on_bar函数去处理成交
+            self._orders[order.clOrdID] = order  # 放入交易所orderbook留给on_bar函数去处理成交
 
     def get_orders(self):
         return {_id: order.to_dict() for _id, order in self._orders.items()}
@@ -200,17 +200,17 @@ class PracticeExchange(DummyExchange):
         if price != price:
             print("%s is not able to trade at %s" % (order.symbol, timestamp))
             return
-        fill = Fill()
+        fill = ExecutionData()
         fill.time = timestamp
         fill.ticker = order.symbol
         fill.quantity = order.orderQty
         fill.action = order.action
         fill.price = price + self.calculate_slippage(order, price)
         fill.commission = self.calculate_commission(order, price)
-        fill.order_id = order.cliOrdID
-        fill.position_id = order.cliOrdID
+        fill.order_id = order.clOrdID
+        fill.position_id = order.clOrdID
         for k, v in self.ticker_info.get(order.symbol, {}):
             setattr(fill, k, v)
-        event = FillEvent(fill, timestamp=timestamp, topic=order.symbol)
-        self._orders.pop(order.cliOrdID, None)
+        event = ExecutionEvent(fill, timestamp=timestamp, topic=order.symbol)
+        self._orders.pop(order.clOrdID, None)
         self.portfolio.on_fill(event)

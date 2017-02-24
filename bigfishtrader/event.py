@@ -5,14 +5,14 @@ from datetime import datetime
 import numpy as np
 
 from bigfishtrader.const import *
-from bigfishtrader.model import Fill
+from bigfishtrader.model import ExecutionData
 
 
 class EVENTS(Enum):
     TICK = 0
     BAR = 1
     ORDER = 2
-    FILL = 3
+    EXECUTION = 3
     LIMIT = 4
     STOP = 5
     CANCEL = 6
@@ -78,38 +78,15 @@ class TickEvent(Event):
     TickEvent is created when a tick data arrived
     and will be handled by strategy and portfolio handler
     """
-    __slots__ = ["ticker", "exchange", "last_price", "high_price", "open_price", "low_price",
-                 "pre_close", "vwap_price", "upper_limit", "lower_limit", "depth", "ask_price",
-                 "bid_price", "ask_volume", "bid_volume"]
+    __slots__ = ["data"]
 
     MAX_DEPTH = 10
 
-    def __init__(self, timestamp=None, depth=MAX_DEPTH):
+    def __init__(self, tick, timestamp=None, topic=""):
         if timestamp is None:
             timestamp = datetime.now()
-        super(TickEvent, self).__init__(EVENTS.TICK, 1, timestamp)
-        self.ticker = None
-        self.exchange = None
-        self.last_price = None
-        self.high_price = None
-        self.open_price = None
-        self.high_price = None
-        self.low_price = None
-        self.pre_close = None
-        self.vwap_price = None
-
-        self.upper_limit = None
-        self.lower_limit = None
-
-        self.depth = depth
-        self.ask_price = np.empty(self.depth)
-        self.ask_price.fill(np.nan)
-        self.bid_price = np.empty(self.depth)
-        self.bid_price.fill(np.nan)
-        self.ask_volume = np.empty(self.depth)
-        self.ask_volume.fill(np.nan)
-        self.bid_volume = np.empty(self.depth)
-        self.bid_volume.fill(np.nan)
+        super(TickEvent, self).__init__(EVENTS.TICK, 1, timestamp, topic)
+        self.data = tick
 
 
 class BarEvent(Event):
@@ -141,7 +118,7 @@ class OrderEvent(Event):
         """
 
         Args:
-            order(bigfishtrader.model.Order):
+            order(bigfishtrader.model.OrderReq):
             timestamp:
             topic:
 
@@ -161,7 +138,7 @@ class OrderEvent(Event):
     def to_fill(self, timestamp, price, commission=0, lever=1, deposit_rate=1,
                 position_id=None, external_id=None, topic=''):
         order = self.data
-        fill = Fill()
+        fill = ExecutionData()
         fill.time = timestamp
         fill.ticker = order.symbol
         fill.action = order.action
@@ -170,10 +147,10 @@ class OrderEvent(Event):
         fill.commission = commission
         fill.lever = lever
         fill.deposit_rate = deposit_rate
-        fill.order_id = order.cliOrdID
-        fill.position_id = position_id if position_id else order.cliOrdID
+        fill.order_id = order.clOrdID
+        fill.position_id = position_id if position_id else order.clOrdID
         fill.order_ext_id = external_id
-        return FillEvent(fill, timestamp=fill.time, topic=topic)
+        return ExecutionEvent(fill, timestamp=fill.time, topic=topic)
 
 
 class CancelEvent(Event):
@@ -188,7 +165,7 @@ class CancelEvent(Event):
         self.conditions = conditions
 
 
-class FillEvent(Event):
+class ExecutionEvent(Event):
     """
     FillEvent is created by Simulation section
     when it receives an OrderEvent or by Trade section
@@ -198,12 +175,12 @@ class FillEvent(Event):
     """
     __slots__ = ["data"]
 
-    def __init__(self, fill, timestamp=None, topic=''):
+    def __init__(self, execution, timestamp=None, topic=''):
         if timestamp is None:
-            super(FillEvent, self).__init__(EVENTS.FILL, 0, datetime.now(), topic)
+            super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, datetime.now(), topic)
         else:
-            super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp, topic)
-        self.data = fill
+            super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, timestamp, topic)
+        self.data = execution
 
 
 class TimeEvent(Event):
@@ -258,23 +235,20 @@ class PositionEvent(Event):
     """
 
     """
-    __slots__ = ["ticker", "exchange", "direction", "volume", "AxPrice"]
+    __slots__ = ["data"]
 
-    def __init__(self, priority, timestamp):
-        super(PositionEvent, self).__init__(EVENTS.POSITION, priority, timestamp)
-        self.ticker = None
-        self.exchange = None
-        self.direction = None
-        self.volume = None
-
-    @property
-    def cli_ticker(self):
-        return self.exchange + self.ticker
+    def __init__(self, position, priority=0, timestamp=None, topic=""):
+        if timestamp is None:
+            timestamp = datetime.now()
+        super(PositionEvent, self).__init__(EVENTS.POSITION, priority, timestamp, topic)
+        self.data = position
 
 
 class OrderStatusEvent(Event):
-    __slots__ = []
+    __slots__ = ["data"]
 
-
-if __name__ == '__main__':
-    pass
+    def __init__(self, ord_status, priority=0, timestamp=None, topic=""):
+        if timestamp is None:
+            timestamp = datetime.now()
+        super(OrderStatusEvent, self).__init__(EVENTS.ORD_STATUS, priority, timestamp, topic)
+        self.data = ord_status

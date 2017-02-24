@@ -19,7 +19,7 @@ class OrderBookHandler(AbstractOrderHandler):
     def __init__(self):
         super(OrderBookHandler, self).__init__()
         self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-100)
-        self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.FILL, topic=".", priority=-100)
+        self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.EXECUTION, topic=".", priority=-100)
         self._orders = {}
         self._fills = {}
         self._order_ref = 0
@@ -48,7 +48,7 @@ class OrderBookHandler(AbstractOrderHandler):
         """
 
         Args:
-            fill(bigfishtrader.event.FillEvent):
+            fill(bigfishtrader.event.ExecutionEvent):
             kwargs:
 
         Returns:

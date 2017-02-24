@@ -89,7 +89,7 @@ class Context(HandlerCompose):
                 @wraps(exchange.calculate_commission)
                 def calculate_commission(order, price):
                     return max(
-                        abs(order.orderQty) * price * (buy_cost if order.action == ACTION.IN else sell_cost),
+                        abs(order.orderQty) * price * (buy_cost if order.action == ACTION.OPEN.value else sell_cost),
                         min_cost
                     )
 
@@ -99,7 +99,7 @@ class Context(HandlerCompose):
                 @wraps(exchange.calculate_commission)
                 def calculate_commission(order, price):
                     return max(
-                        abs(order.quantity) * (buy_cost if order.action == ACTION.IN else sell_cost),
+                        abs(order.quantity) * (buy_cost if order.action == ACTION.OPEN.value else sell_cost),
                         min_cost
                     )
 

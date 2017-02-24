@@ -1,4 +1,4 @@
-from bigfishtrader.event import FillEvent, EVENTS
+from bigfishtrader.event import ExecutionEvent, EVENTS
 
 
 class SimulatingExchange(object):
@@ -39,7 +39,7 @@ class SimulatingExchange(object):
 
     def on_order(self, event):
 
-        fill = FillEvent(
+        fill = ExecutionEvent(
             event.time, event.ticker, event.action,
             event.quantity, event.price,
             self.calculate_commission(event),
