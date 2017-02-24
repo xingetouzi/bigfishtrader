@@ -78,9 +78,8 @@ class DataCollector(object):
 
 
 class StockData(DataCollector):
-    def __init__(self, **setting):
-        setting.setdefault('db', 'HS')
-        super(StockData, self).__init__(**setting)
+    def __init__(self, host='localhost', port=27017, db='HS', user={}):
+        super(StockData, self).__init__(host=host, port=port, db=db, user=user)
 
     def save_k_data(
             self, code=None, start='', end='',
@@ -105,6 +104,7 @@ class StockData(DataCollector):
         frame.pop('code')
 
         self.save('.'.join((code, ktype)), frame)
+        print code, 'saved'
 
     def update(self, col_name):
         doc = self.db[col_name].find_one(sort=[('datetime', -1)])
@@ -195,16 +195,14 @@ class StockData(DataCollector):
 
 
 class OandaData(DataCollector):
-    def __init__(self, oanda_info, **setting):
+    def __init__(self, oanda_info, host='localhost', port=27017, db='Oanda', user={}):
         """
 
         :param oanda_info: dict, oanda account info {'environment': 'practice', 'access_token': your access_token}
-        :param setting:
         :return:
         """
 
-        setting.setdefault('db', 'Oanda')
-        super(OandaData, self).__init__(**setting)
+        super(OandaData, self).__init__(host=host, port=port, db='Oanda', user={})
 
         if isinstance(oanda_info, str):
             with open(oanda_info) as info:
@@ -212,7 +210,6 @@ class OandaData(DataCollector):
                 info.close()
 
         self.api = oandapy.API(oanda_info['environment'], oanda_info['access_token'])
-        self.account_id = oanda_info['account_id']
         self.time_format = '%Y-%m-%dT%H:%M:%S.%fZ'
         self.default_period = [
             'M15', 'M30', 'H1', 'H4', 'D', 'M'
@@ -328,14 +325,14 @@ class OandaData(DataCollector):
         i, g = col_name.split('.')
         return self.save_history(i, granularity=g, start=doc['time'], includeFirst=False)
 
-    def update_manny(self, *col_names, **others):
+    def update_manny(self, col_names=[], t=5):
         if len(col_names) == 0:
             col_names = self.db.collection_names()
 
         for col_name in col_names:
             self.queue.put({'col_name': col_name})
 
-        self.start(self.update, others.pop('t', 5))
+        self.start(self.update, t)
         self.stop()
         self.join()
 
