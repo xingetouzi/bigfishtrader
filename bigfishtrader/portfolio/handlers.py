@@ -31,7 +31,7 @@ class PortfolioHandler(AbstractPortfolioHandler):
             else Portfolio(init_cash)
         # self._handlers["on_bar"] = Handler(self.on_bar, EVENTS.BAR, topic=".", priority=10)
         # self._handlers["on_tick"] = Handler(self.on_tick, EVENTS.TICK, topic=".", priority=10)
-        self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.FILL, topic="", priority=10)
+        self._handlers["on_fill"] = Handler(self.on_fill, EVENTS.EXECUTION, topic="", priority=10)
         self._handlers["on_time"] = Handler(self.on_time, EVENTS.TIME, topic="", priority=10)
         # self._handlers["on_confirm"] = Handler(self.on_confirm, EVENTS.CANCEL, topic=".", priority=100)
 
@@ -57,41 +57,41 @@ class PortfolioHandler(AbstractPortfolioHandler):
         update portfolio's positions when there is a FillEvent
 
         Args:
-            event(bigfishtrader.event.FillEvent): FillEvent
+            event(bigfishtrader.event.ExecutionEvent): FillEvent
             kwargs(dict): dict for sharing data
 
         Returns:
             None
         """
-
-        if event.fill_type == 'position':
-            if event.action == OPEN_ORDER:
+        fill = event.data
+        if fill.fill_type == 'position':
+            if fill.action == OPEN_ORDER:
                 position = self.portfolio.open_position(
-                    event.ticker, event.price,
-                    event.quantity, event.time,
-                    event.commission
+                    fill.ticker, fill.price,
+                    fill.quantity, fill.time,
+                    fill.commission
                 )
                 if position:
-                    event.position_id = position.identifier
-            elif event.action == CLOSE_ORDER:
+                    fill.position_id = position.identifier
+            elif fill.action == CLOSE_ORDER:
                 position = self.portfolio.close_position(
-                    event.ticker, event.price,
-                    event.quantity, event.time,
-                    event.commission
+                    fill.ticker, fill.price,
+                    fill.quantity, fill.time,
+                    fill.commission
                 )
-                event.profit = position.profit
-                event.position_id = position.identifier
-        elif event.fill_type == 'order':
-            if event.action == OPEN_ORDER:
+                fill.profit = position.profit
+                fill.position_id = position.identifier
+        elif fill.fill_type == 'order':
+            if fill.action == OPEN_ORDER:
                 self.portfolio.open_order(
-                    event.external_id, event.ticker, event.price,
-                    event.quantity, event.time, event.commission,
-                    lever=event.lever, deposit_rate=event.deposit_rate
+                    fill.order_ext_id, fill.ticker, fill.price,
+                    fill.quantity, fill.time, fill.commission,
+                    lever=fill.lever, deposit_rate=fill.deposit_rate
                 )
-            elif event.action == CLOSE_ORDER:
+            elif fill.action == CLOSE_ORDER:
                 self.portfolio.close_order(
-                    event.external_id, event.price, event.quantity,
-                    event.time, event.commission
+                    fill.order_ext_id, fill.price, fill.quantity,
+                    fill.time, fill.commission
                 )
 
     def on_confirm(self, event, kwargs=None):

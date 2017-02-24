@@ -19,7 +19,7 @@ class BackTest(object):
         self.handle = {
             EVENTS.BAR: self._handle_bar,
             EVENTS.ORDER: self._handle_order,
-            EVENTS.FILL: self._handle_fill,
+            EVENTS.EXECUTION: self._handle_fill,
             EVENTS.LIMIT: self._handle_order,
             EVENTS.STOP: self._handle_order,
             EVENTS.CANCEL: self.router.on_cancel,

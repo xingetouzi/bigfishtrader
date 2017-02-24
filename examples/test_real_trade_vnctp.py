@@ -9,7 +9,7 @@ from bigfishtrader.engine.core import Engine
 from bigfishtrader.engine.handler import BigFishTrader
 from bigfishtrader.middleware.timer import StatsdTimer
 from bigfishtrader.operation import *
-from bigfishtrader.order.handlers import OrderHandler
+from bigfishtrader.order.handlers import OrderBookHandler
 from bigfishtrader.portfolio.handlers import PortfolioHandler
 from bigfishtrader.quotation.handlers import ArtificialTickHandler
 from bigfishtrader.router import VnCtpRouter
@@ -51,7 +51,7 @@ def run():
     trade_handler = VnCtpRouter(event_queue, account)
     portfolio_handler = PortfolioHandler(event_queue)
     price_handler = ArtificialTickHandler(event_queue, symbol, interval=1000)
-    order_handler = OrderHandler()
+    order_handler = OrderBookHandler()
     engine = Engine(event_queue=event_queue)
     timer = StatsdTimer(host="192.168.1.201")
     timer.register(engine)
@@ -62,5 +62,5 @@ def run():
 
 if __name__ == "__main__":
     import logging
-    logging.basicConfig(level=logging.FATAL)
+    logging.basicConfig(level=logging.INFO)
     run()

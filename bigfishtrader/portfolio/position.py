@@ -112,7 +112,7 @@ class Order(object):
 
         new_position = Order(
             self.ticker, self.open_price, quantity, self.open_time,
-            self.commission*quantity/self.quantity, self.lever,
+            self.commission * quantity / self.quantity, self.lever,
             self.deposit_rate, order_id=self.position_id
         )
         new_position.identifier = self.identifier
@@ -138,7 +138,7 @@ class Order(object):
         if len(args) == 0:
             args = [
                 "ticker", "open_price", "open_time", "price", "quantity", "deposit", "close_price",
-                 "close_time", "commission", "lever", "deposit_rate", "position_id", 'profit'
+                "close_time", "commission", "lever", "deposit_rate", "position_id", 'profit'
             ]
 
         return dict([(key, self.__getattribute__(key)) for key in args])
@@ -248,7 +248,7 @@ class Position(object):
         return price*quantity
 
     def lock(self, quantity):
-        if quantity*self.locked >= 0:
+        if quantity * self.locked >= 0:
             self.locked += quantity
         else:
             raise ValueError('Direction Error')
@@ -312,7 +312,7 @@ class OrderHandler(HandlerCompose):
         return positions
 
     def lock(self, order, kwargs=None):
-        position = self._positions.get(order.local_id, None)
+        position = self._positions.get(order.clOrdID, None)
         if position:
             if position.available / order.quantity >= 1:
                 position.lock += order.quantity
@@ -340,7 +340,7 @@ class OrderHandler(HandlerCompose):
         quantity = 0
         for _id, position in self.from_ticker(ticker).items():
             available = position.available
-            if (available == 0) or (available*close_quantity < 0):
+            if (available == 0) or (available * close_quantity < 0):
                 continue
 
             quantity += available
@@ -358,3 +358,26 @@ class OrderHandler(HandlerCompose):
         raise StopIteration
 
 
+if __name__ == '__main__':
+    from bigfishtrader.event import OrderEvent, RecallEvent, CLOSE_ORDER
+    from datetime import datetime
+
+    p = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=101)
+    p2 = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=102)
+    p3 = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=103)
+    p4 = Order('000001', 15, -2000, datetime(2017, 1, 1), order_id=104)
+    ph = OrderHandler()
+    ph[101] = p
+    ph[102] = p2
+    ph[103] = p3
+    ph[104] = p4
+    for _id, quantity in ph.separate_close('000001', 3000):
+        o1 = OrderEvent(datetime.now(), '000001', CLOSE_ORDER, quantity, 20, EVENTS.LIMIT, order_id=_id)
+        r1 = RecallEvent(o1.time, o1)
+        ph.on_recall(r1)
+    for _id, quantity in ph.separate_close('000001', -1000):
+        o1 = OrderEvent(datetime.now(), '000001', CLOSE_ORDER, quantity, 20, EVENTS.LIMIT, order_id=_id)
+        r1 = RecallEvent(o1.time, o1)
+        ph.on_recall(r1)
+
+    print ph.security

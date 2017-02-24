@@ -1,6 +1,6 @@
 import oandapy
 import json
-from bigfishtrader.event import EVENTS, FillEvent, OPEN_ORDER, CLOSE_ORDER, OrderEvent
+from bigfishtrader.event import EVENTS, ExecutionEvent, OPEN_ORDER, CLOSE_ORDER, OrderEvent
 from bigfishtrader.router.base import AbstractRouter
 from bigfishtrader.engine.handler import Handler
 from dictproxyhack import dictproxy
@@ -23,11 +23,9 @@ class OandaExchange(AbstractRouter):
         self._orders = {}
 
         if trade_type == 'paper':
-
             self._handlers["on_order"] = Handler(self.on_order_paper, EVENTS.ORDER, topic="oanda", priority=0)
             self._handlers["on_time"] = Handler(self.on_time_paper, EVENTS.TIME, topic=".", priority=100)
             self._handlers["on_modify"] = Handler(self.on_modify_paper, EVENTS.MODIFY, topic='oanda')
-
 
     @staticmethod
     def calculate_commission(order, price):
@@ -52,7 +50,7 @@ class OandaExchange(AbstractRouter):
 
     def _put_fill(self, _id, timestamp, ticker, action, quantity, price, commission, **kwargs):
         self.event_queue.put(
-            FillEvent(
+            ExecutionEvent(
                 timestamp, ticker, action,
                 quantity, price, commission,
                 topic='oanda',
@@ -186,5 +184,20 @@ class OandaExchange(AbstractRouter):
         return dictproxy(self._orders)
 
 
-if __name__ == '__main__':
-    pass
+if __name__ == "__main__":
+    import requests
+
+    account_info = json.load(open('D:/bigfishtrader/oanda_account.json'))
+    api = oandapy.API(access_token=str(account_info['access_token']))
+    # response = api.create_order(
+    #     account_info['login'],
+    #     instrument="EUR_USD",
+    #     units=100,
+    #     side='buy',
+    #     type='market',
+    # )
+
+
+
+    response = api.get_trades(account_info['login'])
+    print(response)

@@ -41,13 +41,3 @@ class AbstractRouter(HandlerCompose):
             NotImplementedError: Should implement on_order
         """
         raise NotImplementedError("Should implement on_order")
-
-    @property
-    def orders(self):
-        """
-        返回当前未成交订单
-
-        :return: dict, {order_id: order}
-        """
-
-        return None

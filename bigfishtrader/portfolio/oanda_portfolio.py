@@ -16,7 +16,7 @@ class OandaPortfolio(AbstractPortfolio):
         self._positions = {}
         self.closed_positions = []
         self.history = []
-        self._handlers['on_fill'] = Handler(self._on_fill, EVENTS.FILL, 'oanda')
+        self._handlers['on_fill'] = Handler(self._on_fill, EVENTS.EXECUTION, 'oanda')
         self._handlers['on_time'] = Handler(self._on_time, EVENTS.TIME)
         self._handlers['on_exit'] = Handler(self._trade_stop, EVENTS.EXIT)
         self._handlers['comfirm_trades'] = Handler(self.confirm_trades, EVENTS.CONFIRM, 'oanda_trades')

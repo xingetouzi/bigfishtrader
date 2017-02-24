@@ -1,13 +1,18 @@
-from enum import Enum
-from bigfishtrader.const import *
+# encoding: utf-8
+
 from datetime import datetime
+
+import numpy as np
+
+from bigfishtrader.const import *
+from bigfishtrader.model import ExecutionData
 
 
 class EVENTS(Enum):
     TICK = 0
     BAR = 1
     ORDER = 2
-    FILL = 3
+    EXECUTION = 3
     LIMIT = 4
     STOP = 5
     CANCEL = 6
@@ -16,11 +21,9 @@ class EVENTS(Enum):
     CONFIRM = 9
     CONFIG = 10
     RECALL = 11
+    POSITION = 12
+    ORD_STATUS = 13
     EXIT = 999
-
-
-OPEN_ORDER = 1
-CLOSE_ORDER = 0
 
 
 class Event(object):
@@ -75,13 +78,15 @@ class TickEvent(Event):
     TickEvent is created when a tick data arrived
     and will be handled by strategy and portfolio handler
     """
-    __slots__ = ["ticker", "time", "ask", "bid"]
+    __slots__ = ["data"]
 
-    def __init__(self, ticker, timestamp, ask, bid):
-        super(TickEvent, self).__init__(EVENTS.TICK, 1, timestamp)
-        self.ticker = ticker
-        self.ask = ask
-        self.bid = bid
+    MAX_DEPTH = 10
+
+    def __init__(self, tick, timestamp=None, topic=""):
+        if timestamp is None:
+            timestamp = datetime.now()
+        super(TickEvent, self).__init__(EVENTS.TICK, 1, timestamp, topic)
+        self.data = tick
 
 
 class BarEvent(Event):
@@ -107,23 +112,21 @@ class OrderEvent(Event):
     OrderEvent is created by a strategy when it wants to open an order and
     will be handled by Simulation or Trade section
     """
-    __slots__ = ["ticker", "price", "time", "action", "quantity", "local_id", "status", "tag", "order_type",
-                 "take_profit", "stop_lost"]
+    __slots__ = ["data"]
 
-    def __init__(self, timestamp, ticker, action, quantity,
-                 price=None, order_type=EVENTS.ORDER, tag=None,
-                 local_id=0, take_profit=0, stop_lost=0, topic=''):
+    def __init__(self, order, timestamp=None, topic=""):
+        """
+
+        Args:
+            order(bigfishtrader.model.OrderReq):
+            timestamp:
+            topic:
+
+        Returns:
+
+        """
         super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp, topic)
-        self.price = price
-        self.ticker = ticker
-        self.action = action
-        self.quantity = quantity
-        self.tag = tag
-        self.local_id = local_id
-        self.status = ORDERSTATUS.UNFILL
-        self.order_type = order_type
-        self.take_profit = take_profit
-        self.stop_lost = stop_lost
+        self.data = order
 
     def match(self, **conditions):
         for key, value in conditions.items():
@@ -132,17 +135,22 @@ class OrderEvent(Event):
 
         return True
 
-    def to_fill(
-            self, timestamp, price, commission=0, lever=1, deposit_rate=1,
-            position_id=None, external_id=None, topic=''
-    ):
-        return FillEvent(
-            timestamp, self.ticker, self.action, self.quantity,
-            price, commission, lever, deposit_rate,
-            local_id=self.local_id,
-            position_id=position_id if position_id else self.local_id,
-            external_id=external_id
-        )
+    def to_fill(self, timestamp, price, commission=0, lever=1, deposit_rate=1,
+                position_id=None, external_id=None, topic=''):
+        order = self.data
+        fill = ExecutionData()
+        fill.time = timestamp
+        fill.ticker = order.symbol
+        fill.action = order.action
+        fill.quantity = order.orderQty
+        fill.price = price
+        fill.commission = commission
+        fill.lever = lever
+        fill.deposit_rate = deposit_rate
+        fill.order_id = order.clOrdID
+        fill.position_id = position_id if position_id else order.clOrdID
+        fill.order_ext_id = external_id
+        return ExecutionEvent(fill, timestamp=fill.time, topic=topic)
 
 
 class CancelEvent(Event):
@@ -157,7 +165,7 @@ class CancelEvent(Event):
         self.conditions = conditions
 
 
-class FillEvent(Event):
+class ExecutionEvent(Event):
     """
     FillEvent is created by Simulation section
     when it receives an OrderEvent or by Trade section
@@ -165,25 +173,14 @@ class FillEvent(Event):
     and it will be handled by Portfolio handler to
     update portfolio information
     """
-    __slots__ = ["time", "ticker", "action", "quantity", "price", "profit", "commission", "lever", "deposit_rate",
-                 "local_id", "external_id", "position_id", "fill_type"]
+    __slots__ = ["data"]
 
-    def __init__(self, timestamp, ticker, action, quantity, price,
-                 commission=0, lever=1, deposit_rate=1, fill_type='position',
-                 local_id=None, position_id=None, external_id=None, topic=''):
-        super(FillEvent, self).__init__(EVENTS.FILL, 0, timestamp, topic)
-        self.ticker = ticker
-        self.action = action
-        self.quantity = quantity
-        self.price = price
-        self.profit = None
-        self.commission = commission
-        self.lever = lever
-        self.deposit_rate = deposit_rate
-        self.fill_type = fill_type
-        self.position_id = position_id
-        self.local_id = local_id
-        self.external_id = external_id
+    def __init__(self, execution, timestamp=None, topic=''):
+        if timestamp is None:
+            super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, datetime.now(), topic)
+        else:
+            super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, timestamp, topic)
+        self.data = execution
 
 
 class TimeEvent(Event):
@@ -234,5 +231,24 @@ class ExitEvent(Event):
         super(ExitEvent, self).__init__(EVENTS.EXIT, 999, datetime.now())
 
 
-if __name__ == '__main__':
-    pass
+class PositionEvent(Event):
+    """
+
+    """
+    __slots__ = ["data"]
+
+    def __init__(self, position, priority=0, timestamp=None, topic=""):
+        if timestamp is None:
+            timestamp = datetime.now()
+        super(PositionEvent, self).__init__(EVENTS.POSITION, priority, timestamp, topic)
+        self.data = position
+
+
+class OrderStatusEvent(Event):
+    __slots__ = ["data"]
+
+    def __init__(self, ord_status, priority=0, timestamp=None, topic=""):
+        if timestamp is None:
+            timestamp = datetime.now()
+        super(OrderStatusEvent, self).__init__(EVENTS.ORD_STATUS, priority, timestamp, topic)
+        self.data = ord_status
