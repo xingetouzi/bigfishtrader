@@ -299,7 +299,7 @@ class MultiDataSupport(AbstractDataSupport):
             else:
                 return True
         elif isinstance(frame, pd.Panel):
-            if len(frame.major) != length:
+            if len(frame.major_axis) != length:
                 return False
             else:
                 return True
@@ -444,7 +444,7 @@ class MultiDataSupport(AbstractDataSupport):
 if __name__ == "__main__":
 
     setting = {
-        "host": "192.168.0.103",
+        "host": "192.168.1.103",
         "port": 27018,
         "db": "Oanda",
     }

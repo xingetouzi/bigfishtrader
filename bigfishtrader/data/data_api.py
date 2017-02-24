@@ -2,6 +2,7 @@ import tushare
 import json
 import pandas as pd
 import oandapy
+from pandas_datareader import data, wb
 from datetime import datetime
 from threading import Thread
 import requests
@@ -338,10 +339,4 @@ class OandaData(DataCollector):
 
 
 if __name__ == '__main__':
-    # oanda = OandaData("D:/bigfishtrader/bigfishtrader/router/oanda_account.json", db='Oanda')
-
-    # oanda.save_main()
-
-    stock = StockData(port=10001, db='stock_test')
-
-    print stock.get_yahoo_bar('000002.sz', 'DataFrame', '2016-01-01')
+    print data.DataReader('AAPL', 'yahoo', datetime(2017, 1, 1))

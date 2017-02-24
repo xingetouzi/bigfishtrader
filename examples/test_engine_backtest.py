@@ -5,6 +5,7 @@ except ImportError:
     from queue import PriorityQueue
 
 from datetime import datetime
+
 from pymongo import MongoClient
 import pandas as pd
 
@@ -18,7 +19,7 @@ from bigfishtrader.middleware.timer import CountTimer
 from bigfishtrader.performance import WindowFactorPerformance, ReportSheet
 from bigfishtrader.data.mongo_data_support import MongoDataSupport
 from bigfishtrader.order.handlers import OrderBookHandler
-from bigfishtrader.portfolio.context import Context
+from bigfishtrader.context import Context
 
 
 def run_backtest(collection, ticker, start, end, period='D'):

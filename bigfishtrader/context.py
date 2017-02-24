@@ -33,12 +33,12 @@ class Context(HandlerCompose):
 
         return self
 
-    def time_schedule(self, func, condition, **kwargs):
+    def time_schedule(self, func, condition, priority=0, topic='.'):
         def schedule(event, kwargs=None):
             if condition(event.time):
                 func(self, self.data)
 
-        self.engine.register(schedule, EVENTS.TIME, **kwargs)
+        self.engine.register(schedule, EVENTS.TIME, topic, priority)
 
     @staticmethod
     def time_rules(**kwargs):

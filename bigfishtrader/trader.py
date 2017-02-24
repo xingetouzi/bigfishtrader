@@ -266,12 +266,12 @@ class Trader(object):
 
         return self.models['portfolio']
 
-    def back_test(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,  **kwargs):
+    def back_test(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None, params={}):
         """
         运行一个策略, 完成后返回一个账户对象
 
         :param strategy: 策略模块
-        :param kwargs: 需要修改的策略参数
+        :param params: 需要修改的策略参数
         :return: Portfolio
         """
         if not self.initialized:
@@ -287,7 +287,7 @@ class Trader(object):
 
         self.models['engine'].register(on_time, EVENTS.TIME, topic='.', priority=100)
 
-        for key, value in kwargs.items():
+        for key, value in params.items():
             setattr(strategy, key, value)
 
         strategy.initialize(context, data)
@@ -352,7 +352,45 @@ class PracticeTrader(Trader):
         self.settings = {'default': self.default_settings}
 
 
+class EasyTrader(PracticeTrader):
+
+    def init(self, tickers, frequency, start=None, end=None, ticker_type=None, *models, **kwargs):
+        def wrapper(function):
+            self.initialize(*models, **kwargs)
+            context, data = self.models['context'], self.models['data']
+            data.init(tickers, frequency, start, end, ticker_type)
+            context.tickers = tickers
+            function(context, data)
+
+        return wrapper
+
+    def handle(self, handle_data):
+        context, data, engine = self.models['context'], self.models['data'], self.models['engine']
+
+        def on_time(event, kwargs=None):
+            handle_data(context, data)
+
+        engine.register(on_time, EVENTS.TIME, topic='.', priority=100)
+
+        engine.start()
+        engine.join()
+        engine.stop()
+
+        self.initialized = False
+
+        portfolio = self.models['portfolio']
+        import pandas
+
+        print pandas.DataFrame(
+            portfolio.trades
+        )
+
+
+easy_trader = EasyTrader()
+
+
 if __name__ == '__main__':
     trader = Trader()
     for t in trader.exhaustion(a=range(0, 3), b=range(0, 5, 2)):
         print t
+
