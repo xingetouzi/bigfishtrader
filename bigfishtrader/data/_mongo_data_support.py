@@ -133,10 +133,10 @@ class MongoDataSupport(AbstractDataSupport):
 
 
 class MultiDataSupport(AbstractDataSupport):
-    def __init__(self, context=None, event_queue=None, **info):
+    def __init__(self, context=None, event_queue=None, host='localhost', port=27017, users={}, db=None, **kwargs):
         super(MultiDataSupport, self).__init__()
-        self._db = info.pop('db', None)
-        self._client = connect(**info)
+        self._db = db
+        self._client = self.connect(host, port, users, **kwargs)
         self._panel_data = MultiPanelData(context)
         self._initialized = False
         self.tickers = {}
