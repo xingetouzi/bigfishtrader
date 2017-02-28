@@ -36,3 +36,30 @@ class ACTION(Enum):
     OPEN = "开仓"
     CLOSE = "平仓"
     UNKNOWN = "未知"
+
+
+class SecType(Enum):
+    # stock
+    STK = "STK"
+    # option
+    OPT = "OPT"
+    # future
+    FUT = "FUT"
+    # index
+    IND = "IND"
+    # futures option
+    FOP = "FOP"
+    # forex pair
+    CASH = "CASH"
+    # combo
+    BAG = "BAG"
+    # warrant
+    WAR = "WAR"
+    # bond
+    BOND = "BOND"
+    # commodity
+    CMDTY = "CMDTY"
+    # news
+    NEWS = "NEWS"
+    # mutual fund
+    FUND = "FUND"

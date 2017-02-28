@@ -136,13 +136,14 @@ class OrderEvent(Event):
         return True
 
     def to_fill(self, timestamp, price, commission=0, lever=1, deposit_rate=1,
-                position_id=None, external_id=None, topic=''):
+                sec_type=None, position_id=None, external_id=None, topic=''):
         order = self.data
         fill = ExecutionData()
         fill.time = timestamp
         fill.ticker = order.symbol
         fill.action = order.action
         fill.quantity = order.orderQty
+        fill.secType = self.data.secType if self.data.secType != EMPTY_UNICODE else SecType.STK.value
         fill.price = price
         fill.commission = commission
         fill.lever = lever

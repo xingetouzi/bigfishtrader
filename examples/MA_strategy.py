@@ -22,7 +22,7 @@ def initialize(context, data):
 def handle_data(context, data):
     portfolio = context.portfolio
 
-    for ticker in portfolio.security:
+    for ticker, position in portfolio.positions.items():
         if not data.can_trade(ticker):
             continue
 
@@ -30,7 +30,7 @@ def handle_data(context, data):
         ma_slow = abstract.MA(data.history(ticker, 'D', length=slow + 1), timeperiod=slow, price='close').dropna()
 
         if ma_slow[0] < ma_fast[0] and ma_slow[1] > ma_fast[1]:
-            portfolio.send_close(ticker)
+            portfolio.send_order(ticker, -position['quantity'])
 
     for ticker in context.tickers:
         if not data.can_trade(ticker):
@@ -40,14 +40,15 @@ def handle_data(context, data):
         ma_slow = abstract.MA(data.history(ticker, 'D', length=slow + 1), timeperiod=slow, price='close').dropna()
 
         if ma_slow[0] > ma_fast[0] and ma_slow[1] < ma_fast[1]:
-            portfolio.send_open(ticker, 1000)
+            portfolio.send_order(ticker, 1000)
 
 
 
 if __name__ == '__main__':
-    from bigfishtrader.trader import PracticeTrader
+    from bigfishtrader.trader import Trader
+    from bigfishtrader.practice import settings
 
-    trader = PracticeTrader()
+    trader = Trader(settings)
 
     trader["data"].kwargs.update({'port': 27018, 'host': '192.168.0.103'})
     p = trader.initialize().back_test(
@@ -57,9 +58,9 @@ if __name__ == '__main__':
     )
 
     print pd.DataFrame(
-        p.info
+        p.history_eqt
     )
     
     print pd.DataFrame(
-        p.trades
+        p.transactions
     )

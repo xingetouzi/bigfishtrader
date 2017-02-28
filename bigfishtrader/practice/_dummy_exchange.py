@@ -4,7 +4,7 @@ from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import ExecutionEvent, RecallEvent, EVENTS
 from bigfishtrader.model import ExecutionData
 from bigfishtrader.const import ORDERTYPE, ACTION
-from bigfishtrader.router.base import AbstractRouter
+from bigfishtrader.engine.base import AbstractRouter
 
 
 class BACKTESTDEALMODE(Enum):
@@ -109,16 +109,51 @@ class DummyExchange(AbstractRouter):
         Returns:
             None
         """
-        if order.action == ACTION.OPEN.value:
-            self._limit_open(order, bar)
-        elif order.action == ACTION.CLOSE.value:
-            self._stop_open(order, bar)
+        # if order.action == ACTION.OPEN.value:
+        #     self._limit_open(order, bar)
+        # elif order.action == ACTION.CLOSE.value:
+        #     self._stop_open(order, bar)
+        if order.orderQty > 0:
+            self._low_fill(order, bar)
+        else:
+            self._up_fill(order, bar)
 
     def _fill_stop(self, order, bar):
-        if order.action == ACTION.OPEN.value:
-            self._stop_open(order, bar)
-        elif order.action == ACTION.CLOSE.value:
-            self._limit_open(order, bar)
+        # if order.action == ACTION.OPEN.value:
+        #     self._stop_open(order, bar)
+        # elif order.action == ACTION.CLOSE.value:
+        #     self._limit_open(order, bar)
+        if order.orderQty > 0:
+            self._up_fill(order, bar)
+        else:
+            self._low_fill(order, bar)
+
+    def _up_fill(self, order, bar):
+        """
+        大于等于指定价格成交
+
+        :param order:
+        :param bar:
+        :return:
+        """
+        if bar.open > order.price:
+            self._put_fill(order, bar.open, bar.name)
+        elif bar.high > order.price:
+            self._put_fill(order, order.price, bar.name)
+
+    def _low_fill(self, order, bar):
+        """
+        小于等于指定价格成交
+
+        :param order:
+        :param bar:
+        :return:
+        """
+        if bar.open < order.price:
+            self._put_fill(order, bar.open, bar.name)
+        elif bar.low < order.price:
+            self._put_fill(order, order.price, bar.name)
+
 
     def _limit_open(self, order, bar):
         """
@@ -165,7 +200,7 @@ class DummyExchange(AbstractRouter):
             self.handle_order[order.ordType](order, event)
 
     def on_time(self, event, kwargs=None):
-        for _id, order in self._orders.items():
+        for _id, order in self._orders.copy().items():
             self.handle_order[order.ordType](order, self._data.current(order.symbol))
 
     def on_order(self, event, kwargs=None):
@@ -181,13 +216,14 @@ class DummyExchange(AbstractRouter):
         """
         order = event.data
         self.event_queue.put(RecallEvent(order.transactTime, order))  # 不管何种订单，都先返回已经挂单成功事件
-        if order.ordType == ORDERTYPE.MARKET and self.deal_mode == BACKTESTDEALMODE.THIS_BAR_CLOSE:
+        if order.ordType == ORDERTYPE.MARKET.value and self.deal_mode == BACKTESTDEALMODE.THIS_BAR_CLOSE:
             current = self._data.current(order.symbol)
             self._put_fill(order, current.close, current.name)  # 直接成交
         else:
             self._orders[order.clOrdID] = order  # 放入交易所orderbook留给on_bar函数去处理成交
 
-    def get_orders(self):
+    @property
+    def orders(self):
         return {_id: order.to_dict() for _id, order in self._orders.items()}
 
 

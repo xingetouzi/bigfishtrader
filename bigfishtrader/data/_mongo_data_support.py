@@ -451,7 +451,7 @@ if __name__ == "__main__":
     data.set_bar_map('Data', close='Close', high='High', low='Low', open='Open', datetime='Date', volume='Volume')
 
     data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1), ticker_type='Oanda')
-    print data.current('EUR_USD')
+    print(data.current('EUR_USD'))
     print("\n")
     print(data.current("EUR_USD", "open"))
     print("\n")

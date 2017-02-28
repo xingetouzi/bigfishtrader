@@ -357,27 +357,3 @@ class OrderHandler(HandlerCompose):
 
         raise StopIteration
 
-
-if __name__ == '__main__':
-    from bigfishtrader.event import OrderEvent, RecallEvent, CLOSE_ORDER
-    from datetime import datetime
-
-    p = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=101)
-    p2 = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=102)
-    p3 = Order('000001', 15, 2000, datetime(2017, 1, 1), order_id=103)
-    p4 = Order('000001', 15, -2000, datetime(2017, 1, 1), order_id=104)
-    ph = OrderHandler()
-    ph[101] = p
-    ph[102] = p2
-    ph[103] = p3
-    ph[104] = p4
-    for _id, quantity in ph.separate_close('000001', 3000):
-        o1 = OrderEvent(datetime.now(), '000001', CLOSE_ORDER, quantity, 20, EVENTS.LIMIT, order_id=_id)
-        r1 = RecallEvent(o1.time, o1)
-        ph.on_recall(r1)
-    for _id, quantity in ph.separate_close('000001', -1000):
-        o1 = OrderEvent(datetime.now(), '000001', CLOSE_ORDER, quantity, 20, EVENTS.LIMIT, order_id=_id)
-        r1 = RecallEvent(o1.time, o1)
-        ph.on_recall(r1)
-
-    print ph.security

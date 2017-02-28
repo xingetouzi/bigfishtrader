@@ -36,10 +36,11 @@ class Trader(object):
     用于自由组织模块并进行回测
     """
 
-    def __init__(self):
-        self.settings = {}
+    def __init__(self, settings=None):
+        self.settings = settings
         self.models = {}
-        self.init_settings()
+        if not self.settings:
+            self.init_settings()
         self.initialized = False
 
     def init_settings(self):

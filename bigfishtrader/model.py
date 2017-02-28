@@ -124,25 +124,27 @@ class OrderReq(BaseData):
     OrderReq is created by a strategy when it wants to open an order and
     will be handled by Simulation or Trade section
     """
-    __slots__ = ["clOrdID", "exchange", "symbol", "side", "action", "orderQty", "ordType", "price", "tradedQty",
-                 "timeInForce", "transactTime", "expireTime", "account", "slippage",
-                 "gateway"]
+    __slots__ = ["clOrdID", "exchange", "symbol", "secType", "side", "action", "orderQty", "ordType", "price",
+                 "tradedQty", "timeInForce", "transactTime", "expireTime", "account", "slippage", "gateway"]
 
     def __init__(self):
         super(OrderReq, self).__init__()
         self.clOrdID = EMPTY_STRING
         self.exchange = EMPTY_STRING
         self.symbol = EMPTY_STRING
+        self.secType = EMPTY_STRING
         self.side = EMPTY_UNICODE
         self.action = EMPTY_UNICODE
         self.orderQty = EMPTY_INT
         self.ordType = EMPTY_STRING
         self.price = EMPTY_FLOAT
+        self.tradedQty = EMPTY_FLOAT
         self.timeInForce = EMPTY_STRING
         self.transactTime = EMPTY_STRING
         self.expireTime = EMPTY_STRING
         self.account = EMPTY_STRING
         self.gateway = EMPTY_STRING
+        self.slippage = EMPTY_FLOAT
 
     @property
     def gClOrdID(self):
@@ -217,13 +219,14 @@ class PositionData(BaseData):
 
 
 class ExecutionData(BaseData):
-    __slots__ = ["time", "ticker", "action", "quantity", "price", "profit", "commission", "lever", "deposit_rate",
-                 "order_id", "client_id", "order_ext_id", "position_id", "fill_type",
+    __slots__ = ["time", "ticker", "secType", "action", "quantity", "price", "profit", "commission", "lever",
+                 "deposit_rate", "order_id", "client_id", "order_ext_id", "position_id", "fill_type",
                  "exec_id", "account", "exchange", "cum_qty", "avg_price"]
 
     def __init__(self):
         self.time = datetime.now()
         self.ticker = EMPTY_STRING
+        self.secType = EMPTY_UNICODE
         self.action = None
         self.quantity = 0
         self.price = 0
@@ -241,3 +244,23 @@ class ExecutionData(BaseData):
         self.avg_price = 0
         self.lever = 1
         self.deposit_rate = 1
+
+
+class Transaction(BaseData):
+    """
+    成交信息
+    """
+    __slots__ = ['time', 'security', 'action', 'quantity', 'price', 'value', 'order_id', 'commission']
+
+    def __init__(
+            self, time=datetime.now(), security=EMPTY_STRING,
+            action=None, quantity=0, price=0, value=0, commission=0, order_id=0
+    ):
+        self.time = time
+        self.security = security
+        self.action = action
+        self.quantity = quantity
+        self.price = price
+        self.value = value if value else quantity * price
+        self.order_id = order_id
+        self.commission = commission

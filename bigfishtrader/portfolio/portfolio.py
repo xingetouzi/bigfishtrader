@@ -182,7 +182,7 @@ class PositionPortfolio(AbstractPortfolio):
         if position:
             available = position.available
             if not available:
-                print "available quantity of %s is 0" % ticker
+                print("available quantity of %s is 0" % ticker)
                 return
 
             if quantity:
