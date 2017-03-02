@@ -2,7 +2,7 @@ import tushare
 import json
 import pandas as pd
 import oandapy
-from pandas_datareader import data, wb
+from pandas_datareader.data import DataReader, YahooDailyReader
 from datetime import datetime
 from threading import Thread
 import requests
@@ -13,6 +13,15 @@ except:
 
 
 class DataCollector(object):
+    trans_map = {
+        'yahoo': {'Date': 'datetime',
+                  'Close': 'close',
+                  'High': 'high',
+                  'Low': 'low',
+                  'Open': 'open',
+                  'Volume': 'volume'}
+    }
+
     def __init__(self, **setting):
         from pymongo import MongoClient
 
@@ -28,26 +37,29 @@ class DataCollector(object):
         self.queue = Queue()
         self._threads = {}
 
-    def save(self, col_name, data):
+    def save(self, col_name, data, db=None):
         data = [doc.to_dict() for index, doc in data.iterrows()] if isinstance(data, pd.DataFrame) else data
+
+        db = self.client[db] if db else self.db
+
         deleted = 0
         for doc in data:
-            db_doc = self.db[col_name].find_one({'datetime': doc['datetime']})
+            db_doc = db[col_name].find_one({'datetime': doc['datetime']})
             if db_doc:
-                self.db[col_name].delete_one({'datetime': doc['datetime']})
+                db[col_name].delete_one({'datetime': doc['datetime']})
                 deleted += 1
             else:
                 break
         for doc in reversed(data):
-            db_doc = self.db[col_name].find_one({'datetime': doc['datetime']})
+            db_doc = db[col_name].find_one({'datetime': doc['datetime']})
             if db_doc:
-                self.db[col_name].delete_one({'datetime': doc['datetime']})
+                db[col_name].delete_one({'datetime': doc['datetime']})
                 deleted += 1
             else:
                 break
 
-        self.db[col_name].insert(data)
-        self.db[col_name].create_index('datetime')
+        db[col_name].insert(data)
+        db[col_name].create_index('datetime')
         return [col_name, data[0]['datetime'], data[-1]['datetime'], len(data), deleted]
 
     def run(self, function):
@@ -194,6 +206,15 @@ class StockData(DataCollector):
         elif retype == 'DataFrame':
             return pd.DataFrame(docs)
 
+    def save_yahoo(self, symbols=None, start=None, end=None, retry_count=3,
+                 pause=0.001, session=None, adjust_price=False, ret_index=False,
+                 chunksize=25, interval='d', db='yahoo'):
+        data = YahooDailyReader(symbols, start, end, retry_count, pause, session,
+                                adjust_price, ret_index, chunksize, interval).read()
+        data['datetime'] = data.index
+
+        self.save('.'.join((symbols, interval)), data.rename_axis(self.trans_map['yahoo'], 1), db)
+
 
 class OandaData(DataCollector):
     def __init__(self, oanda_info, host='localhost', port=27017, db='Oanda', user={}):
@@ -277,16 +298,16 @@ class OandaData(DataCollector):
         else:
             raise ValueError('In save data mode, start is required')
 
-    def save_manny(self, instruments, granularity, start, end=None, t=5):
+    def save_many(self, instruments, granularity, start, end=None, t=5):
         if isinstance(instruments, list):
             if isinstance(granularity, list):
-                self._save_manny(
+                self._save_many(
                     start, end, t,
                     [(i, g) for i in instruments for g in granularity]
                 )
 
             else:
-                self._save_manny(
+                self._save_many(
                     start, end, t,
                     [(i, granularity) for i in instruments]
                 )
@@ -301,7 +322,7 @@ class OandaData(DataCollector):
             else:
                 self.save_history(instruments, granularity=granularity, start=start, end=end)
 
-    def _save_manny(self, start, end, t, i_g):
+    def _save_many(self, start, end, t, i_g):
         for i, g in i_g:
             self.queue.put({
                 'instrument': i,
@@ -315,7 +336,7 @@ class OandaData(DataCollector):
         self.join()
 
     def save_main(self):
-        self.save_manny(self.MAIN_CURRENCY, self.default_period, datetime(2010, 1, 1), datetime.now())
+        self.save_many(self.MAIN_CURRENCY, self.default_period, datetime(2010, 1, 1), datetime.now())
 
     def update(self, col_name):
         doc = self.db[col_name].find_one(sort=[('datetime', -1)], projection=['time'])
@@ -326,7 +347,7 @@ class OandaData(DataCollector):
         i, g = col_name.split('.')
         return self.save_history(i, granularity=g, start=doc['time'], includeFirst=False)
 
-    def update_manny(self, col_names=[], t=5):
+    def update_many(self, col_names=[], t=5):
         if len(col_names) == 0:
             col_names = self.db.collection_names()
 
@@ -339,4 +360,5 @@ class OandaData(DataCollector):
 
 
 if __name__ == '__main__':
-    print data.DataReader('AAPL', 'yahoo', datetime(2017, 1, 1))
+    sd = StockData(port=10001)
+    sd.save_yahoo('AAPL', datetime(2016, 1, 1))
