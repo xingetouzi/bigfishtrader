@@ -89,6 +89,35 @@ class DataCollector(object):
     def stop(self):
         self._running = False
 
+    def read(self, col_name, db=None, start=None, end=None, length=None, **kwargs):
+        db = self.client[db] if db else self.db
+
+        if start:
+            fter = {'datetime': {'$gte': start}}
+            if end:
+                fter['datetime']['$lte'] = end
+            elif length:
+                kwargs['limit'] = length
+            kwargs['filter'] = fter
+        elif length:
+            kwargs['sort'] = [('datetime', -1)]
+            kwargs['limit'] = length
+            if end:
+                kwargs['filter'] = {'datetime': {'$lte': end}}
+        elif end:
+            kwargs['filter'] = {'datetime': {'$lte': end}}
+
+        data = pd.DataFrame(
+            list(db[col_name].find(**kwargs))
+        )
+
+        for key, value in kwargs.get('sort', []):
+            if value < 0:
+                data = data.iloc[::-1]
+
+        data.pop('_id')
+        return data
+
 
 class StockData(DataCollector):
     def __init__(self, host='localhost', port=27017, db='HS', user={}):
@@ -361,4 +390,4 @@ class OandaData(DataCollector):
 
 if __name__ == '__main__':
     sd = StockData(port=10001)
-    sd.save_yahoo('AAPL', datetime(2016, 1, 1))
+    print sd.read('AAPL.d', end=datetime(2017, 1, 1), length=10, db='yahoo')
