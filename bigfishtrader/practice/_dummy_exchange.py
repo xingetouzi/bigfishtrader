@@ -3,7 +3,7 @@ from enum import Enum
 from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import ExecutionEvent, RecallEvent, EVENTS
 from bigfishtrader.model import ExecutionData
-from bigfishtrader.const import ORDERTYPE, ACTION, ORDERSTATUS, DIRECTION
+from bigfishtrader.const import ORDERTYPE, ACTION, ORDERSTATUS, DIRECTION, SIDE
 from bigfishtrader.engine.base import AbstractRouter
 
 
@@ -77,6 +77,7 @@ class DummyExchange(AbstractRouter):
         fill.commission = self.calculate_commission(order, price)
         fill.order_id = order.clOrdID
         fill.position_id = order.clOrdID
+        fill.side = SIDE.BUY.value if order.orderQty > 0 else SIDE.SELL.value
         for key, value in kwargs.items():
             setattr(fill, key, value)
         for k, v in self.ticker_info.get(order.symbol, {}):
@@ -101,8 +102,6 @@ class DummyExchange(AbstractRouter):
     def _fill_order(self, order, bar):
         self._put_fill(order, bar.open, bar.name,
                        status=ORDERSTATUS.ALLTRADED.value,
-                       action=ACTION.NONE.value,
-                       side=DIRECTION.NONE.value,
                        exchange=self.ex_name(order))
 
     def _fill_limit(self, order, bar):
@@ -123,10 +122,6 @@ class DummyExchange(AbstractRouter):
             self._up_fill(order, bar)
 
     def _fill_stop(self, order, bar):
-        # if order.action == ACTION.OPEN.value:
-        #     self._stop_open(order, bar)
-        # elif order.action == ACTION.CLOSE.value:
-        #     self._limit_open(order, bar)
         if order.orderQty > 0:
             self._up_fill(order, bar)
         else:
@@ -143,15 +138,11 @@ class DummyExchange(AbstractRouter):
         if bar.open > order.price:
             self._put_fill(order, bar.open, bar.name,
                            status=ORDERSTATUS.ALLTRADED.value,
-                           action=ACTION.NONE.value,
-                           side=DIRECTION.NONE.value,
                            exchange=self.ex_name(order))
 
         elif bar.high > order.price:
             self._put_fill(order, order.price, bar.name,
                            status=ORDERSTATUS.ALLTRADED.value,
-                           action=ACTION.NONE.value,
-                           side=DIRECTION.NONE.value,
                            exchange=self.ex_name(order))
 
     def _low_fill(self, order, bar):
@@ -165,14 +156,10 @@ class DummyExchange(AbstractRouter):
         if bar.open < order.price:
             self._put_fill(order, bar.open, bar.name,
                            status=ORDERSTATUS.ALLTRADED.value,
-                           action=ACTION.NONE.value,
-                           side=DIRECTION.NONE.value,
                            exchange=self.ex_name(order))
         elif bar.low < order.price:
             self._put_fill(order, order.price, bar.name,
                            status=ORDERSTATUS.ALLTRADED.value,
-                           action=ACTION.NONE.value,
-                           side=DIRECTION.NONE.value,
                            exchange=self.ex_name(order))
 
     def on_bar(self, event, kwargs=None):
@@ -206,8 +193,6 @@ class DummyExchange(AbstractRouter):
             current = self._data.current(order.symbol)
             self._put_fill(order, current.close, current.name,
                            status=ORDERSTATUS.ALLTRADED.value,
-                           action=ACTION.NONE.value,
-                           side=DIRECTION.NONE.value,
                            exchange=self.ex_name(order)) # 直接成交
         else:
             self._orders[order.clOrdID] = order  # 放入交易所orderbook留给on_bar函数去处理成交
@@ -285,6 +270,7 @@ class PracticeExchange(DummyExchange):
         fill.order_id = order.clOrdID
         fill.position_id = order.clOrdID
         fill.secType = order.secType
+        fill.side = SIDE.BUY.value if order.orderQty > 0 else SIDE.SELL.value
         for key, value in kwargs.items():
             setattr(fill, key, value)
         for k, v in self.ticker_info.get(order.symbol, {}):
