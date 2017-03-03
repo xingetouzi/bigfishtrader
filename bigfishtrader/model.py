@@ -125,7 +125,7 @@ class OrderReq(BaseData):
     will be handled by Simulation or Trade section
     """
     __slots__ = ["clOrdID", "exchange", "symbol", "secType", "side", "action", "orderQty", "ordType", "price",
-                 "tradedQty", "timeInForce", "transactTime", "expireTime", "account", "slippage", "gateway"]
+                 "tradedQty", "timeInForce", "transactTime", "expireTime", "account", "slippage", "gateway", "time"]
 
     def __init__(self):
         super(OrderReq, self).__init__()
@@ -145,6 +145,7 @@ class OrderReq(BaseData):
         self.account = EMPTY_STRING
         self.gateway = EMPTY_STRING
         self.slippage = EMPTY_FLOAT
+        self.time = datetime.now()
 
     @property
     def gClOrdID(self):
@@ -221,10 +222,11 @@ class PositionData(BaseData):
 class ExecutionData(BaseData):
     __slots__ = ["time", "ticker", "secType", "action", "quantity", "price", "profit", "commission", "lever",
                  "deposit_rate", "order_id", "client_id", "order_ext_id", "position_id", "fill_type",
-                 "exec_id", "account", "exchange", "cum_qty", "avg_price"]
+                 "exec_id", "account", "exchange", "cum_qty", "avg_price", "reqTime", "status", "side"]
 
     def __init__(self):
         self.time = datetime.now()
+        self.reqTime = self.time
         self.ticker = EMPTY_STRING
         self.secType = EMPTY_UNICODE
         self.action = None
@@ -244,17 +246,20 @@ class ExecutionData(BaseData):
         self.avg_price = 0
         self.lever = 1
         self.deposit_rate = 1
+        self.status = EMPTY_UNICODE
+        self.side = EMPTY_UNICODE
 
 
 class Transaction(BaseData):
     """
     成交信息
     """
-    __slots__ = ['time', 'security', 'action', 'quantity', 'price', 'value', 'order_id', 'commission']
+    __slots__ = ['time', 'security', 'action', 'quantity', 'price', 'value', 'order_id', 'commission',
+                 'reqQuantity', 'ufQuantity', 'reqPrice', 'status', 'side', 'reqTime', 'exchange']
 
     def __init__(
-            self, time=datetime.now(), security=EMPTY_STRING,
-            action=None, quantity=0, price=0, value=0, commission=0, order_id=0
+            self, time=datetime.now(), security=EMPTY_STRING, action=EMPTY_STRING,
+            quantity=0, price=0, value=0, commission=0, order_id=0
     ):
         self.time = time
         self.security = security
@@ -264,3 +269,11 @@ class Transaction(BaseData):
         self.value = value if value else quantity * price
         self.order_id = order_id
         self.commission = commission
+        self.reqQuantity = quantity
+        self.ufQuantity = 0
+        self.reqPrice = price
+        self.status = EMPTY_STRING
+        self.side = EMPTY_STRING
+        self.action = EMPTY_STRING
+        self.reqTime = time
+        self.exchange = EMPTY_STRING

@@ -64,22 +64,57 @@ class Portfolio(AbstractPortfolio):
     def history_req(self):
         return self._history_req
 
-    def send_order(self, ticker, quantity, price=None, order_type=ORDERTYPE.MARKET, sec_type=SecType.STK):
+    def send_order(self, symbol, quantity, price=None, order_type=ORDERTYPE.MARKET, sec_type=SecType.STK, **kwargs):
         odr = OrderReq()
         odr.orderQty = quantity
-        odr.symbol = ticker
+        odr.symbol = symbol
         odr.ordType = order_type.value if isinstance(order_type, ORDERTYPE) else getattr(ORDERTYPE, order_type).value
         odr.price = price
         odr.secType = sec_type.value if isinstance(sec_type, SecType) else sec_type
         odr.clOrdID = self.next_id
+        odr.time = self._data.current_time
+        for key, value in kwargs.items():
+            setattr(odr, key, value)
 
         self._event_queue.put(
             OrderEvent(odr, self._data.current_time)
         )
 
+        return odr.clOrdID
+
+    def order_to(self, symbol, quantity, **kwargs):
+        position = self._positions.get(symbol, None)
+        if position:
+            quantity -= position.quantity
+            if quantity:
+                self.send_order(symbol, quantity, **kwargs)
+        else:
+            self.send_order(symbol, quantity, **kwargs)
+
+    def order_pct(self, symbol, pct, **kwargs):
+        price = self._data.current(symbol).close
+        if not np.isnan(price):
+            quantity = int(self.equity * pct / price)
+            if quantity:
+                self.send_order(symbol, quantity, **kwargs)
+
+    def order_pct_to(self, symbol, pct, **kwargs):
+        position = self._positions.get(symbol, None)
+
+        if position:
+            pct -= position.value / self.equity
+            self.order_pct(symbol, pct, **kwargs)
+        else:
+            self.order_pct(symbol, pct, **kwargs)
+
     def handle_STK(self, execution):
         transaction = Transaction(execution.time, execution.ticker, execution.action, execution.quantity,
                                   execution.price, commission=execution.commission, order_id=execution.order_id)
+        transaction.reqTime = execution.reqTime
+        transaction.status = execution.status
+        transaction.action = execution.action
+        transaction.side = execution.side
+        transaction.exchange = execution.exchange
 
         if self._cash < transaction.value + execution.commission:
             return
@@ -127,7 +162,9 @@ class Portfolio(AbstractPortfolio):
             ed.time = event.time
             ed.price = position.price
             ed.commission = 0
-            ed.action = EMPTY_UNICODE
+            ed.action = ACTION.NONE.value
+            ed.status = ORDERSTATUS.ALLTRADED.value
+            ed.side = DIRECTION.NONE.value
 
             self.execution_handler[ed.secType](ed)
 

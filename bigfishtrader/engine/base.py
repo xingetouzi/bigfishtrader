@@ -90,6 +90,12 @@ class AbstractRouter(HandlerCompose):
         """
         raise NotImplementedError("Should implement orders()")
 
+    def set_commission(self, *args, **kwargs):
+        pass
+
+    def set_slippage(self, *args, **kwargs):
+        pass
+
 
 class AbstractDataSupport(HandlerCompose):
 

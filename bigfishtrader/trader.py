@@ -3,15 +3,44 @@ try:
     from Queue import PriorityQueue
 except ImportError:
     from queue import PriorityQueue
-import types
 from collections import OrderedDict
-
-from bigfishtrader.engine.core import Engine
-from bigfishtrader.context import Context
-from bigfishtrader.portfolio.portfolio import OrderPortfolio, PositionPortfolio
-from bigfishtrader.data.support import MultiDataSupport
-from bigfishtrader.router.exchange import DummyExchange, PracticeExchange
 from bigfishtrader.event import EVENTS
+import pandas as pd
+
+
+OUTPUT_COLUMN_MAP = {
+    'equity': OrderedDict([('time', '时间'), ('equity', '净值')]),
+    'transaction': OrderedDict([('order_id', '报单编号'),
+                               ('security', '合约'),
+                               ('side', '买卖'),
+                               ('action', '开平'),
+                               ('status', '报单状态'),
+                               ('reqPrice', '报单价格'),
+                               ('reqQuantity', '报单数'),
+                               ('ufQuantity', '未成交数'),
+                               ('quantity', '成交数'),
+                               ('reqTime', '报单时间'),
+                               ('time', '最后成交时间'),
+                               ('price', '成交均价'),
+                               ('exchange', '交易所')])
+}
+
+
+def output(equity, transactions, path):
+    from pandas import ExcelWriter
+    writer = ExcelWriter(path, encoding='utf-8')
+
+    eqt = equity.rename_axis(OUTPUT_COLUMN_MAP['equity'], 1).reindex(
+        columns=OUTPUT_COLUMN_MAP['equity'].values()
+    )
+    eqt.to_excel(writer, '净值', index=False)
+
+    trans = transactions.rename_axis(OUTPUT_COLUMN_MAP['transaction'], 1).reindex(
+        columns=OUTPUT_COLUMN_MAP['transaction'].values()
+    )
+    trans.to_excel(writer, '交易', index=False)
+
+    writer.save()
 
 
 class Component(object):
@@ -44,23 +73,8 @@ class Trader(object):
         self.initialized = False
 
     def init_settings(self):
-        self.settings = OrderedDict([
-            ('event_queue', Component('event_queue', PriorityQueue, (), {})),
-            ('engine', Component('engine', Engine, (), {'event_queue': Component.Lazy('event_queue')})),
-            ('context', Component('context', Context, (), {})),
-            ('data', Component('data', MultiDataSupport, (), {
-                'context': Component.Lazy('context'),
-                'event_queue': Component.Lazy('event_queue'),
-                'port': 27017
-            })),
-            ('portfolio', Component('portfolio', PositionPortfolio, (
-                Component.Lazy("event_queue"), Component.Lazy("data")
-            ), {})),
-            ('router', Component('router', DummyExchange, (), {
-                'event_queue': Component.Lazy('event_queue'),
-                'data': Component.Lazy('data')
-            })),
-        ])
+        from bigfishtrader.practice import basic
+        self.settings = basic
 
     def __getitem__(self, item):
         return self.settings[item]
@@ -92,44 +106,7 @@ class Trader(object):
         self.initialized = True
         return self
 
-    def backtest(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None, **kwargs):
-        """
-        运行一个策略，完成后返回账户
-
-        :param strategy: Strategy, 继承自策略基类的策略
-        :param tickers: str or list, 品种, 可以是单个也可以是多个
-        :param frequency: str, 时间周期, 以数据库中的命名为准
-        :param start: datetime, 开始时间
-        :param end: datetime, 结束时间
-        :param ticker_type: 品种类型, 以数据库中的 db name 为准
-        :param kwargs: 策略运行时需要修改的策略参数
-        :return: Portfolio
-        """
-        if not self.initialized:
-            raise Exception('Models not initialized, please call initialize()')
-
-        context, data = self.models['context'], self.models['data']
-
-        data.init(tickers, frequency, start, end, ticker_type)
-        context.tickers = [tickers] if isinstance(tickers, str) else tickers
-
-        s = strategy(**self.models)
-        s.register(self.models['engine'])
-        s.init_params(**kwargs)
-        s.initialize()
-
-        engine = self.models['engine']
-        engine.start()
-        engine.join()
-        engine.stop()
-
-        self.initialized = False
-
-        print(kwargs, 'accomplish')
-
-        return self.models['portfolio']
-
-    def back_test(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None, params={}):
+    def back_test(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None, params={}, out=True):
         """
         运行一个策略, 完成后返回一个账户对象
 
@@ -138,7 +115,7 @@ class Trader(object):
         :return: Portfolio
         """
         if not self.initialized:
-            raise Exception('Models not initialized, please call initialize()')
+            self.initialize()
 
         context, data, engine = self.models['context'], self.models['data'], self.models['engine']
 
@@ -159,33 +136,77 @@ class Trader(object):
         engine.stop()
 
         self.initialized = False
+        if out:
+            from datetime import datetime
+            p = self.models['portfolio']
+            output(
+                pd.DataFrame(p.history_eqt),
+                pd.DataFrame([transaction.to_dict() for transaction in p.transactions]),
+                '%s&%s&%s.xls' % (strategy.__name__, datetime.now().strftime('%Y-%m-%d-%H-%M-%S'),
+                                  '&'.join(map(lambda (key, value): key+'_'+str(value), params.items())))
+            )
+        # self.output()
 
         return self.models['portfolio']
 
+    def output(self, path='back_test.xls'):
+        from bigfishtrader.performance import WindowFactorPerformance, DataFrameExtended
+        from pandas import ExcelWriter, Series, DataFrame
 
-class PracticeTrader(Trader):
-    def init_settings(self):
-        super(PracticeTrader, self).init_settings()
-        self.settings["router"] = Component("router", PracticeExchange, (), {
-            'event_queue': Component.Lazy('event_queue'),
-            'data': Component.Lazy('data'),
-            'portfolio': Component.Lazy('portfolio'),
-        })
+        p = self.models['portfolio']
+
+        eqt = pd.DataFrame(
+            p.history_eqt
+        )
+        eqt.index = eqt['time']
+        eqt = eqt.rename_axis(OUTPUT_COLUMN_MAP['equity'], 1).reindex(
+            columns=OUTPUT_COLUMN_MAP['equity'].values()
+        )
+
+        trans = pd.DataFrame(
+            [transaction.to_dict() for transaction in p.transactions]
+        ).rename_axis(OUTPUT_COLUMN_MAP['transaction'], 1).reindex(
+            columns=OUTPUT_COLUMN_MAP['transaction'].values()
+        )
+
+        wfp = WindowFactorPerformance()
+        wfp.set_equity(eqt['净值'])
+        wfp.set_orders(trans)
+        excel = ExcelWriter(path, encoding='utf-8')
+
+        for ppty in ['pnl_compound_log_window', 'pnl_compound_ratio_window', 'pnl_simple_ratio_window',
+                     'ar_window_simple', 'ar_window_compound', 'volatility_window_simple', 'volatility_window_compound',
+                     'sharpe_ratio_window_simple', 'sharpe_ratio_window_compound', 'pnl', 'equity_ratio', 'pnl_ratio']:
+            print ppty
+            aatr = getattr(wfp, ppty, ppty+'not ready')
+            if isinstance(aatr, dict):
+                for key, value in aatr.items():
+                    sheet = ppty+'_'+key
+                    try:
+                        value.to_excel(excel, sheet, encoding='utf-8')
+                    except:
+                        pass
+            elif isinstance(aatr, Series):
+                DataFrame(aatr).to_excel(excel, ppty, encoding='utf-8')
+            elif isinstance(aatr, DataFrameExtended):
+                aatr.to_excel(excel, ppty, encoding='utf-8')
+        excel.save()
 
 
 class Optimizer(object):
-    def __init__(self):
-        self._trader = Trader()
+    def __init__(self, settings=None):
+        self._trader = Trader(settings)
 
     def optimization(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,
                      models=(), settings=None, **params):
-        if settings is None:
-            settings = {}
+        if settings:
+            self._trader.settings = settings
+
         portfolios = []
         for k in self.exhaustion(**params):
-            portfolio = self._trader.initialize().backtest(
+            portfolio = self._trader.initialize().back_test(
                 strategy, tickers, frequency,
-                start, end, ticker_type, **k
+                start, end, ticker_type, params=k
             )
 
             k['portfolio'] = portfolio

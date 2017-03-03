@@ -11,7 +11,7 @@ except ImportError:
     from queue import PriorityQueue
 
 
-settings = OrderedDict([
+basic = OrderedDict([
     ('event_queue', Component('event_queue', PriorityQueue, (), {})),
     ('engine', Component('engine', Engine, (), {'event_queue': Component.Lazy('event_queue')})),
     ('context', Component('context', Context, (), {})),

@@ -8,9 +8,9 @@ import numpy as np
 import pandas as pd
 import pytz
 
-from bigfishtrader.const import DIRECTION, ACTION
+from bigfishtrader.const import DIRECTION, ACTION, SIDE
 
-__all__ = ["Performance", "WindowFactorPerformance", "ReportSheet"]
+__all__ = ["Performance", "WindowFactorPerformance", "OrderAnalysis", "DataFrameExtended"]
 
 FLOAT_ERR = 1e-7
 
@@ -35,7 +35,7 @@ class DataFrameExtended(pd.DataFrame):
         self.__title = value
 
     total = property(__get_total, __set_total)
-    titie = property(__get_title, __set_title)
+    title = property(__get_title, __set_title)
 
 
 def _get_percent_from_log(n, factor=1):
@@ -47,27 +47,39 @@ def _deal_float_error(dataframe, fill=0):
     return dataframe
 
 
-def cache_calculator(func):
-    # XXX 由于python的垃圾回收机制只有引用计数，不像java一样也使用缩圈的拓扑算法，需要用弱引用防止内存泄漏,
-    # 弱引用字典还会在垃圾回收发生时自动删除字典中所对应的键值对
-    cache = WeakKeyDictionary()
+def lru_cache(max_size=10):
+    def decorator(func):
+        # XXX 由于python的垃圾回收机制只有引用计数，不像java一样也使用缩圈的拓扑算法，需要用弱引用防止内存泄漏,
+        # 弱引用字典还会在垃圾回收发生时自动删除字典中所对应的键值对
+        cache = WeakKeyDictionary()
 
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        if self in cache:
-            _, count = cache[self]
-            if count == self._count:
-                return cache[self][0]
-        cache[self] = (func(self, *args, **kwargs), self._count)
-        return cache[self][0]
+        @wraps(func)
+        def wrapper(self, *args):
+            if self in cache:
+                dct = cache[self]
+                if args in dct:
+                    last, count = dct[args]
+                    if count == self._count:
+                        return last
+                else:
+                    if len(dct) >= max_size:
+                        dct.popitem(last=False)
+            else:
+                cache[self] = OrderedDict()
+                dct = cache[self]
+            result = func(self, *args)
+            dct[args] = (result, self._count)  # recalculate due to data update
+            return result
 
-    return wrapper
+        return wrapper
+
+    return decorator
 
 
 class Performance(object):
     def __init__(self):
         self.equity = pd.Series()
-        self._fills = pd.Series()
+        self._orders = pd.Series()
         self.base = 100000
         self._currency = "$"
         self._count = 0
@@ -79,17 +91,17 @@ class Performance(object):
         self._count += 1
 
     @property
-    @cache_calculator
+    @lru_cache()
     def pnl(self):
         """
 
         Returns:
-            pandas.Series: profit and loss
+            pandas.Series: 成交均价 and loss
         """
         return self.equity - self.base
 
     @property
-    @cache_calculator
+    @lru_cache()
     def equity_ratio(self):
         """
 
@@ -99,12 +111,12 @@ class Performance(object):
         return self.equity / self.base
 
     @property
-    @cache_calculator
+    @lru_cache()
     def pnl_ratio(self):
         """
 
         Returns:
-            pandas.Series: profit and loss ratio
+            pandas.Series: 成交均价 and loss ratio
         """
         return self.equity / self.base - 1
 
@@ -144,8 +156,8 @@ class Performance(object):
             self.base = base
         self._update(value * base + base)
 
-    def set_fills(self, fills):
-        self._fills = fills
+    def set_orders(self, orders):
+        self._orders = orders
 
     def set_currency(self, currency):
         self._currency = currency
@@ -162,7 +174,7 @@ class WindowFactorPerformance(Performance):
     def _roll_exp(self, sample):
         calculator = lambda x: x["rate"] / x["trade_days"]
         ts = sample
-        result = DataFrameExtended([], index=ts.index.rename("time"))
+        result = DataFrameExtended([], index=ts.index.rename("报单时间"))
         for key, value in self._column_names["M"].items():
             result[value[0]] = pd.rolling_sum(ts, key).apply(calculator, axis=1)
         result.total = calculator(ts.sum())
@@ -176,7 +188,7 @@ class WindowFactorPerformance(Performance):
                  rate_square=(x["rate"] * x["rate"]),
                  trade_days=x["trade_days"]))
               .resample("MS").sum())(sample)
-        result = DataFrameExtended([], index=ts.index.rename("time"))
+        result = DataFrameExtended([], index=ts.index.rename("报单时间"))
         # TODO numpy.sqrt np自带有开根号运算
         for key, value in self._column_names["M"].items():
             # XXX 开根号运算会将精度缩小一半，必须在此之前就处理先前浮点运算带来的浮点误差
@@ -185,7 +197,7 @@ class WindowFactorPerformance(Performance):
         return _deal_float_error(result)
 
     @property
-    @cache_calculator
+    @lru_cache()
     def pnl_compound_log_window(self):
         result = {}
         result["R"] = self.equity_ratio  # "R" means raw
@@ -216,7 +228,7 @@ class WindowFactorPerformance(Performance):
         return result
 
     @property
-    @cache_calculator
+    @lru_cache()
     def pnl_compound_ratio_window(self):
         """
         :return:
@@ -234,7 +246,7 @@ class WindowFactorPerformance(Performance):
         return result
 
     @property
-    @cache_calculator
+    @lru_cache()
     def pnl_simple_ratio_window(self):
         result = {}
         result["R"] = self.equity_ratio
@@ -264,29 +276,29 @@ class WindowFactorPerformance(Performance):
         return result
 
     @property
-    @cache_calculator
+    @lru_cache()
     def ar_window_simple(self):
         calculator = lambda x: (x["rate"] / x["trade_days"]) * self._annual_factor
         ts = self.pnl_simple_ratio_window["M"]
-        result = DataFrameExtended([], index=ts.index.rename("time"))
+        result = DataFrameExtended([], index=ts.index.rename("报单时间"))
         for key, value in self._column_names["M"].items():
             result[value[0]] = ts.rolling(key).sum().apply(calculator, axis=1)
         result.total = calculator(ts.sum())
         return result
 
     @property
-    @cache_calculator
+    @lru_cache()
     def ar_window_compound(self):
         calculator = lambda x: (x["rate"] / x["trade_days"]) * self._annual_factor
         ts = self.pnl_compound_ratio_window["M"]
-        result = DataFrameExtended([], index=ts.index.rename("time"))
+        result = DataFrameExtended([], index=ts.index.rename("报单时间"))
         for key, value in self._column_names["M"].items():
             result[value[0]] = pd.rolling_sum(ts, key).apply(calculator, axis=1)
         result.total = calculator(ts.sum())
         return result
 
     @property
-    @cache_calculator
+    @lru_cache()
     def volatility_window_simple(self):
         # TODO pandas好像并不支持分组上的移动窗口函数
         result = self._roll_std(self.pnl_simple_ratio_window["D"])
@@ -295,7 +307,7 @@ class WindowFactorPerformance(Performance):
         return result
 
     @property
-    @cache_calculator
+    @lru_cache()
     def volatility_window_compound(self):
         result = self._roll_std(self.pnl_compound_ratio_window["D"])
         result *= self._annual_factor ** 0.5
@@ -303,7 +315,7 @@ class WindowFactorPerformance(Performance):
         return result
 
     @property
-    @cache_calculator
+    @lru_cache()
     def sharpe_ratio_window_simple(self):
         expected = self.ar_window_simple
         std = _deal_float_error(self.volatility_window_simple, fill=np.nan)  # 年化标准差
@@ -313,7 +325,7 @@ class WindowFactorPerformance(Performance):
         return result
 
     @property
-    @cache_calculator
+    @lru_cache()
     def sharpe_ratio_window_compound(self):
         expected = self.ar_window_compound
         std = _deal_float_error(self.volatility_window_compound, fill=np.nan)
@@ -329,10 +341,9 @@ class WindowFactorPerformance(Performance):
         pass
 
 
-class ReportSheet(WindowFactorPerformance):
+class OrderAnalysis(WindowFactorPerformance):
     def __init__(self):
-        super(ReportSheet, self).__init__()
-        self._report_sheet = None
+        super(OrderAnalysis, self).__init__()
         self._units = {}
 
     def _update_units(self, d):
@@ -340,26 +351,70 @@ class ReportSheet(WindowFactorPerformance):
             self._units.update(dict.fromkeys(value, key))
 
     @property
-    @cache_calculator
-    def trade_details(self):
-        df = self._fills[["position_id", "local_id", "time", "ticker", "action", "price", "quantity", "profit",
-                          "commission"]]
-        dct = {k: v for k, v in df.groupby(["ticker"])}
-        for trade in dct.values():
-            temp = trade.groupby("position_id")["quantity"].first().apply(
-                lambda x: DIRECTION.LONG.value if x > 0 else DIRECTION.SHORT.value)
-            trade["direction"] = trade["position_id"].apply(lambda x: temp[x])
-            trade["volume"] = trade["quantity"].abs()
-            trade["entry"] = trade["action"].apply(
-                lambda x: ACTION.OPEN.value if x else ACTION.CLOSE.value)
-            # commission is separated from profit
-            trade["profit"] = trade["profit"].fillna(0) - trade["commission"].fillna(0)
-            trade.rename_axis({"local_id": "trade_id"}, axis=1)
-            del trade["quantity"], trade["action"]
-        return dct
+    @lru_cache()
+    def order_details(self):
+        self._orders["报单编号"] = self._orders["报单编号"].astype(int)
+        df = self._orders[["报单编号", "合约", "买卖", "开平", "报单状态", "报单价格", "报单数", "未成交数",
+                           "成交数", "成交均价", "报单时间", "最后成交时间"]]
+
+        return self._orders
 
     @property
-    @cache_calculator
+    @lru_cache()
+    def position_details(self):
+        df = self.order_details.copy()
+        addition = []
+        for ticker, orders in df.groupby("合约"):
+            temp = pd.DataFrame(index=orders.index)
+            temp["持仓数量"] = (orders["成交数"] * ((orders["买卖"] == SIDE.BUY.value) * 2 - 1)).cumsum()
+            temp["持仓方向"] = (temp["持仓数量"] >= 0).map(lambda x: DIRECTION.LONG.value if x else DIRECTION.SHORT.value)
+            market_values = []
+            position_avx_prices = []
+            market_value = 0
+            position_avx_price = 0
+            for index, order in orders.iterrows():
+                if order["开平"] == ACTION.OPEN.value:
+                    market_value += order["成交数"] * order["成交均价"]
+                else:
+                    market_value -= order["成交数"] * position_avx_price
+                volume = temp["持仓数量"][index]
+                position_avx_price = market_value / volume if volume else 0
+                market_values.append(market_value)
+                position_avx_prices.append(position_avx_price)
+            temp["市值"] = market_values
+            temp["持仓均价"] = position_avx_prices
+            addition.append(temp)
+        position = pd.concat([df, pd.concat(addition, axis=0)],
+                             axis=1)  # concat addition position info of all tickers with order info
+        position.index = position["最后成交时间"]
+        return position
+
+    @lru_cache()
+    def position_analysis(self, frequency="D", label="left"):
+        return self.position_details.groupby("合约").resample(frequency, label=label).last().dropna()
+
+    @lru_cache()
+    def mv_analysis(self, frequency="D", label="left"):
+        return self.position_analysis(frequency, label).groupby(level=1)["市值"].sum()
+
+    @lru_cache()
+    def pnl_analysis(self, frequency="MS", label="left"):
+        now = self.equity.resample(frequency, closed="left", label=label).last().dropna()
+        pre = now.shift(1).fillna(self.base)
+        return (now - pre) / pre
+
+    @property
+    @lru_cache()
+    def drawdown(self):
+        return self.equity - self.equity.cummax()
+
+    @property
+    @lru_cache()
+    def drawdown_ratio(self):
+        return self.drawdown / self.equity.cummax()
+
+    @property
+    @lru_cache()
     def trade_summary(self):
         self._update_units({
             "(%s)" % self._currency: [
@@ -377,19 +432,19 @@ class ReportSheet(WindowFactorPerformance):
         result = {}
         for ticker, trade in self.trade_details.items():
             total = pd.DataFrame()
-            total["profit"] = trade.groupby("position_id")["profit"].sum()
+            total["成交均价"] = trade.groupby("position_id")["成交均价"].sum()
             total["direction"] = trade.groupby("position_id")["direction"].last()
             total["volume"] = abs(trade[trade["entry"] == ACTION.OPEN.value]["volume"]).sum()
             long_ = total[total["direction"] == DIRECTION.LONG.value]
             short = total[total["direction"] == DIRECTION.SHORT.value]
             temp = [total, long_, short]
-            win = [t["profit"] > 0 for t in temp]
-            loss = [t["profit"] < 0 for t in temp]
+            win = [t["成交均价"] > 0 for t in temp]
+            loss = [t["成交均价"] < 0 for t in temp]
             dct = OrderedDict()
-            dct[u"总净利"] = np.array([t["profit"].sum() for t in temp])
+            dct[u"总净利"] = np.array([t["成交均价"].sum() for t in temp])
             # fi means fancy indexing
-            dct[u"总盈利"] = np.array([t[fi]["profit"].sum() for fi, t in zip(win, temp)])
-            dct[u"总亏损"] = abs(np.array([t[fi]["profit"].sum() for fi, t in zip(loss, temp)]))
+            dct[u"总盈利"] = np.array([t[fi]["成交均价"].sum() for fi, t in zip(win, temp)])
+            dct[u"总亏损"] = abs(np.array([t[fi]["成交均价"].sum() for fi, t in zip(loss, temp)]))
             dct[u"总交易次数"] = np.array([len(t) for t in temp])
             dct[u"总盈利次数"] = np.array([len(t[fi]) for fi, t in zip(win, temp)])
             dct[u"总亏损次数"] = np.array([len(t[fi]) for fi, t in zip(loss, temp)])
@@ -401,7 +456,7 @@ class ReportSheet(WindowFactorPerformance):
                 False: np.array([0] * 3),
             }
             for i_, t_ in zip(range(3), temp):
-                t_ = t_["profit"]
+                t_ = t_["成交均价"]
                 if not t_.empty:
                     win_flag = [None, t_.iloc[0] >= 0]
                     for v_ in t_:
@@ -412,8 +467,8 @@ class ReportSheet(WindowFactorPerformance):
                     section[win_flag[1]][i_] += 1
             dct[u"总盈利段数"] = section[True]
             dct[u"总亏损段数"] = section[False]
-            dct[u"单笔最大盈利"] = np.array([(t[fi]["profit"] / t[fi]["volume"]).max() for fi, t in zip(win, temp)])
-            dct[u"单笔最大亏损"] = abs(np.array([(t[fi]["profit"] / t[fi]["volume"]).min() for fi, t in zip(loss, temp)]))
+            dct[u"单笔最大盈利"] = np.array([(t[fi]["成交均价"] / t[fi]["volume"]).max() for fi, t in zip(win, temp)])
+            dct[u"单笔最大亏损"] = abs(np.array([(t[fi]["成交均价"] / t[fi]["volume"]).min() for fi, t in zip(loss, temp)]))
             dct[u"平均每笔盈利"] = dct[u"总盈利"] / dct[u"总盈利笔数"]
             dct[u"平均每笔亏损"] = dct[u"总亏损"] / dct[u"总亏损笔数"]
             dct[u"平均连续盈利次数"] = dct[u"总盈利次数"] / dct[u"总盈利段数"]
@@ -422,7 +477,7 @@ class ReportSheet(WindowFactorPerformance):
         return result
 
     @property
-    @cache_calculator
+    @lru_cache()
     def trade_summary_all(self):
         dct = OrderedDict()
         panel = pd.Panel(self.trade_summary).swapaxes(0, 1)
@@ -438,7 +493,7 @@ class ReportSheet(WindowFactorPerformance):
         return pd.DataFrame(data=dct).T
 
     @property
-    @cache_calculator
+    @lru_cache()
     def strategy_summary(self):
         dct = OrderedDict()
         t_y = self.pnl_compound_log_window["Y"][-5:]
@@ -447,34 +502,24 @@ class ReportSheet(WindowFactorPerformance):
         dct[u"五年平均年收益"] = pnl_y.apply(_get_percent_from_log).mean()
         dct[u"年化收益标准差"] = self.volatility_window_compound.total
         dct[u"平均月收益"] = pnl_m.apply(_get_percent_from_log).mean()
-        dct[u"最大回撤率"] = self.draw_down_ratio.max() * 100
+        dct[u"最大回撤率"] = self.drawdown_ratio.max() * 100
         dct[u"夏普比率"] = self.sharpe_ratio_window_simple.total
         dct[u"盈利因子"] = self.trade_summary_all[u"全部"][u"总盈利"] / self.trade_summary_all[u"全部"][u"总亏损"]
         return pd.Series(dct)
 
     @property
-    @cache_calculator
+    @lru_cache()
     def risk_indicator(self):
         dct = OrderedDict()
-        dct[u"最大回撤金额"] = self.draw_down.max()
-        dct[u"最大回撤比率"] = self.draw_down_ratio.max() * 100
-        dct[u"最大回撤发生时间"] = self.draw_down_ratio.argmax()
+        dct[u"最大回撤金额"] = self.drawdown.max()
+        dct[u"最大回撤比率"] = self.drawdown_ratio.max() * 100
+        dct[u"最大回撤发生时间"] = self.drawdown_ratio.argmax()
         dct[u"净利回撤比"] = self.trade_summary_all[u"全部"][u"总净利"] / dct[u"最大回撤金额"]
         dct[u"持仓时间比率"] = None
         return pd.Series(dct)
 
     @property
-    @cache_calculator
-    def draw_down(self):
-        return self.equity - self.equity.cummax()
-
-    @property
-    @cache_calculator
-    def draw_down_ratio(self):
-        return self.draw_down / self.equity.cummax()
-
-    @property
-    @cache_calculator
+    @lru_cache()
     def pnl_indicator(self):
         self._update_units({
             "%s" % self._currency: [u"金额"],
@@ -511,10 +556,10 @@ class ReportSheet(WindowFactorPerformance):
     def calculate(self):
         pass
 
-    @cache_calculator
+    @lru_cache()
     def csv(self):
         pass
 
-    @cache_calculator
+    @lru_cache()
     def html(self):
         pass

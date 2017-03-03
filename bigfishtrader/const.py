@@ -31,6 +31,11 @@ class DIRECTION(Enum):
     UNKNOWN = "未知"
 
 
+class SIDE(Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+
 class ACTION(Enum):
     NONE = "无开平"
     OPEN = "开仓"
