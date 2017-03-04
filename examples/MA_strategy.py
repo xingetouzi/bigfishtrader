@@ -1,6 +1,6 @@
 from datetime import datetime
 from talib import abstract
-import pandas as pd
+
 
 fast = 10
 slow = 15
@@ -11,13 +11,12 @@ def after_week_end(context, data):
 
 
 def initialize(context, data):
-    context.time_schedule(
-        after_week_end,
-        context.time_rules(isoweekday=5),
-        priority=0
-    )
-    context.set_commission(0.0007, 0.0007, min_cost=5)
-
+    # context.time_schedule(
+    #     after_week_end,
+    #     context.time_rules(isoweekday=5),
+    #     priority=0
+    # )
+    pass
 
 def handle_data(context, data):
     portfolio = context.portfolio
@@ -43,24 +42,29 @@ def handle_data(context, data):
             portfolio.send_order(ticker, 1000)
 
 
-
 if __name__ == '__main__':
-    from bigfishtrader.trader import Trader
-    from bigfishtrader.practice import settings
+    from bigfishtrader.trader import Trader, Optimizer
+    from bigfishtrader.practice import BACKTESTDEALMODE
 
-    trader = Trader(settings)
+    trader = Trader()
 
-    trader["data"].kwargs.update({'port': 27018, 'host': '192.168.0.103'})
+    trader["data"].kwargs.update({'port': 10001})
+    trader["router"].kwargs.update({'deal_model': BACKTESTDEALMODE.THIS_BAR_CLOSE})
     p = trader.initialize().back_test(
         __import__('MA_strategy'),
-        ['000001'], 'D', datetime(2016, 1, 1),
-        ticker_type='HS'
+        ['000001', '600016'], 'D', datetime(2016, 1, 1),
+        ticker_type='HS', params={'fast': 15, 'slow': 20}, save=True
     )
 
-    print pd.DataFrame(
-        p.history_eqt
-    )
-    
-    print pd.DataFrame(
-        p.transactions
-    )
+    for values in trader.output('strategy_summary', 'risk_indicator').values():
+        print values
+
+    # optimizer = Optimizer()
+    # optimizer["data"].kwargs.update({'port': 10001})
+    # optimizer["router"].kwargs.update({'deal_model': BACKTESTDEALMODE.THIS_BAR_CLOSE})
+    # optimizer.optimization(
+    #     __import__('MA_strategy'),
+    #     ['000001', '600016'], 'D', datetime(2016, 1, 1),
+    #     ticker_type='HS', save=True,
+    #     fast=range(10, 15), slow=range(20, 30, 2)
+    # )

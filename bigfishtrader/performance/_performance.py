@@ -1,4 +1,5 @@
 # encoding: utf-8
+from __future__ import division
 import math
 from collections import OrderedDict
 
@@ -35,7 +36,7 @@ class DataFrameExtended(pd.DataFrame):
         self.__title = value
 
     total = property(__get_total, __set_total)
-    title = property(__get_title, __set_title)
+    titie = property(__get_title, __set_title)
 
 
 def _get_percent_from_log(n, factor=1):
@@ -350,6 +351,15 @@ class OrderAnalysis(WindowFactorPerformance):
         for key, value in d.items():
             self._units.update(dict.fromkeys(value, key))
 
+    def apply_units(self, item):
+        if isinstance(item, pd.DataFrame):
+            return item.rename_axis(lambda x: x + self._units.get(x, ""), axis=0) \
+                .rename_axis(lambda x: x + self._units.get(x, ""), axis=1)
+        elif isinstance(item, pd.Series):
+            return item.rename_axis(lambda x: x + self._units.get(x, ""), axis=0)
+        else:
+            return item
+
     @property
     @lru_cache()
     def order_details(self):
@@ -362,27 +372,57 @@ class OrderAnalysis(WindowFactorPerformance):
     @property
     @lru_cache()
     def position_details(self):
+        """
+
+        Returns:
+            pandas.DataFrame
+        """
+
+        def side2sign(x):
+            return (x == SIDE.BUY.value) * 2 - 1
+
+        def side2direction(x):
+            if x == SIDE.BUY.value:
+                return DIRECTION.LONG.value
+            elif x == SIDE.SELL.value:
+                return DIRECTION.SHORT.value
+            else:
+                return DIRECTION.NONE.value
+
+        def sign2direction(x):
+            return DIRECTION.LONG.value if x >= 0 else DIRECTION.SHORT.value
+
         df = self.order_details.copy()
         addition = []
         for ticker, orders in df.groupby("合约"):
             temp = pd.DataFrame(index=orders.index)
-            temp["持仓数量"] = (orders["成交数"] * ((orders["买卖"] == SIDE.BUY.value) * 2 - 1)).cumsum()
-            temp["持仓方向"] = (temp["持仓数量"] >= 0).map(lambda x: DIRECTION.LONG.value if x else DIRECTION.SHORT.value)
+            temp["持仓数量"] = (orders["成交数"] * orders["买卖"].apply(side2sign)).cumsum()
+            temp["持仓方向"] = (temp["持仓数量"] >= 0).apply(sign2direction)
             market_values = []
             position_avx_prices = []
+            cum_profits = []
             market_value = 0
             position_avx_price = 0
-            for index, order in orders.iterrows():
-                if order["开平"] == ACTION.OPEN.value:
+            cum_profit = 0
+            last_volume = 0
+            for _, direction, volume in zip(orders.iterrows(), temp["持仓方向"].values, temp["持仓数量"].values):
+                # TODO 未考虑反向开仓
+                _, order = _
+                if last_volume * side2sign(order["买卖"]) >= 0:
                     market_value += order["成交数"] * order["成交均价"]
                 else:
-                    market_value -= order["成交数"] * position_avx_price
-                volume = temp["持仓数量"][index]
+                    market_value -= order["成交数"] * position_avx_price  # 按持仓均价平仓
+                    cum_profit += (position_avx_price - order["成交均价"]) * order["成交数"] * side2sign(order["买卖"])
+                last_volume = volume
                 position_avx_price = market_value / volume if volume else 0
                 market_values.append(market_value)
                 position_avx_prices.append(position_avx_price)
+                cum_profits.append(cum_profit)
+            temp["持仓编号"] = (temp["持仓数量"] == 0).cumsum().shift(1).fillna(0) + 1  # TODO 未考虑反向开仓
             temp["市值"] = market_values
             temp["持仓均价"] = position_avx_prices
+            temp["累积盈利"] = cum_profits
+            temp["盈利"] = temp["累积盈利"] - temp["累积盈利"].shift(1).fillna(0)
             addition.append(temp)
         position = pd.concat([df, pd.concat(addition, axis=0)],
                              axis=1)  # concat addition position info of all tickers with order info
@@ -423,28 +463,30 @@ class OrderAnalysis(WindowFactorPerformance):
             ],
             "": [
                 u"总盈利/总亏损", u"平均每笔盈利/平均每笔亏损", u"平均连续盈利次数",
-                u"平均连续亏损次数",
+                u"平均连续亏损次数"
             ],
             "%": [
                 u"胜率"
             ]
         })
+
         result = {}
-        for ticker, trade in self.trade_details.items():
+        for ticker, trade in self.position_details.groupby("合约"):
             total = pd.DataFrame()
-            total["成交均价"] = trade.groupby("position_id")["成交均价"].sum()
-            total["direction"] = trade.groupby("position_id")["direction"].last()
-            total["volume"] = abs(trade[trade["entry"] == ACTION.OPEN.value]["volume"]).sum()
+            group_by_id = trade.groupby("持仓编号")
+            total["profit"] = group_by_id["盈利"].sum()
+            total["direction"] = group_by_id["持仓方向"].first()  # 持仓方向
+            total["volume"] = group_by_id["持仓数量"].agg(lambda s: abs(s).max())
             long_ = total[total["direction"] == DIRECTION.LONG.value]
             short = total[total["direction"] == DIRECTION.SHORT.value]
             temp = [total, long_, short]
-            win = [t["成交均价"] > 0 for t in temp]
-            loss = [t["成交均价"] < 0 for t in temp]
+            win = [t["profit"] >= 0 for t in temp]
+            loss = [t["profit"] < 0 for t in temp]
             dct = OrderedDict()
-            dct[u"总净利"] = np.array([t["成交均价"].sum() for t in temp])
+            dct[u"总净利"] = np.array([t["profit"].sum() for t in temp])
             # fi means fancy indexing
-            dct[u"总盈利"] = np.array([t[fi]["成交均价"].sum() for fi, t in zip(win, temp)])
-            dct[u"总亏损"] = abs(np.array([t[fi]["成交均价"].sum() for fi, t in zip(loss, temp)]))
+            dct[u"总盈利"] = np.array([t[fi]["profit"].sum() for fi, t in zip(win, temp)])
+            dct[u"总亏损"] = abs(np.array([t[fi]["profit"].sum() for fi, t in zip(loss, temp)]))
             dct[u"总交易次数"] = np.array([len(t) for t in temp])
             dct[u"总盈利次数"] = np.array([len(t[fi]) for fi, t in zip(win, temp)])
             dct[u"总亏损次数"] = np.array([len(t[fi]) for fi, t in zip(loss, temp)])
@@ -456,7 +498,7 @@ class OrderAnalysis(WindowFactorPerformance):
                 False: np.array([0] * 3),
             }
             for i_, t_ in zip(range(3), temp):
-                t_ = t_["成交均价"]
+                t_ = t_["profit"]
                 if not t_.empty:
                     win_flag = [None, t_.iloc[0] >= 0]
                     for v_ in t_:
@@ -467,8 +509,8 @@ class OrderAnalysis(WindowFactorPerformance):
                     section[win_flag[1]][i_] += 1
             dct[u"总盈利段数"] = section[True]
             dct[u"总亏损段数"] = section[False]
-            dct[u"单笔最大盈利"] = np.array([(t[fi]["成交均价"] / t[fi]["volume"]).max() for fi, t in zip(win, temp)])
-            dct[u"单笔最大亏损"] = abs(np.array([(t[fi]["成交均价"] / t[fi]["volume"]).min() for fi, t in zip(loss, temp)]))
+            dct[u"单笔最大盈利"] = np.array([(t[fi]["profit"] / t[fi]["volume"]).max() for fi, t in zip(win, temp)])
+            dct[u"单笔最大亏损"] = abs(np.array([(t[fi]["profit"] / t[fi]["volume"]).min() for fi, t in zip(loss, temp)]))
             dct[u"平均每笔盈利"] = dct[u"总盈利"] / dct[u"总盈利笔数"]
             dct[u"平均每笔亏损"] = dct[u"总亏损"] / dct[u"总亏损笔数"]
             dct[u"平均连续盈利次数"] = dct[u"总盈利次数"] / dct[u"总盈利段数"]
@@ -502,7 +544,6 @@ class OrderAnalysis(WindowFactorPerformance):
         dct[u"五年平均年收益"] = pnl_y.apply(_get_percent_from_log).mean()
         dct[u"年化收益标准差"] = self.volatility_window_compound.total
         dct[u"平均月收益"] = pnl_m.apply(_get_percent_from_log).mean()
-        dct[u"最大回撤率"] = self.drawdown_ratio.max() * 100
         dct[u"夏普比率"] = self.sharpe_ratio_window_simple.total
         dct[u"盈利因子"] = self.trade_summary_all[u"全部"][u"总盈利"] / self.trade_summary_all[u"全部"][u"总亏损"]
         return pd.Series(dct)
@@ -510,13 +551,21 @@ class OrderAnalysis(WindowFactorPerformance):
     @property
     @lru_cache()
     def risk_indicator(self):
+        self._update_units({
+            "(%s)" % self._currency: [
+                u"最大回撤金额"
+            ],
+            "(%)": [
+                u"最大回撤比率"
+            ]
+        })
         dct = OrderedDict()
-        dct[u"最大回撤金额"] = self.drawdown.max()
-        dct[u"最大回撤比率"] = self.drawdown_ratio.max() * 100
-        dct[u"最大回撤发生时间"] = self.drawdown_ratio.argmax()
-        dct[u"净利回撤比"] = self.trade_summary_all[u"全部"][u"总净利"] / dct[u"最大回撤金额"]
-        dct[u"持仓时间比率"] = None
-        return pd.Series(dct)
+        dct[u"最大回撤金额"] = self.drawdown.min()
+        dct[u"最大回撤比率"] = self.drawdown_ratio.min() * 100
+        dct[u"最大回撤发生时间"] = self.drawdown_ratio.argmin()
+        dct[u"净利回撤比"] = self.trade_summary_all[u"全部"][u"总净利"] / - dct[u"最大回撤金额"]
+        # dct[u"持仓时间比率"] = None
+        return self.apply_units(pd.Series(dct))
 
     @property
     @lru_cache()

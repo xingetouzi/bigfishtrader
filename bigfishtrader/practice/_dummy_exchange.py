@@ -99,12 +99,15 @@ class DummyExchange(AbstractRouter):
         for _id in cancels:
             self._orders.pop(_id, None)
 
-    def _fill_order(self, order, bar):
+    def _fill_stk(self, order):
+        pass
+
+    def _fill_order(self, order, bar, **kwargs):
         self._put_fill(order, bar.open, bar.name,
                        status=ORDERSTATUS.ALLTRADED.value,
-                       exchange=self.ex_name(order))
+                       exchange=self.ex_name(order), **kwargs)
 
-    def _fill_limit(self, order, bar):
+    def _fill_limit(self, order, bar, **kwargs):
         """
         deal with limit order
 
@@ -117,17 +120,17 @@ class DummyExchange(AbstractRouter):
         """
 
         if order.orderQty > 0:
-            self._low_fill(order, bar)
+            self._low_fill(order, bar, **kwargs)
         else:
-            self._up_fill(order, bar)
+            self._up_fill(order, bar, **kwargs)
 
-    def _fill_stop(self, order, bar):
+    def _fill_stop(self, order, bar, **kwargs):
         if order.orderQty > 0:
-            self._up_fill(order, bar)
+            self._up_fill(order, bar, **kwargs)
         else:
-            self._low_fill(order, bar)
+            self._low_fill(order, bar, **kwargs)
 
-    def _up_fill(self, order, bar):
+    def _up_fill(self, order, bar, **kwargs):
         """
         大于等于指定价格成交
 
@@ -138,14 +141,14 @@ class DummyExchange(AbstractRouter):
         if bar.open > order.price:
             self._put_fill(order, bar.open, bar.name,
                            status=ORDERSTATUS.ALLTRADED.value,
-                           exchange=self.ex_name(order))
+                           exchange=self.ex_name(order), **kwargs)
 
         elif bar.high > order.price:
             self._put_fill(order, order.price, bar.name,
                            status=ORDERSTATUS.ALLTRADED.value,
-                           exchange=self.ex_name(order))
+                           exchange=self.ex_name(order), **kwargs)
 
-    def _low_fill(self, order, bar):
+    def _low_fill(self, order, bar, **kwargs):
         """
         小于等于指定价格成交
 
@@ -156,11 +159,11 @@ class DummyExchange(AbstractRouter):
         if bar.open < order.price:
             self._put_fill(order, bar.open, bar.name,
                            status=ORDERSTATUS.ALLTRADED.value,
-                           exchange=self.ex_name(order))
+                           exchange=self.ex_name(order), **kwargs)
         elif bar.low < order.price:
             self._put_fill(order, order.price, bar.name,
                            status=ORDERSTATUS.ALLTRADED.value,
-                           exchange=self.ex_name(order))
+                           exchange=self.ex_name(order), **kwargs)
 
     def on_bar(self, event, kwargs=None):
         """

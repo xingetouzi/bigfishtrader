@@ -162,9 +162,8 @@ class Portfolio(AbstractPortfolio):
             ed.time = event.time
             ed.price = position.price
             ed.commission = 0
-            ed.action = ACTION.NONE.value
             ed.status = ORDERSTATUS.ALLTRADED.value
-            ed.side = DIRECTION.NONE.value
+            ed.side = SIDE.BUY.value if ed.quantity > 0 else SIDE.SELL.value
 
             self.execution_handler[ed.secType](ed)
 

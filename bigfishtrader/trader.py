@@ -5,6 +5,7 @@ except ImportError:
     from queue import PriorityQueue
 from collections import OrderedDict
 from bigfishtrader.event import EVENTS
+from bigfishtrader.performance import OrderAnalysis
 import pandas as pd
 
 
@@ -71,6 +72,7 @@ class Trader(object):
         if not self.settings:
             self.init_settings()
         self.initialized = False
+        self.performance = OrderAnalysis()
 
     def init_settings(self):
         from bigfishtrader.practice import basic
@@ -106,7 +108,7 @@ class Trader(object):
         self.initialized = True
         return self
 
-    def back_test(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None, params={}, out=True):
+    def back_test(self, strategy, symbols, frequency, start=None, end=None, ticker_type=None, params={}, save=False):
         """
         运行一个策略, 完成后返回一个账户对象
 
@@ -119,8 +121,8 @@ class Trader(object):
 
         context, data, engine = self.models['context'], self.models['data'], self.models['engine']
 
-        data.init(tickers, frequency, start, end, ticker_type)
-        context.tickers = tickers
+        data.init(symbols, frequency, start, end, ticker_type)
+        context.tickers = symbols
 
         def on_time(event, kwargs=None):
             strategy.handle_data(context, data)
@@ -134,24 +136,6 @@ class Trader(object):
         engine.start()
         engine.join()
         engine.stop()
-
-        self.initialized = False
-        if out:
-            from datetime import datetime
-            p = self.models['portfolio']
-            output(
-                pd.DataFrame(p.history_eqt),
-                pd.DataFrame([transaction.to_dict() for transaction in p.transactions]),
-                '%s&%s&%s.xls' % (strategy.__name__, datetime.now().strftime('%Y-%m-%d-%H-%M-%S'),
-                                  '&'.join(map(lambda (key, value): key+'_'+str(value), params.items())))
-            )
-        # self.output()
-
-        return self.models['portfolio']
-
-    def output(self, path='back_test.xls'):
-        from bigfishtrader.performance import WindowFactorPerformance, DataFrameExtended
-        from pandas import ExcelWriter, Series, DataFrame
 
         p = self.models['portfolio']
 
@@ -169,50 +153,65 @@ class Trader(object):
             columns=OUTPUT_COLUMN_MAP['transaction'].values()
         )
 
-        wfp = WindowFactorPerformance()
-        wfp.set_equity(eqt['净值'])
-        wfp.set_orders(trans)
-        excel = ExcelWriter(path, encoding='utf-8')
+        self.performance.set_equity(eqt['净值'])
+        self.performance.set_orders(trans)
 
-        for ppty in ['pnl_compound_log_window', 'pnl_compound_ratio_window', 'pnl_simple_ratio_window',
-                     'ar_window_simple', 'ar_window_compound', 'volatility_window_simple', 'volatility_window_compound',
-                     'sharpe_ratio_window_simple', 'sharpe_ratio_window_compound', 'pnl', 'equity_ratio', 'pnl_ratio']:
-            print ppty
-            aatr = getattr(wfp, ppty, ppty+'not ready')
-            if isinstance(aatr, dict):
-                for key, value in aatr.items():
-                    sheet = ppty+'_'+key
-                    try:
-                        value.to_excel(excel, sheet, encoding='utf-8')
-                    except:
-                        pass
-            elif isinstance(aatr, Series):
-                DataFrame(aatr).to_excel(excel, ppty, encoding='utf-8')
-            elif isinstance(aatr, DataFrameExtended):
-                aatr.to_excel(excel, ppty, encoding='utf-8')
-        excel.save()
+        if save:
+            from datetime import datetime
+            p = self.models['portfolio']
+            output(
+                pd.DataFrame(p.history_eqt),
+                pd.DataFrame([transaction.to_dict() for transaction in p.transactions]),
+                '%s&%s&%s.xls' % (strategy.__name__, datetime.now().strftime('%Y-%m-%d-%H-%M-%S'),
+                                  '&'.join(map(lambda (key, value): key+'_'+str(value), params.items())))
+            )
+
+        return self.models['portfolio']
+
+    def output(self, *args):
+        return {attr: getattr(self.performance, attr, None) for attr in args}
 
 
 class Optimizer(object):
     def __init__(self, settings=None):
-        self._trader = Trader(settings)
-
-    def optimization(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,
-                     models=(), settings=None, **params):
         if settings:
-            self._trader.settings = settings
+            self.settings = settings
+        else:
+            from bigfishtrader.practice import basic
+            self.settings = basic
 
-        portfolios = []
-        for k in self.exhaustion(**params):
-            portfolio = self._trader.initialize().back_test(
-                strategy, tickers, frequency,
-                start, end, ticker_type, params=k
+    def __getitem__(self, item):
+        return self.settings[item]
+
+    def optimization(self, strategy, symbols, frequency,
+                     start=None, end=None, ticker_type=None,
+                     sort=u'夏普比率', ascending=False, save=False,
+                     **params):
+        result = []
+
+        for param in self.exhaustion(**params):
+            trader = Trader(self.settings)
+            trader.back_test(
+                strategy, symbols, frequency,
+                start, end, ticker_type, params=param, save=False
+            )
+            op_dict = trader.output('strategy_summary', 'risk_indicator')
+            print(param, 'accomplish')
+            for p in op_dict.values():
+                param.update(p)
+            result.append(param)
+
+        result = pd.DataFrame(result).sort_values(by=sort, ascending=ascending)
+
+        if save:
+            from datetime import datetime
+            result.to_excel(
+                'Optimization_%s&%s.xls' % (strategy.__name__, datetime.now().strftime('%Y-%m-%d-%H-%M-%S')),
+                encoding='utf-8'
             )
 
-            k['portfolio'] = portfolio
-            portfolios.append(k)
-
-        return portfolios
+        print(result)
+        return result
 
     def exhaustion(self, **kwargs):
         """
@@ -230,9 +229,3 @@ class Optimizer(object):
         else:
             for value in values:
                 yield {key: value}
-
-
-if __name__ == '__main__':
-    from bokeh.plotting import figure, output_file, show
-
-    pass

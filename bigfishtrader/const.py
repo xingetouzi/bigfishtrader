@@ -32,8 +32,8 @@ class DIRECTION(Enum):
 
 
 class SIDE(Enum):
-    BUY = "BUY"
-    SELL = "SELL"
+    BUY = "买"
+    SELL = "卖"
 
 
 class ACTION(Enum):
