@@ -307,8 +307,6 @@ class MultiPanelData(AbstractDataSupport):
                 return panel[tickers[0]][fields].iloc[begin:stop]
             else:
                 return panel[tickers][:, begin:stop, fields]
-        # else:
-        #     raise TypeError('history() takes at least one param among start, end and length')
 
     @property
     def frequency(self):

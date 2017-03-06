@@ -294,7 +294,7 @@ class MultiDataSupport(AbstractDataSupport):
     @staticmethod
     def match_length(frame, length):
         if isinstance(frame, (pd.DataFrame, pd.Series)):
-            if len(frame) != length:
+            if len(frame.dropna(how='all')) != length:
                 return False
             else:
                 return True
@@ -438,41 +438,3 @@ class MultiDataSupport(AbstractDataSupport):
             return True
         else:
             return False
-
-
-if __name__ == "__main__":
-    setting = {
-        "host": "192.168.1.103",
-        "port": 27018,
-        "db": "Oanda",
-    }
-
-    data = MultiDataSupport(**setting)
-    data.set_bar_map('Data', close='Close', high='High', low='Low', open='Open', datetime='Date', volume='Volume')
-
-    data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1), ticker_type='Oanda')
-    print(data.current('EUR_USD'))
-    print("\n")
-    print(data.current("EUR_USD", "open"))
-    print("\n")
-    print(data.current("EUR_USD", ["open", "close"]))
-    print("\n")
-    print(data.current(["EUR_USD", "GBP_USD"], "open"))
-    print("\n")
-    print(data.current(["EUR_USD", "GBP_USD"], ["open", "close"]))
-    print("\n<test history>:")
-    print(data.history("EUR_USD", "D", "open", length=4))
-    print("\n")
-    print(data.history("EUR_USD", "D", ["open", "close"], length=4))
-    print("\n")
-    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", length=4))
-    print("\n")
-    print(data.history(["EUR_USD", "GBP_USD"], "D", ["open", "close"], length=4))
-    print("\n<test start,end and length>:")
-    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", start=datetime(2014, 3, 2), length=5))
-    print("\n")
-    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", end=datetime(2014, 4, 1), length=5))
-    print("\n")
-    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", start=datetime(2014, 3, 2), end=datetime(2014, 4, 1)))
-    print("\n")
-    print(data.history_db('000001', 'D', start=datetime(2016, 1, 1), ticker_type='HS'))
