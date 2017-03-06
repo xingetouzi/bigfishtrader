@@ -150,7 +150,7 @@ class Trader(object):
     def _save_origin(self, path):
         if not self.initialized:
             raise ValueError('trader not initialized, no data to perform')
-        
+
         from pandas import ExcelWriter
         writer = ExcelWriter(path, encoding='utf-8')
         pd.DataFrame(self.performance.equity).to_excel(writer, '净值')
@@ -177,7 +177,6 @@ class Trader(object):
             columns=OUTPUT_COLUMN_MAP['transaction'].values()
         )
         trans['成交数'], trans['报单数'] = trans['成交数'].abs(), trans['报单数'].abs()
-        print trans
 
         self.performance.set_equity(eqt['净值'])
         self.performance.set_orders(trans)
