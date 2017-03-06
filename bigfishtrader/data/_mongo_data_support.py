@@ -289,7 +289,10 @@ class MultiDataSupport(AbstractDataSupport):
                 frames = {}
                 for ticker in tickers:
                     frames[ticker] = self.history_db(ticker, frequency, fields, start, end, length)
-                return pd.Panel.from_dict(frames)
+                if isinstance(fields, str):
+                    return pd.Panel.from_dict(frames)[:, :, fields]
+                else:
+                    return pd.Panel.from_dict(frames)
 
     @staticmethod
     def match_length(frame, length):
