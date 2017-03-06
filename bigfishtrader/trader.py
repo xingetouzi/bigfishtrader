@@ -137,6 +137,30 @@ class Trader(object):
         engine.join()
         engine.stop()
 
+        self.perform()
+
+        if save:
+            from datetime import datetime
+            path = '%s&%s&%s.xls' % (strategy.__name__, datetime.now().strftime('%Y-%m-%d-%H-%M-%S'),
+                                     '&'.join(map(lambda (key, value): key+'_'+str(value), params.items())))
+            self._save_origin(path)
+
+        return self.models['portfolio']
+
+    def _save_origin(self, path):
+        if not self.initialized:
+            raise ValueError('trader not initialized, no data to perform')
+        
+        from pandas import ExcelWriter
+        writer = ExcelWriter(path, encoding='utf-8')
+        pd.DataFrame(self.performance.equity).to_excel(writer, '净值')
+        self.performance._orders.to_excel(writer, '交易')
+        writer.save()
+
+    def perform(self):
+        if not self.initialized:
+            raise ValueError('trader not initialized, no data to perform')
+
         p = self.models['portfolio']
 
         eqt = pd.DataFrame(
@@ -152,21 +176,12 @@ class Trader(object):
         ).rename_axis(OUTPUT_COLUMN_MAP['transaction'], 1).reindex(
             columns=OUTPUT_COLUMN_MAP['transaction'].values()
         )
+        trans['成交数'], trans['报单数'] = trans['成交数'].abs(), trans['报单数'].abs()
+        print trans
 
         self.performance.set_equity(eqt['净值'])
         self.performance.set_orders(trans)
-
-        if save:
-            from datetime import datetime
-            p = self.models['portfolio']
-            output(
-                pd.DataFrame(p.history_eqt),
-                pd.DataFrame([transaction.to_dict() for transaction in p.transactions]),
-                '%s&%s&%s.xls' % (strategy.__name__, datetime.now().strftime('%Y-%m-%d-%H-%M-%S'),
-                                  '&'.join(map(lambda (key, value): key+'_'+str(value), params.items())))
-            )
-
-        return self.models['portfolio']
+        return self.performance
 
     def output(self, *args):
         return {attr: getattr(self.performance, attr, None) for attr in args}

@@ -5,38 +5,17 @@ from collections import OrderedDict
 
 from functools import wraps, partial
 from weakref import WeakKeyDictionary
+
+from dateutil import rrule
 import numpy as np
 import pandas as pd
 import pytz
 
 from bigfishtrader.const import DIRECTION, ACTION, SIDE
 
-__all__ = ["Performance", "WindowFactorPerformance", "OrderAnalysis", "DataFrameExtended"]
+__all__ = ["Performance", "WindowFactorPerformance", "OrderAnalysis"]
 
 FLOAT_ERR = 1e-7
-
-
-class DataFrameExtended(pd.DataFrame):
-    def __init__(self, data=None, index=None, columns=None, dtype=None,
-                 copy=False, total=None, title=""):
-        super(DataFrameExtended, self).__init__(data=data, index=index, columns=columns, dtype=dtype, copy=copy)
-        self.__total = total
-        self.__title = title
-
-    def __get_total(self):
-        return self.__total
-
-    def __set_total(self, value):
-        self.__total = value
-
-    def __get_title(self):
-        return self.__title
-
-    def __set_title(self, value):
-        self.__title = value
-
-    total = property(__get_total, __set_total)
-    titie = property(__get_title, __set_title)
 
 
 def _get_percent_from_log(n, factor=1):
@@ -46,6 +25,14 @@ def _get_percent_from_log(n, factor=1):
 def _deal_float_error(dataframe, fill=0):
     dataframe[abs(dataframe) <= FLOAT_ERR] = fill
     return dataframe
+
+
+def _workdays(start, end, day_off=None):
+    if day_off is None:
+        day_off = 5, 6
+    workdays = [x for x in range(7) if x not in day_off]
+    days = rrule.rrule(rrule.DAILY, dtstart=start, until=end, byweekday=workdays)
+    return days.count()
 
 
 def lru_cache(max_size=10):
@@ -172,147 +159,192 @@ class WindowFactorPerformance(Performance):
         self._column_names = {"M": (lambda x: OrderedDict(sorted(x.items(), key=lambda t: t[0])))(
             {1: ("month1", "1个月"), 3: ("month3", "3个月"), 6: ("month6", "6个月"), 12: ("month12", "1年")})}
 
+    def calculator_arithmetic_mean(self, x):
+        return (x["rate"] / x["trade_days"]) * self._annual_factor
+
+    @staticmethod
+    def calculator_variance(x):
+        return (x["rate_square"] - x["rate"] * x["rate"] / x["trade_days"]) \
+               / (x["trade_days"] - (x["trade_days"] > 1))
+
+    @staticmethod
+    def calculator_square(df):
+        """
+
+        Args:
+            df(pandas.DataFrame):
+
+        Returns:
+            pandas.DataFrame
+        """
+        result = df.copy(deep=False)
+        result["rate_square"] = result["rate"] * result["rate"]
+        return result
+
     def _roll_exp(self, sample):
-        calculator = lambda x: x["rate"] / x["trade_days"]
         ts = sample
-        result = DataFrameExtended([], index=ts.index.rename("报单时间"))
+        result = pd.DataFrame([], index=ts.index.rename("time"))
         for key, value in self._column_names["M"].items():
-            result[value[0]] = pd.rolling_sum(ts, key).apply(calculator, axis=1)
-        result.total = calculator(ts.sum())
+            result[value[0]] = pd.rolling_sum(ts, key).apply(self.calculator_arithmetic_mean, axis=1)
         return result
 
     def _roll_std(self, sample):
-        calculator = lambda x: (x["rate_square"] - x["rate"] * x["rate"] / x["trade_days"]) \
-                               / (x["trade_days"] - (x["trade_days"] > 1))
-        ts = (lambda x: pd.DataFrame(
-            dict(rate=x["rate"],
-                 rate_square=(x["rate"] * x["rate"]),
-                 trade_days=x["trade_days"]))
-              .resample("MS").sum())(sample)
-        result = DataFrameExtended([], index=ts.index.rename("报单时间"))
+        ts = self.calculator_square(sample).resample("MS").sum()
+        result = pd.DataFrame([], index=ts.index.rename("time"))
         # TODO numpy.sqrt np自带有开根号运算
         for key, value in self._column_names["M"].items():
             # XXX 开根号运算会将精度缩小一半，必须在此之前就处理先前浮点运算带来的浮点误差
-            result[value[0]] = _deal_float_error(ts.rolling(key).sum().apply(calculator, axis=1)) ** 0.5
-        result.total = (lambda x: int(abs(x) > FLOAT_ERR) * x)(calculator(ts.sum())) ** 0.5
+            result[value[0]] = _deal_float_error(ts.rolling(key).sum().apply(self.calculator_variance, axis=1)) ** 0.5
         return _deal_float_error(result)
 
-    @property
     @lru_cache()
-    def pnl_compound_log_window(self):
-        result = {}
-        result["R"] = self.equity_ratio  # "R" means raw
-        # TODO 对爆仓情况的考虑
-        if result["R"].min() <= 0:
-            result["D"], self.__index_daily = \
-                (lambda x, y: (pd.DataFrame({x.name: x, "trade_days": y}).dropna(), x.index))(
-                    *(lambda x, y: (x - x.shift(1).fillna(method="ffill").fillna(y), x.notnull().astype("int")))(
-                        *(lambda x: (x, x[0]))(
-                            result["R"].resample("D", label="left").last() * 0
-                        )
-                    )
-                )
+    def pnl_compound_log(self, frequency="D"):
+        """
 
-        else:
-            # 由于是取了对数，日收率是以复利的方式计算
-            result["D"], self.__index_daily = \
-                (lambda x, y: (pd.DataFrame({x.name: x, "trade_days": y}).dropna(), x.index))(
-                    *(lambda x, y: (x - x.shift(1).fillna(method="ffill").fillna(y), x.notnull().astype("int")))(
-                        *(lambda x: (x, x[0]))(
-                            result["R"].resample("D", label="left").last().apply(math.log)
+        Args:
+            frequency:  sampling frequency
+
+        Returns:
+            pandas.DataFrame
+        """
+        # TODO 默认只有有行情数据的时候才会有净值信息，并据此计算交易日信息
+        if frequency == "D":
+            ts = self.equity_ratio
+            # TODO 对爆仓情况的考虑
+            if ts.min() <= 0:
+                result, self.__index_daily = \
+                    (lambda x, y: (pd.DataFrame({x.name: x, "trade_days": y}).dropna(), x.index))(
+                        *(lambda x, y: (x - x.shift(1).fillna(method="ffill").fillna(y), x.notnull().astype("int")))(
+                            *(lambda x: (x, x[0]))(
+                                ts.resample("D", label="left").last() * 0
+                            )
                         )
                     )
-                )
-        result["W"] = result["D"].resample("W-MON").sum().dropna()
-        result["M"] = result["D"].resample("MS").sum().dropna()
-        result["Y"] = result["M"].resample("AS").sum().dropna()
+
+            else:
+                # 由于是取了对数，日收率是以复利的方式计算
+                result, self.__index_daily = \
+                    (lambda x, y: (pd.DataFrame({x.name: x, "trade_days": y}).dropna(), x.index))(
+                        *(lambda x, y: (x - x.shift(1).fillna(method="ffill").fillna(y), x.notnull().astype("int")))(
+                            *(lambda x: (x, x[0]))(
+                                ts.resample("D", label="left").last().apply(math.log)
+                            )
+                        )
+                    )
+        else:
+            result = self.pnl_compound_log().resample(frequency).sum().dropna()
+        # result["W"] = result["D"].resample("W-MON").sum().dropna()
+        # result["M"] = result["D"].resample("MS").sum().dropna()
+        # result["Y"] = result["M"].resample("AS").sum().dropna()
         return result
 
-    @property
     @lru_cache()
-    def pnl_compound_ratio_window(self):
+    def pnl_compound_ratio(self, frequency="D"):
         """
-        :return:
-        """
-        result = {}
-        result["D"] = \
-            (lambda x: pd.DataFrame(
-                {"rate": x["rate"].apply(partial(_get_percent_from_log)),
-                 "trade_days": x["trade_days"]}))(
-                self.pnl_compound_log_window["D"]
-            )
-        result["W"] = result["D"].resample("W-MON").sum().dropna()
-        result["M"] = result["D"].resample("MS").sum().dropna()
-        result["Y"] = result["M"].resample("AS").sum().dropna()
-        return result
 
-    @property
-    @lru_cache()
-    def pnl_simple_ratio_window(self):
-        result = {}
-        result["R"] = self.equity_ratio
-        # TODO 对爆仓情况的考虑
-        if result["R"].min() <= 0:
-            result["D"], self.__index_daily = \
-                (lambda x, y: (pd.DataFrame({x.name: x, "trade_days": y}).dropna(), x.index))(
-                    *(lambda x, y: (x - x.shift(1).fillna(method="ffill").fillna(y), x.notnull().astype("int")))(
-                        *(lambda x: (x, x[0]))(
-                            result["R"].resample("D", label="left").last() * 0
-                        )
-                    )
+
+        Args:
+            frequency: sampling frequency
+
+        Returns:
+            pandas.DataFrame
+        """
+        if frequency == "D":
+            result = \
+                (lambda x: pd.DataFrame(
+                    {"rate": x["rate"].apply(partial(_get_percent_from_log)),
+                     "trade_days": x["trade_days"]}))(
+                    self.pnl_compound_log()
                 )
         else:
-            # 由于是取了对数，日收率是以复利的方式计算
-            result["D"], self.__index_daily = \
-                (lambda x, y: (pd.DataFrame({x.name: x, "trade_days": y}).dropna(), x.index))(
-                    *(lambda x, y: (x - x.shift(1).fillna(method="ffill").fillna(y), x.notnull().astype("int")))(
-                        *(lambda x: (x, x[0]))(
-                            result["R"].resample("D", label="left").last() * 100 - 100
+            result = self.pnl_compound_ratio().resample(frequency).sum().dropna()
+        return result
+
+    @lru_cache()
+    def pnl_simple_ratio(self, frequency="D"):
+        """
+
+        Args:
+            frequency:
+
+        Returns:
+            pandas.DataFrame
+        """
+        if frequency == "D":
+            ts = self.equity_ratio
+            # TODO 对爆仓情况的考虑
+            if ts.min() <= 0:
+                result, self.__index_daily = \
+                    (lambda x, y: (pd.DataFrame({x.name: x, "trade_days": y}).dropna(), x.index))(
+                        *(lambda x, y: (x - x.shift(1).fillna(method="ffill").fillna(y), x.notnull().astype("int")))(
+                            *(lambda x: (x, x[0]))(
+                                ts.resample("D", label="left").last() * 0
+                            )
                         )
                     )
-                )
-        result["W"] = result["D"].resample("W-MON").sum().dropna()
-        result["M"] = result["D"].resample("MS").sum().dropna()
-        result["Y"] = result["M"].resample("AS  ").sum().dropna()
+            else:
+                # 由于是取了对数，日收率是以复利的方式计算
+                result, self.__index_daily = \
+                    (lambda x, y: (pd.DataFrame({x.name: x, "trade_days": y}).dropna(), x.index))(
+                        *(lambda x, y: (x - x.shift(1).fillna(method="ffill").fillna(y), x.notnull().astype("int")))(
+                            *(lambda x: (x, x[0]))(
+                                ts.resample("D", label="left").last() * 100 - 100
+                            )
+                        )
+                    )
+        else:
+            result = self.pnl_simple_ratio().resample(frequency).sum().dropna()
         return result
 
     @property
     @lru_cache()
     def ar_window_simple(self):
-        calculator = lambda x: (x["rate"] / x["trade_days"]) * self._annual_factor
-        ts = self.pnl_simple_ratio_window["M"]
-        result = DataFrameExtended([], index=ts.index.rename("报单时间"))
+        ts = self.pnl_simple_ratio("MS")
+        result = pd.DataFrame([], index=ts.index.rename("time"))
         for key, value in self._column_names["M"].items():
-            result[value[0]] = ts.rolling(key).sum().apply(calculator, axis=1)
-        result.total = calculator(ts.sum())
+            result[value[0]] = ts.rolling(key).sum().apply(self.calculator_arithmetic_mean, axis=1)
         return result
 
     @property
     @lru_cache()
     def ar_window_compound(self):
-        calculator = lambda x: (x["rate"] / x["trade_days"]) * self._annual_factor
-        ts = self.pnl_compound_ratio_window["M"]
-        result = DataFrameExtended([], index=ts.index.rename("报单时间"))
+        ts = self.pnl_compound_ratio("MS")
+        result = pd.DataFrame([], index=ts.index.rename("time"))
         for key, value in self._column_names["M"].items():
-            result[value[0]] = pd.rolling_sum(ts, key).apply(calculator, axis=1)
-        result.total = calculator(ts.sum())
+            result[value[0]] = pd.rolling_sum(ts, key).apply(self.calculator_arithmetic_mean, axis=1)
         return result
+
+    @property
+    @lru_cache()
+    def annual_return(self):
+        return _get_percent_from_log(self.calculator_arithmetic_mean(self.pnl_compound_log().sum()))
+
+    @property
+    @lru_cache()
+    def annual_return_arithmetic(self):
+        return self.calculator_arithmetic_mean(self.pnl_compound_ratio().sum())
 
     @property
     @lru_cache()
     def volatility_window_simple(self):
         # TODO pandas好像并不支持分组上的移动窗口函数
-        result = self._roll_std(self.pnl_simple_ratio_window["D"])
+        result = self._roll_std(self.pnl_simple_ratio("D"))
         result *= self._annual_factor ** 0.5
-        result.total *= self._annual_factor ** 0.5
         return result
 
     @property
     @lru_cache()
     def volatility_window_compound(self):
-        result = self._roll_std(self.pnl_compound_ratio_window["D"])
+        result = self._roll_std(self.pnl_compound_ratio("D"))
         result *= self._annual_factor ** 0.5
-        result.total *= self._annual_factor ** 0.5
+        return result
+
+    @property
+    @lru_cache()
+    def volatility(self):
+        ts = self.calculator_square(self.pnl_compound_ratio())
+        result = (lambda x: int(abs(x) > FLOAT_ERR) * x)(self.calculator_variance(ts.sum())) ** 0.5
+        result *= self._annual_factor ** 0.5  # annualize
         return result
 
     @property
@@ -322,7 +354,6 @@ class WindowFactorPerformance(Performance):
         std = _deal_float_error(self.volatility_window_simple, fill=np.nan)  # 年化标准差
         std.total = self.volatility_window_simple.total
         result = expected / std
-        result.total = expected.total / std.total
         return result
 
     @property
@@ -332,8 +363,12 @@ class WindowFactorPerformance(Performance):
         std = _deal_float_error(self.volatility_window_compound, fill=np.nan)
         std.total = self.volatility_window_compound.total
         result = expected / std
-        result.total = expected.total / std.total
         return result
+
+    @property
+    @lru_cache()
+    def sharpe_ratio(self):
+        return self.annual_return / self.volatility
 
     def sortino_ratio(self):
         pass
@@ -469,7 +504,7 @@ class OrderAnalysis(WindowFactorPerformance):
                 u"胜率"
             ]
         })
-
+        # TODO 对股票的概述
         result = {}
         for ticker, trade in self.position_details.groupby("合约"):
             total = pd.DataFrame()
@@ -477,6 +512,7 @@ class OrderAnalysis(WindowFactorPerformance):
             total["profit"] = group_by_id["盈利"].sum()
             total["direction"] = group_by_id["持仓方向"].first()  # 持仓方向
             total["volume"] = group_by_id["持仓数量"].agg(lambda s: abs(s).max())
+            total["delta_time"] = group_by_id["最后成交时间"].last() - group_by_id["最后成交时间"].first()
             long_ = total[total["direction"] == DIRECTION.LONG.value]
             short = total[total["direction"] == DIRECTION.SHORT.value]
             temp = [total, long_, short]
@@ -493,6 +529,8 @@ class OrderAnalysis(WindowFactorPerformance):
             dct[u"总交易笔数"] = np.array([t["volume"].sum() for t in temp])
             dct[u"总盈利笔数"] = np.array([t[fi]["volume"].sum() for fi, t in zip(win, temp)])
             dct[u"总亏损笔数"] = np.array([t[fi]["volume"].sum() for fi, t in zip(loss, temp)])
+            dct[u"总持仓时间"] = np.array([t["delta_time"].sum() for t in temp])
+            dct[u"平均持仓时间"] = np.array([t["delta_time"].mean() for t in temp])
             section = {
                 True: np.array([0] * 3),
                 False: np.array([0] * 3),
@@ -515,6 +553,7 @@ class OrderAnalysis(WindowFactorPerformance):
             dct[u"平均每笔亏损"] = dct[u"总亏损"] / dct[u"总亏损笔数"]
             dct[u"平均连续盈利次数"] = dct[u"总盈利次数"] / dct[u"总盈利段数"]
             dct[u"平均连续亏损次数"] = dct[u"总亏损次数"] / dct[u"总亏损段数"]
+            dct[u"胜率"] = dct[u"总盈利次数"] / dct[u"总交易次数"]
             result[ticker] = pd.DataFrame(data=dct, index=[u"全部", u"多头", u"空头"]).T
         return result
 
@@ -532,20 +571,31 @@ class OrderAnalysis(WindowFactorPerformance):
         dct[u"平均每笔亏损"] = dct[u"总亏损"] / dct[u"总亏损笔数"]
         dct[u"平均连续盈利次数"] = dct[u"总盈利次数"] / dct[u"总盈利段数"]
         dct[u"平均连续亏损次数"] = dct[u"总亏损次数"] / dct[u"总亏损段数"]
-        return pd.DataFrame(data=dct).T
+        dct[u"平均持仓时间"] = dct[u"总持仓时间"] / dct[u"总交易次数"]
+        dct[u"胜率"] = dct[u"总盈利次数"] / dct[u"总交易次数"]
+        orders = self.order_details
+        start = orders["最后成交时间"].iloc[0]
+        end = orders["最后成交时间"].iloc[-1]
+        dct[u"交易天数"] = [_workdays(start, end), np.nan, np.nan]
+        result = pd.DataFrame(data=dct).T
+        return result
 
     @property
     @lru_cache()
     def strategy_summary(self):
         dct = OrderedDict()
-        t_y = self.pnl_compound_log_window["Y"][-5:]
+        t_y = self.pnl_compound_log("AS")[-5:]
         pnl_y = t_y["rate"] / t_y["trade_days"] * self._annual_factor
-        pnl_m = self.pnl_compound_log_window["M"]["rate"]
+        pnl_m = self.pnl_compound_log("MS")["rate"]
         dct[u"五年平均年收益"] = pnl_y.apply(_get_percent_from_log).mean()
-        dct[u"年化收益标准差"] = self.volatility_window_compound.total
+        dct[u"年化收益标准差"] = self.volatility
         dct[u"平均月收益"] = pnl_m.apply(_get_percent_from_log).mean()
-        dct[u"夏普比率"] = self.sharpe_ratio_window_simple.total
-        dct[u"盈利因子"] = self.trade_summary_all[u"全部"][u"总盈利"] / self.trade_summary_all[u"全部"][u"总亏损"]
+        dct[u"最大回撤率"] = - self.drawdown_ratio.min() * 100
+        dct[u"夏普比率"] = self.sharpe_ratio
+        if self.trade_summary_all[u"全部"][u"总亏损"] > FLOAT_ERR:
+            dct[u"盈利因子"] = self.trade_summary_all[u"全部"][u"总盈利"] / self.trade_summary_all[u"全部"][u"总亏损"]
+        else:
+            dct[u"盈利因子"] = np.inf
         return pd.Series(dct)
 
     @property
@@ -564,8 +614,8 @@ class OrderAnalysis(WindowFactorPerformance):
         dct[u"最大回撤比率"] = self.drawdown_ratio.min() * 100
         dct[u"最大回撤发生时间"] = self.drawdown_ratio.argmin()
         dct[u"净利回撤比"] = self.trade_summary_all[u"全部"][u"总净利"] / - dct[u"最大回撤金额"]
-        # dct[u"持仓时间比率"] = None
-        return self.apply_units(pd.Series(dct))
+        dct[u"持仓时间比率"] = None
+        return pd.Series(dct)
 
     @property
     @lru_cache()
@@ -578,16 +628,16 @@ class OrderAnalysis(WindowFactorPerformance):
         dct = dict()
         dct[u"初始资金"] = [self.base, 0, 0]
         if not self.equity.empty:
-            dct[u"最新资金"] = [self.equity[-1], self.pnl_ratio[-1], self.pnl_ratio[-1]]
-            simple1 = self.pnl_simple_ratio_window["Y"]["rate"][-1]
-            compound1 = _get_percent_from_log(self.pnl_compound_log_window["Y"]["rate"][-1])
+            dct[u"最新资金"] = [self.equity[-1], self.pnl_ratio[-1] * 100, self.pnl_ratio[-1] * 100]
+            simple1 = self.pnl_simple_ratio("AS")["rate"][-1]
+            compound1 = _get_percent_from_log(self.pnl_compound_log("AS")["rate"][-1])
             dct[u"年初至今"] = [self.base * (simple1 / 100), simple1, compound1]
-            simple2 = self.pnl_simple_ratio_window["M"]["rate"][-1]
-            compound2 = _get_percent_from_log(self.pnl_compound_log_window["M"]["rate"][-1])
+            simple2 = self.pnl_simple_ratio("MS")["rate"][-1]
+            compound2 = _get_percent_from_log(self.pnl_compound_log("MS")["rate"][-1])
             dct[u"当月收益"] = [self.base * (simple2 / 100), simple2, compound2]
-            if len(self.pnl_simple_ratio_window["Y"]) >= 2:
-                simple3 = self.pnl_simple_ratio_window["Y"]["rate"][-2]
-                compound3 = _get_percent_from_log(self.pnl_compound_log_window["Y"]["rate"][-2])
+            if len(self.pnl_simple_ratio("AS")) >= 2:
+                simple3 = self.pnl_simple_ratio("AS")["rate"][-2]  # to percentage
+                compound3 = _get_percent_from_log(self.pnl_compound_log("AS")["rate"][-2])
                 dct[u"去年收益"] = [self.base * (simple3 / 100), simple3, compound3]
             else:
                 dct[u"去年收益"] = [0] * 3
