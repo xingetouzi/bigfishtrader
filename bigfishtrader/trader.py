@@ -27,6 +27,15 @@ OUTPUT_COLUMN_MAP = {
 }
 
 
+ROUND_MAP = {u'五年平均年收益': 2,
+             u'净利回撤比': 2,
+             u'夏普比率': 2,
+             u'平均月收益': 2,
+             u'年化收益标准差': 2,
+             u'最大回撤率': 2,
+             u'最大回撤比率': 2}
+
+
 def output(equity, transactions, path):
     from pandas import ExcelWriter
     writer = ExcelWriter(path, encoding='utf-8')
@@ -216,6 +225,8 @@ class Optimizer(object):
             result.append(param)
 
         result = pd.DataFrame(result).sort_values(by=sort, ascending=ascending)
+        for key, value in ROUND_MAP.items():
+            result[key] = result[key].round(value)
 
         if save:
             from datetime import datetime
