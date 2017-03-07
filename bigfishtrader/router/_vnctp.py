@@ -35,7 +35,7 @@ class VnCtpMainEngine(MyMainEngine):
                                                     (data.orderID, data.orderID, t_str))
 
     def on_all_trade(self, order):
-        self.router.on_fill(order)
+        self.router.on_execution(order)
 
     def on_tick(self, event):
         self.router.on_tick(event.dict_["data"])

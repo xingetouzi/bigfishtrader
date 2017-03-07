@@ -1,44 +1,27 @@
 # encoding: utf-8
 
-from collections import OrderedDict
 from datetime import datetime
 
 import numpy as np
 
 from bigfishtrader.const import EMPTY_INT, EMPTY_STRING, EMPTY_UNICODE, EMPTY_FLOAT
-
-
-class BaseData(object):
-    __slots__ = []
-
-    def to_dict(self, ordered=False):
-        """
-
-        Args:
-            ordered: whether to use OrderedDict
-
-        Returns:
-            dict | OrderedDict : represent the data with dict
-        """
-        if ordered:
-            return OrderedDict([(attr, getattr(self, attr)) for attr in self.__slots__])
-        else:
-            return {attr: getattr(self, attr) for attr in self.__slots__}
+from bigfishtrader.models.meta import BaseData
 
 
 class TickData(BaseData):
     """
     tick quotation data, namely market depth data
     """
-    __slots__ = ["symbol", "exchange", "lastPrice", "lastVolume", "volume", "openInterest",
+    __slots__ = ["gateway", "symbol", "exchange", "lastPrice", "lastVolume", "volume", "openInterest",
                  "time", "date", "openPrice", "highPrice", "lowPrice", "preClose", "vwapPrice",
                  "upperLimit", "lowerLimit", "depth", "askPrice", "bidPrice", "askVolume", "bidVolume"]
     MAX_DEPTH = 10
 
     def __init__(self, depth=MAX_DEPTH):
         # ticker
-        self.symbol = EMPTY_STRING
+        self.gateway = EMPTY_STRING
         self.exchange = EMPTY_STRING
+        self.symbol = EMPTY_STRING
 
         # trade
         self.lastPrice = EMPTY_FLOAT
@@ -72,7 +55,7 @@ class TickData(BaseData):
 
     @property
     def gSymbol(self):
-        return self.symbol + "." + self.exchange
+        return ".".join([self.gateway, self.exchange, self.symbol])
 
 
 class OrderData(BaseData):
@@ -90,14 +73,14 @@ class OrderData(BaseData):
 
 class OrderStatusData(BaseData):
     __slots__ = ["symbol", "exchange", "clOrdID", "secondaryClOrdID",
-                 "side", "action", "price", "orderQty",
+                 "side", "account", "action", "price", "orderQty",
                  "cumQty", "leavesQty", "ordStatus", "orderTime",
                  "cancelTime", "gateway"]
 
     def __init__(self):
         self.symbol = EMPTY_STRING
         self.exchange = EMPTY_STRING
-
+        self.account = EMPTY_STRING
         self.clOrdID = EMPTY_STRING
         self.secondaryClOrdID = EMPTY_STRING
         self.side = EMPTY_UNICODE
@@ -114,9 +97,9 @@ class OrderStatusData(BaseData):
     @property
     def gClOrdID(self):
         if self.secondaryClOrdID:
-            return ".".join([self.gateway, self.secondaryClOrdID, self.clOrdID])
+            return ".".join([self.gateway, self.account, self.clOrdID, self.secondaryClOrdID])
         else:
-            return self.gateway + "." + self.clOrdID
+            return ".".join([self.gateway, self.account, self.clOrdID])
 
 
 class OrderReq(BaseData):
@@ -146,15 +129,15 @@ class OrderReq(BaseData):
 
     @property
     def gClOrdID(self):
-        return self.gateway + "." + self.clOrdID
+        return ".".join([self.gateway, self.account, self.clOrdID])
 
     @property
     def gSymbol(self):
-        return self.gateway + "." + self.symbol
+        return ".".join([self.gateway, self.exchange, self.symbol])
 
     @property
     def gAccount(self):
-        return self.gateway + "." + self.account
+        return ".".join([self.gateway, self.account])
 
 
 class AccountData(BaseData):
@@ -192,7 +175,7 @@ class AccountData(BaseData):
 
     @property
     def gAccountID(self):
-        return self.gateway + "." + self.accountID
+        return ".".join([self.gateway, self.accountID])
 
 
 class PositionData(BaseData):
@@ -201,43 +184,105 @@ class PositionData(BaseData):
     Attributes:
         symbol(str): symbol of position
     """
-    __slots__ = ["symbol", "exchange", "side", "volume", "frozenVolume", "avxPrice"]
+    __slots__ = ["gateway", "account", "symbol", "exchange", "side", "volume", "frozenVolume", "avgPrice"]
 
     def __init__(self):
+        self.gateway = EMPTY_STRING
+        self.account = EMPTY_STRING
         self.symbol = EMPTY_STRING
         self.exchange = EMPTY_STRING
         self.side = EMPTY_UNICODE
         self.volume = EMPTY_INT
         self.frozenVolume = EMPTY_UNICODE
-        self.avxPrice = EMPTY_FLOAT
+        self.avgPrice = EMPTY_FLOAT
 
     @property
     def gSymbol(self):
-        return self.exchange + "." + self.symbol
+        return ".".join([self.gateway, self.exchange, self.symbol])
 
 
 class ExecutionData(BaseData):
-    __slots__ = ["time", "ticker", "action", "quantity", "price", "profit", "commission", "lever", "deposit_rate",
-                 "order_id", "client_id", "order_ext_id", "position_id", "fill_type",
-                 "exec_id", "account", "exchange", "cum_qty", "avg_price"]
+    __slots__ = ["time", "symbol", "action", "side", "leavesQty", "lastQty", "lastPx", "profit", "commission", "lever",
+                 "deposit_rate", "clOrderID", "clientID", "orderID", "position_id", "fill_type",
+                 "execID", "account", "exchange", "cumQty", "avgPx", "gateway"]
 
     def __init__(self):
         self.time = datetime.now()
-        self.ticker = EMPTY_STRING
-        self.action = None
-        self.quantity = 0
-        self.price = 0
+        self.symbol = EMPTY_STRING
+        self.gateway = EMPTY_STRING
+        self.clOrderID = EMPTY_STRING
+        self.clientID = EMPTY_STRING
+        self.orderID = EMPTY_STRING
+        self.execID = EMPTY_STRING
+        self.account = EMPTY_STRING
+        self.exchange = EMPTY_STRING
+
+        self.action = EMPTY_STRING
+        self.side = EMPTY_STRING
         self.profit = None
-        self.commission = 0
-        self.fill_type = "position"
+
+        self.cumQty = EMPTY_INT
+        self.leavesQty = EMPTY_INT
+        self.lastQty = EMPTY_INT
+        self.avgPx = EMPTY_FLOAT
+        self.lastPx = EMPTY_FLOAT
+
         self.position_id = None
-        self.order_id = None
-        self.client_id = None
-        self.order_ext_id = None
-        self.exec_id = None
-        self.account = None
-        self.exchange = None
-        self.cum_qty = 0
-        self.avg_price = 0
+        self.fill_type = "position"
         self.lever = 1
+        self.commission = EMPTY_FLOAT
         self.deposit_rate = 1
+
+    def gSymbol(self):
+        return ".".join([self.gateway, self.symbol])
+
+    def gExecID(self):
+        return ".".join([self.gateway, self.account, self.execID])
+
+    def gClOrdID(self):
+        return ".".join([self.gateway, self.account, self.clOrderID])
+
+
+class LogData(BaseData):
+    __slots__ = ["logTime", "logContent", "gateway"]
+
+    def __init__(self):
+        self.logTime = EMPTY_STRING  # 日志生成时间
+        self.logContent = EMPTY_UNICODE
+        self.gateway = EMPTY_STRING
+
+
+class ErrorData(BaseData):
+    __slots__ = ["errorID", "errorMsg", "additionalInfo", "errorTime", "requestID", "gateway"]
+
+    def __init__(self):
+        self.errorID = EMPTY_STRING  # 错误代码
+        self.errorMsg = EMPTY_UNICODE  # 错误信息
+        self.additionalInfo = EMPTY_UNICODE  # 补充信息
+        self.errorTime = EMPTY_STRING  # 错误生成时间
+        self.requestID = EMPTY_STRING  # 错误对应请求编号
+        self.gateway = EMPTY_STRING
+
+
+class ContractData(BaseData):
+    __slots__ = ["longName", "conId", "gateway", "symbol", "exchange", "secType", "currency",
+                 "expiry", "right", "strike", "multiplier", ]
+
+    def __init__(self):
+        self.longName = EMPTY_STRING
+        self.conId = EMPTY_STRING
+        self.gateway = EMPTY_STRING
+        self.symbol = EMPTY_STRING
+        self.exchange = EMPTY_STRING
+        self.secType = EMPTY_STRING
+        self.currency = EMPTY_STRING
+        self.expiry = EMPTY_STRING
+        self.right = EMPTY_STRING
+        self.strike = EMPTY_FLOAT
+        self.multiplier = EMPTY_INT
+
+    def __hash__(self):
+        return int(self.conId)
+
+    def __eq__(self, other):
+        return self.conId and self.conId == other.conId

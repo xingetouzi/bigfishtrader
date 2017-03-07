@@ -120,6 +120,8 @@ class StreamManager(object):
                         tail.appendleft(handlers[path_])
                     path += "."
             return chain(*chain(head, tail))
+        else:
+            return chain()
 
     def register_stream(self, stream):
         """

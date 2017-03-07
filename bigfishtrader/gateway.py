@@ -1,9 +1,9 @@
 # encoding:utf-8
-import logging
 
 from bigfishtrader.engine.handler import HandlerCompose, Handler
 from bigfishtrader.event import *
 from bigfishtrader.adapter import VtAdapter
+from bigfishtrader.const import GATEWAY
 
 
 class Gateway(HandlerCompose):
@@ -72,20 +72,22 @@ class Gateway(HandlerCompose):
             position(bigfishtrader.vt.vtGateway.VtPositionData):
         """
         position_ = VtAdapter.transform(position)
-        event = PositionEvent(position, topic=position_.symbol)
+        event = PositionEvent(position_, topic=position_.symbol)
         self.eventEngine.event_queue.put(event)
 
-    def onAccount(self, action):
+    def onAccount(self, account):
         """
         账户信息回报
 
         Args:
-            action(bigfishtrader.vt.vtGateway.VtAccountData):
+            account(bigfishtrader.vt.vtGateway.VtAccountData):
 
         Returns:
             None
         """
-        pass
+        account_ = VtAdapter.transform(account)
+        event = AccountEvent(account_, topic=account_.accountID)
+        self.eventEngine.event_queue.put(event)
 
     def onError(self, error):
         """
@@ -97,10 +99,8 @@ class Gateway(HandlerCompose):
         Returns:
             None
         """
-        logging.error(" ".join([
-            error.gatewayName, error.errorTime, error.errorID,
-            error.errorMsg, error.additionalInfo
-        ]))
+        error = VtAdapter.transform(error)
+        self.eventEngine.event_queue.put(ErrorEvent(error))
 
     def onLog(self, log):
         """
@@ -112,23 +112,67 @@ class Gateway(HandlerCompose):
         Returns:
             None
         """
-        logging.info(" ".join([
-            log.gatewayName, log.logTime, log.logContent
-        ]))
+        log_ = VtAdapter.transform(log)
+        self.eventEngine.event_queue.put(LogEvent(log_))
 
     def onContract(self, event):
         pass
 
-    def send_order(self, event):
-        pass
+    def sendOrder(self, orderReq):
+        """
+
+        Args:
+            orderReq:
+
+        Returns:
+            str: clOrderID
+        """
+        raise NotImplementedError
+
+    def subscribe(self, subscribeReq):
+        """
+
+        Args:
+            subscribeReq:
+
+        Returns:
+
+        """
+        raise NotImplementedError
+
+    def subscribe_contract(self, contract):
+        """
+
+        Args:
+            contract(bigfishtrader.event.ContractData):
+
+        Returns:
+            None
+        """
+        req = VtAdapter.transform(contract)
+        return self.subscribe(req)
+
+    def send_order(self, event, kwargs=None):
+        """
+
+        Args:
+            event(bigfishtrader.event.OrderEvent):
+            kwargs:
+        Returns:
+
+        """
+        order = event.data
+        vt_order = VtAdapter.transform(order)
+        vt_order_id = self.sendOrder(vt_order)
+        order.gateway, order.clOrdID = vt_order_id.split(".")
 
     def cancel_order(self, event):
         pass
 
-    def qry_account(self):
+    def qryAccount(self):
         pass
 
-    def qry_position(self):
+    def qryPosition(self):
         pass
 
     def close(self):

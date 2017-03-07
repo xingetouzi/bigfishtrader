@@ -75,7 +75,7 @@ class Trader(object):
     def _register_models(self):
         engine = self.models['engine']
         for name, model in self.models.items():
-            if name not in {"engine", "event_queue"}:
+            if hasattr(model, "register") and name not in {"engine", "event_queue"}:
                 model.register(engine)
 
     def initialize(self):

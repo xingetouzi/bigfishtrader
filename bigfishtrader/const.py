@@ -1,4 +1,5 @@
 # encoding: utf-8
+
 from __future__ import unicode_literals
 from enum import Enum
 
@@ -31,8 +32,18 @@ class DIRECTION(Enum):
     UNKNOWN = "未知"
 
 
+class SIDE(Enum):
+    BUY = "买"
+    SELL = "卖"
+
+
 class ACTION(Enum):
     NONE = "无开平"
     OPEN = "开仓"
     CLOSE = "平仓"
     UNKNOWN = "未知"
+
+
+class GATEWAY(Enum):
+    CTP = "CTP"
+    IB = "IB"

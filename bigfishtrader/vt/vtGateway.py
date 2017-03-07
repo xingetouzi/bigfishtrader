@@ -2,10 +2,7 @@
 
 import time
 
-from eventEngine import *
-
 from vtConstant import *
-from bigfishtrader.router.gateway import Gateway as VtGateway
 
 
 ########################################################################
@@ -75,7 +72,7 @@ class VtTickData(VtBaseData):
         self.askVolume4 = EMPTY_INT
         self.askVolume5 = EMPTY_INT
 
-    ########################################################################
+        ########################################################################
 
 
 class VtTradeData(VtBaseData):

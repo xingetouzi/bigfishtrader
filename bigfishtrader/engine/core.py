@@ -44,6 +44,7 @@ class Engine(object):
             None
         """
         self._is_running = True
+        handle = None
         while self._is_running:
             try:
                 event = self.event_queue.get(timeout=0)
@@ -55,6 +56,8 @@ class Engine(object):
             except Empty:
                 pass
             except Exception as e:
+                if handle:
+                    logging.error("error occurs when in handler: %s" % handle)
                 logging.exception(e)
 
     def start(self):

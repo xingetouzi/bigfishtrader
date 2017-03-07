@@ -1,19 +1,19 @@
 # encoding:utf-8
 import logging
+from copy import copy
 from datetime import datetime
 from weakref import proxy
-from copy import copy
 
-from dateutil.parser import parse
 import numpy as np
+from dateutil.parser import parse
 from ib.ext.Contract import Contract
 from ib.ext.Order import Order
-import ib.ext.Execution
 from ib.opt import ibConnection, message
-from bigfishtrader.router.gateway import Gateway
-from bigfishtrader.router.ib.constants import *
+
 from bigfishtrader.event import TickEvent, ExecutionEvent
-from bigfishtrader.model import ExecutionData
+from bigfishtrader.gateway import Gateway
+from bigfishtrader.models.data import ExecutionData
+from bigfishtrader.router.ib.constants import *
 
 
 class BFWrapper(object):
@@ -93,13 +93,13 @@ class BFWrapper(object):
         execution = msg.execution
         fill = ExecutionData()
         fill.time = parse(execution.m_time)
-        fill.ticker = contract
+        fill.symbol = contract
         fill.action = execution.m_side
-        fill.quantity = execution.m_shares
-        fill.price = execution.m_price
+        fill.orderQty = execution.m_shares
+        fill.lastPx = execution.m_price
         fill.exchange = execution.m_exchange
-        fill.order_ext_id = execution.m_permId
-        fill.avg_price = execution.m_avgPrice
+        fill.orderID = execution.m_permId
+        fill.avgPx = execution.m_avgPrice
         fill.account = execution.m_acctNumber
         event = ExecutionEvent(
             fill,
@@ -271,11 +271,11 @@ if __name__ == "__main__":
     symbol = make_stk_contract(contract_tuple)
     api.symbol = symbol
     # api.conn.reqMktData(1, symbol, "", True)
-    # api.conn.reqMktData(2, symbol, "", False)
+    api.conn.reqMktData(2, symbol, "", False)
     # api.conn.reqMktDepth(2001, symbol, 10)
-    api.send_order(api.symbol, 20000)
+    # api.send_order(api.symbol, 20000)
     # time.sleep(1)
-    api.send_order(api.symbol, -20000)
+    # api.send_order(api.symbol, -20000)
     while True:
         time.sleep(1)
         raw_input()

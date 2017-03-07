@@ -146,5 +146,29 @@ class Context(HandlerCompose):
                 setattr(exchange, 'calculate_slippage', function)
 
 
+class ContextMixin(object):
+    def __init__(self, context, environment):
+        self.context = context
+        self.environment = environment
+
+    def link_context(self):
+        raise NotImplementedError
+
+
+class InitializeMixin(object):
+    def __init__(self):
+        self._initialized = False
+
+    @property
+    def initialized(self):
+        return self._initialized
+
+    def _finish_initialize(self):
+        self._initialized = True
+
+    def _reset_initialize(self):
+        self._initialized = False
+
+
 if __name__ == '__main__':
     pass

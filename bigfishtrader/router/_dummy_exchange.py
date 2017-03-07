@@ -1,9 +1,10 @@
 # encoding: utf-8
 from enum import Enum
+
+from bigfishtrader.const import ORDERTYPE, ACTION
 from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import ExecutionEvent, RecallEvent, EVENTS
-from bigfishtrader.model import ExecutionData
-from bigfishtrader.const import ORDERTYPE, ACTION
+from bigfishtrader.models.data import ExecutionData
 from bigfishtrader.router.base import AbstractRouter
 
 
@@ -57,7 +58,7 @@ class DummyExchange(AbstractRouter):
         """
 
         Args:
-            order(bigfishtrader.model.OrderReq):
+            order(bigfishtrader.models.OrderReq):
             price:
             timestamp:
 
@@ -69,12 +70,12 @@ class DummyExchange(AbstractRouter):
             return
         fill = ExecutionData()
         fill.time = timestamp
-        fill.ticker = order.symbol
-        fill.quantity = order.orderQty
+        fill.symbol = order.symbol
+        fill.orderQty = order.orderQty
         fill.action = order.action
-        fill.price = price + self.calculate_slippage(order, price)
+        fill.lastPx = price + self.calculate_slippage(order, price)
         fill.commission = self.calculate_commission(order, price)
-        fill.order_id = order.clOrdID
+        fill.clOrderID = order.clOrdID
         fill.position_id = order.clOrdID
         for k, v in self.ticker_info.get(order.symbol, {}):
             setattr(fill, k, v)
@@ -103,7 +104,7 @@ class DummyExchange(AbstractRouter):
         deal with limit order
 
         Args:
-            order(bigfishtrader.model.OrderReq):
+            order(bigfishtrader.models.OrderReq):
             bar:
 
         Returns:
@@ -125,7 +126,7 @@ class DummyExchange(AbstractRouter):
         deal with limit open order
 
         Args:
-            order(bigfishtrader.model.OrderReq):
+            order(bigfishtrader.models.OrderReq):
             bar:
 
         Returns:
@@ -142,7 +143,7 @@ class DummyExchange(AbstractRouter):
     def _stop_open(self, order, bar):
         """
         Args:
-            order(bigfishtrader.model.OrderReq):
+            order(bigfishtrader.models.OrderReq):
             bar:
 
         Returns:
@@ -202,15 +203,15 @@ class PracticeExchange(DummyExchange):
             return
         fill = ExecutionData()
         fill.time = timestamp
-        fill.ticker = order.symbol
-        fill.quantity = order.orderQty
+        fill.symbol = order.symbol
+        fill.orderQty = order.orderQty
         fill.action = order.action
-        fill.price = price + self.calculate_slippage(order, price)
+        fill.lastPx = price + self.calculate_slippage(order, price)
         fill.commission = self.calculate_commission(order, price)
-        fill.order_id = order.clOrdID
+        fill.clOrderID = order.clOrdID
         fill.position_id = order.clOrdID
         for k, v in self.ticker_info.get(order.symbol, {}):
             setattr(fill, k, v)
         event = ExecutionEvent(fill, timestamp=timestamp, topic=order.symbol)
         self._orders.pop(order.clOrdID, None)
-        self.portfolio.on_fill(event)
+        self.portfolio.on_execution(event)

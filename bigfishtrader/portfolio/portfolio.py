@@ -1,13 +1,12 @@
 # encoding: utf-8
 from dictproxyhack import dictproxy
 
-from bigfishtrader.portfolio.position import Order, Position, OrderHandler
-from bigfishtrader.portfolio.base import AbstractPortfolio
+from bigfishtrader.const import ACTION, ORDERTYPE
 from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import EVENTS, OrderEvent
-from bigfishtrader.model import OrderReq
-from bigfishtrader.const import ACTION, ORDERTYPE
-import pandas as pd
+from bigfishtrader.models.data import OrderReq
+from bigfishtrader.portfolio.base import AbstractPortfolio
+from bigfishtrader.portfolio.position import Order, Position, OrderHandler
 
 
 class PositionPortfolio(AbstractPortfolio):
@@ -26,7 +25,7 @@ class PositionPortfolio(AbstractPortfolio):
 
         self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
         self._handlers['on_recall'] = Handler(self.on_recall, EVENTS.RECALL, priority=150)
-        self._handlers['on_fill'] = Handler(self.on_fill, EVENTS.EXECUTION, topic='', priority=100)
+        self._handlers['on_fill'] = Handler(self.on_execution, EVENTS.EXECUTION, topic='', priority=100)
         self._handlers['on_exit'] = Handler(self.on_exit, EVENTS.EXIT, priority=200)
 
     @property
@@ -79,19 +78,19 @@ class PositionPortfolio(AbstractPortfolio):
             {'datetime': event.time, 'cash': self._cash, 'equity': self.equity},
         )
 
-    def on_fill(self, event, kwargs=None):
-        fill = event.data
-        if fill.action == ACTION.OPEN.value:
+    def on_execution(self, event, kwargs=None):
+        execution = event.data
+        if execution.action == ACTION.OPEN.value:
             self.open_position(
-                fill.time, fill.ticker,
-                fill.quantity, fill.price,
-                fill.commission
+                execution.time, execution.symbol,
+                execution.orderQty, execution.price,
+                execution.commission
             )
-        elif fill.action == ACTION.CLOSE.value:
+        elif execution.action == ACTION.CLOSE.value:
             self.close_position(
-                fill.time, fill.ticker,
-                fill.quantity, fill.price,
-                fill.commission
+                execution.time, execution.symbol,
+                execution.orderQty, execution.price,
+                execution.commission
             )
 
     def on_recall(self, event, kwargs=None):

@@ -67,4 +67,4 @@ class BackTest(object):
         self.router.on_order(event)
 
     def _handle_fill(self, event):
-        self.portfolio_handler.on_fill(event)
+        self.portfolio_handler.on_execution(event)
