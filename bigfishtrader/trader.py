@@ -24,6 +24,7 @@ OUTPUT_COLUMN_MAP = {
                                ('time', '最后成交时间'),
                                ('price', '成交均价'),
                                ('commission', '手续费'),
+                               ('lever', '杠杆'),
                                ('exchange', '交易所')])
 }
 

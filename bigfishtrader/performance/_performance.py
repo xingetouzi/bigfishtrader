@@ -349,6 +349,19 @@ class WindowFactorPerformance(Performance):
 
     @property
     @lru_cache()
+    def downside_risk(self):
+        # TODO 计算并不正确
+        ts = self.pnl_compound_ratio()
+        mean = ts["rate"].mean()
+        delta = ts["rate"] - mean
+        delta = delta[delta < 0]
+        print(delta, "\n", delta.count())
+        result = (lambda x: int(abs(x) > FLOAT_ERR) * x)(
+            self._annual_factor / delta.count() * (delta * delta).sum()) ** 0.5
+        return result
+
+    @property
+    @lru_cache()
     def sharpe_ratio_window_simple(self):
         expected = self.ar_window_simple
         std = _deal_float_error(self.volatility_window_simple, fill=np.nan)  # 年化标准差
@@ -371,7 +384,7 @@ class WindowFactorPerformance(Performance):
         return self.annual_return / self.volatility
 
     def sortino_ratio(self):
-        pass
+        return None
 
     def information_ratio(self):
         pass

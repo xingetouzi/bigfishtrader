@@ -281,4 +281,3 @@ class PracticeExchange(DummyExchange):
         event = ExecutionEvent(fill, timestamp=timestamp, topic=order.symbol)
         self._orders.pop(order.clOrdID, None)
         self.portfolio.on_fill(event)
-        # print timestamp, fill.quantity

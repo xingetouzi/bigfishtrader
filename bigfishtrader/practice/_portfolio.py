@@ -115,8 +115,7 @@ class Portfolio(AbstractPortfolio):
         transaction.status = execution.status
         transaction.side = execution.side
         transaction.exchange = execution.exchange
-        transaction.lever = execution.lever
-        transaction.deposit_rate = execution.deposit_rate
+        transaction.lever = execution.lever*execution.deposit_rate
 
         position = self._positions.get(execution.ticker, None)
         if position:
@@ -129,7 +128,6 @@ class Portfolio(AbstractPortfolio):
                 self._cash -= new.deposit
             else:
                 value = position.close(execution.price, -execution.quantity, execution.commission)
-                print value
                 self._cash += value
                 if position.quantity == 0:
                     self._positions.pop(position.symbol)

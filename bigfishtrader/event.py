@@ -199,6 +199,7 @@ class TimeEvent(Event):
         else:
             return self.local_time < other.local_time
 
+
 class ScheduleEvent(Event):
     __slots__ = ['ahead']
 
@@ -211,7 +212,10 @@ class ScheduleEvent(Event):
             if self.time < other.time:
                 return True
             elif self.time == other.time:
-                return self.ahead
+                if other.type == EVENTS.TIME:
+                    return self.ahead
+                else:
+                    return self.local_time < other.local_time
             else:
                 return False
         else:

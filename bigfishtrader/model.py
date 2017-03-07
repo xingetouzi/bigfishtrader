@@ -255,7 +255,7 @@ class Transaction(BaseData):
     成交信息
     """
     __slots__ = ['time', 'security', 'action', 'quantity', 'price', 'value', 'order_id', 'commission', 'reqQuantity',
-                 'ufQuantity', 'reqPrice', 'status', 'side', 'reqTime', 'exchange', 'lever', 'deposit_rate']
+                 'ufQuantity', 'reqPrice', 'status', 'side', 'reqTime', 'exchange', 'lever']
 
     def __init__(
             self, time=datetime.now(), security=EMPTY_STRING, action=EMPTY_STRING,
@@ -278,4 +278,3 @@ class Transaction(BaseData):
         self.reqTime = time
         self.exchange = EMPTY_STRING
         self.lever = 1
-        self.deposit_rate = 1
