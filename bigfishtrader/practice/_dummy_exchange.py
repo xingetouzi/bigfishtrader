@@ -19,19 +19,19 @@ class DummyExchange(AbstractRouter):
     generate FillEvent which then be put into the event_queue
     """
 
-    def __init__(self, event_queue, data, exchange_name=None, deal_model=BACKTESTDEALMODE.NEXT_BAR_OPEN,
-                 **ticker_information):
+    def __init__(self, event_queue, data, exchange_name=None, deal_mode=BACKTESTDEALMODE.NEXT_BAR_OPEN,
+                 **contract_information):
         """
         :param event_queue:
         :param exchange_name:
-        :param ticker_information: ticker={'lever':10000,'deposit_rate':0.02}
+        :param contract_information: ticker={'lever':10000,'deposit_rate':0.02}
         :return:
         """
         super(DummyExchange, self).__init__()
         self.event_queue = event_queue
-        self.ticker_info = ticker_information
+        self.contract_info = contract_information
         self.exchange_name = exchange_name
-        self.deal_mode = deal_model
+        self.deal_mode = deal_mode
         self._data = data
         self._orders = {}
         self._handlers = {
@@ -80,7 +80,7 @@ class DummyExchange(AbstractRouter):
         fill.side = SIDE.BUY.value if order.orderQty > 0 else SIDE.SELL.value
         for key, value in kwargs.items():
             setattr(fill, key, value)
-        for k, v in self.ticker_info.get(order.symbol, {}):
+        for k, v in self.contract_info.get(order.symbol, {}).items():
             setattr(fill, k, v)
         event = ExecutionEvent(fill, timestamp=timestamp, topic=order.symbol)
         self._orders.pop(order.clOrdID, None)
@@ -276,8 +276,9 @@ class PracticeExchange(DummyExchange):
         fill.side = SIDE.BUY.value if order.orderQty > 0 else SIDE.SELL.value
         for key, value in kwargs.items():
             setattr(fill, key, value)
-        for k, v in self.ticker_info.get(order.symbol, {}):
+        for k, v in self.contract_info.get(order.symbol, {}).items():
             setattr(fill, k, v)
         event = ExecutionEvent(fill, timestamp=timestamp, topic=order.symbol)
         self._orders.pop(order.clOrdID, None)
         self.portfolio.on_fill(event)
+        # print timestamp, fill.quantity

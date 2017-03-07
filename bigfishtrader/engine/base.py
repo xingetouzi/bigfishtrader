@@ -147,3 +147,22 @@ class AbstractDataSupport(HandlerCompose):
             client[db].authenticate(user['name'], user['password'])
 
         return client
+
+    @property
+    def current_time(self):
+        """
+        返回当前时间
+
+        :return:
+        """
+        raise NotImplementedError("should implement current_time()")
+
+    def time_schedule(self, *args, **kwargs):
+        """
+        被context调用实现定时功能
+
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        pass

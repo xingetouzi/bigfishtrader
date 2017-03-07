@@ -23,6 +23,7 @@ OUTPUT_COLUMN_MAP = {
                                ('reqTime', '报单时间'),
                                ('time', '最后成交时间'),
                                ('price', '成交均价'),
+                               ('commission', '手续费'),
                                ('exchange', '交易所')])
 }
 

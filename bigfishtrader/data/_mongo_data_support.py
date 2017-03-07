@@ -6,7 +6,7 @@ from collections import OrderedDict
 import pandas as pd
 from dictproxyhack import dictproxy
 
-from bigfishtrader.event import TimeEvent, ExitEvent
+from bigfishtrader.event import TimeEvent, ExitEvent, ScheduleEvent
 from bigfishtrader.data.mongo_support import connect
 from bigfishtrader.data.base import AbstractDataSupport
 from bigfishtrader.data.cache import MemoryCacheProxy
@@ -130,6 +130,9 @@ class MongoDataSupport(AbstractDataSupport):
             frame = self._fetch_ticker_bar_data(ticker_type, ticker, frequency)
 
         self._ds.insert(ticker, frame, frequency)
+
+
+from bigfishtrader.engine.base import AbstractDataSupport
 
 
 class MultiDataSupport(AbstractDataSupport):
@@ -314,10 +317,10 @@ class MultiDataSupport(AbstractDataSupport):
             queue.put(TimeEvent(time_, ''))
         queue.put(ExitEvent())
 
-    def put_limit_time(self, queue, topic, **condition):
+    def time_schedule(self, topic, ahead, time_rules):
         for time_ in self._panel_data.major_axis:
-            if self._time_match(time_, **condition):
-                queue.put(TimeEvent(time_, topic))
+            if time_rules(time_):
+                self.event_queue.put(ScheduleEvent(time_, topic))
 
     @staticmethod
     def _time_match(time, **condition):

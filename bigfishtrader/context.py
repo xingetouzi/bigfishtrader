@@ -15,6 +15,9 @@ class Context(HandlerCompose):
         self._handlers['on_time'] = Handler(
             self.on_time, EVENTS.TIME, '', 100
         )
+        self._handlers['on_schedule'] = Handler(
+            self.on_time, EVENTS.SCHEDULE, '', 100
+        )
 
     @property
     def current_time(self):
@@ -34,12 +37,12 @@ class Context(HandlerCompose):
 
         return self
 
-    def time_schedule(self, func, condition, priority=0, topic='.'):
+    def time_schedule(self, func, condition, priority=0, ahead=False, topic=''):
         def schedule(event, kwargs=None):
-            if condition(event.time):
-                func(self, self.data)
+            func(self, self.data)
+        self.data.time_schedule(topic, ahead, condition)
 
-        self.engine.register(schedule, EVENTS.TIME, topic, priority)
+        self.engine.register(schedule, EVENTS.SCHEDULE, topic, priority)
 
     @staticmethod
     def time_rules(**kwargs):
@@ -65,7 +68,3 @@ class Context(HandlerCompose):
 
     def set_slippage(self, *args, **kwargs):
         self.router.set_slippage(*args, **kwargs)
-
-
-if __name__ == '__main__':
-    pass

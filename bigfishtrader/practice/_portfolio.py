@@ -28,7 +28,8 @@ class Portfolio(AbstractPortfolio):
 
         self.execution_handler = defaultdict(
             lambda: self.handle_STK,
-            **{SecType.STK.value: self.handle_STK}
+            **{SecType.STK.value: self.handle_STK,
+               SecType.CASH.value: self.handler_CASH}
         )
 
     @property
@@ -106,6 +107,42 @@ class Portfolio(AbstractPortfolio):
             self.order_pct(symbol, pct, **kwargs)
         else:
             self.order_pct(symbol, pct, **kwargs)
+
+    def handler_CASH(self, execution):
+        transaction = Transaction(execution.time, execution.ticker, execution.action, execution.quantity,
+                                  execution.price, commission=execution.commission, order_id=execution.order_id)
+        transaction.reqTime = execution.reqTime
+        transaction.status = execution.status
+        transaction.side = execution.side
+        transaction.exchange = execution.exchange
+        transaction.lever = execution.lever
+        transaction.deposit_rate = execution.deposit_rate
+
+        position = self._positions.get(execution.ticker, None)
+        if position:
+            if position.quantity * execution.quantity > 0:
+                new = LeverPosition(execution.ticker, execution.quantity,
+                                    execution.price, execution.commission,
+                                    execution.secType, execution.lever,
+                                    execution.deposit_rate, execution.order_id)
+                position += new
+                self._cash -= new.deposit
+            else:
+                value = position.close(execution.price, -execution.quantity, execution.commission)
+                print value
+                self._cash += value
+                if position.quantity == 0:
+                    self._positions.pop(position.symbol)
+
+        else:
+            position = LeverPosition(execution.ticker, execution.quantity,
+                                     execution.price, execution.commission,
+                                     execution.secType, execution.lever,
+                                     execution.deposit_rate, execution.order_id)
+            self._cash -= position.deposit
+            self._positions[position.symbol] = position
+
+        self._transactions.append(transaction)
 
     def handle_STK(self, execution):
         transaction = Transaction(execution.time, execution.ticker, execution.action, execution.quantity,
@@ -230,3 +267,51 @@ class Position(object):
         else:
             return {key: self.__getattribute__(key) for key in self.to_show}
 
+
+class LeverPosition(Position):
+    __slots__ = ['lever', 'deposit_rate', 'deposit']
+
+    def __init__(self, symbol, quantity, price, commission, sec_type, lever, deposit_rate, order_id):
+        super(LeverPosition, self).__init__(symbol, quantity, price, commission, sec_type)
+        self.lever = lever
+        self.deposit_rate = deposit_rate
+        self.deposit = abs(price * quantity * lever * deposit_rate)
+
+    def append(self, other):
+        if isinstance(other, LeverPosition):
+            if self.symbol == other.symbol:
+                if self.quantity * other.quantity > 0:
+                    self.avg_cost = \
+                        (self.price*self.quantity + other.price*other.quantity) / (self.quantity + other.quantity)
+                else:
+                    if abs(self.quantity) < abs(other.quantity):
+                        self.avg_cost = other.avg_cost
+
+                self.quantity += other.quantity
+                self.commission += other.commission
+                self.available += other.available
+                self.deposit += other.deposit
+                return self
+
+            else:
+                raise ValueError(
+                    "self.symbol = %s, other.symbol = %s, symbol is different" % (self.symbol, other.symbol)
+                )
+
+        else:
+            raise TypeError("Type of other is %s, not <LeverPosition>, unable to append" % type(other))
+
+    @property
+    def value(self):
+        return self.deposit + self.profit
+
+    @property
+    def profit(self):
+        return (self.price - self.avg_cost) * self.quantity * self.lever
+
+    def close(self, price, quantity, commission):
+        deposit = quantity/self.quantity * self.deposit
+        profit = quantity*(price - self.avg_cost)*self.lever
+        self.deposit -= deposit
+        self.quantity -= quantity
+        return deposit + profit

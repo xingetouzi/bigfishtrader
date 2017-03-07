@@ -23,6 +23,7 @@ class EVENTS(Enum):
     RECALL = 11
     POSITION = 12
     ORD_STATUS = 13
+    SCHEDULE = 14
     EXIT = 999
 
 
@@ -47,7 +48,7 @@ class Event(object):
 
     def lt_time(self, other):
         if self.__eq__(other):
-            return self.time < other.time or self.local_time < other.local_time
+            return self.time < other.time or self.lt_local_time(other)
         else:
             return False
 
@@ -189,6 +190,32 @@ class TimeEvent(Event):
 
     def __init__(self, timestamp, topic=""):
         super(TimeEvent, self).__init__(EVENTS.TIME, 1, timestamp, topic)
+
+    def lt_local_time(self, other):
+        if self.time > other.time:
+            return False
+        elif isinstance(other, ScheduleEvent):
+            return not other.ahead
+        else:
+            return self.local_time < other.local_time
+
+class ScheduleEvent(Event):
+    __slots__ = ['ahead']
+
+    def __init__(self, timestamp, topic="", ahead=False):
+        super(ScheduleEvent, self).__init__(EVENTS.SCHEDULE, 1, timestamp, topic)
+        self.ahead = ahead
+
+    def lt_time(self, other):
+        if self.__eq__(other):
+            if self.time < other.time:
+                return True
+            elif self.time == other.time:
+                return self.ahead
+            else:
+                return False
+        else:
+            return False
 
 
 class ModifyEvent(Event):
