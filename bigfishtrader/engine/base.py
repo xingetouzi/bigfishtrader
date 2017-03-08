@@ -67,7 +67,6 @@ class AbstractPortfolio(HandlerCompose):
         """
         raise NotImplementedError("Should implement history_req()")
 
-
     def send_order(self, *args, **kwargs):
         """
         发送订单

@@ -6,6 +6,7 @@ except ImportError:
 from collections import OrderedDict
 from bigfishtrader.event import EVENTS
 from bigfishtrader.performance import OrderAnalysis
+from datetime import datetime
 import pandas as pd
 
 
@@ -24,7 +25,8 @@ OUTPUT_COLUMN_MAP = {
                                ('time', '最后成交时间'),
                                ('price', '成交均价'),
                                ('commission', '手续费'),
-                               ('lever', '杠杆'),
+                               ('point', '整点价值'),
+                               ('deposit_rate', '保证金比例'),
                                ('exchange', '交易所')])
 }
 
@@ -155,7 +157,7 @@ class Trader(object):
         if save:
             from datetime import datetime
             path = '%s&%s&%s.xls' % (strategy.__name__, datetime.now().strftime('%Y-%m-%d-%H-%M-%S'),
-                                     '&'.join(map(lambda (key, value): key+'_'+str(value), params.items())))
+                                     '&'.join(map(lambda item: item[0]+'_'+str(item[1]), params.items())))
             self._save_origin(path)
 
         return self.models['portfolio']
@@ -167,7 +169,7 @@ class Trader(object):
         from pandas import ExcelWriter
         writer = ExcelWriter(path, encoding='utf-8')
         pd.DataFrame(self.performance.equity).to_excel(writer, '净值')
-        self.performance._orders.to_excel(writer, '交易')
+        self.performance.order_details.to_excel(writer, '交易')
         writer.save()
 
     def perform(self):
@@ -197,6 +199,28 @@ class Trader(object):
 
     def output(self, *args):
         return {attr: getattr(self.performance, attr, None) for attr in args}
+
+    def save_performance(self, *args):
+        w = pd.ExcelWriter('performance&%s.xls' % datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))
+
+        def iter_save(dict_like, name=None):
+            for key, data in dict_like.items():
+                table = key if not name else name+'_'+key
+                if isinstance(data, dict):
+                    iter_save(data, key)
+                    continue
+                elif isinstance(data, pd.Series):
+                    data = pd.DataFrame(data)
+
+                try:
+                    data.to_excel(w, table)
+                except Exception as e:
+                    print(e.message)
+                    print("%s can not be saved as .xls file" % table)
+                    print(data)
+
+        iter_save(self.output(*args))
+        w.save()
 
 
 class Optimizer(object):

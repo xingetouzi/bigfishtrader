@@ -229,7 +229,7 @@ class ExecutionData(BaseData):
         self.reqTime = self.time
         self.ticker = EMPTY_STRING
         self.secType = EMPTY_UNICODE
-        self.action = None
+        self.action = EMPTY_UNICODE
         self.quantity = 0
         self.price = 0
         self.profit = None
@@ -241,7 +241,7 @@ class ExecutionData(BaseData):
         self.order_ext_id = None
         self.exec_id = None
         self.account = None
-        self.exchange = None
+        self.exchange = EMPTY_UNICODE
         self.cum_qty = 0
         self.avg_price = 0
         self.lever = 1
@@ -255,10 +255,10 @@ class Transaction(BaseData):
     成交信息
     """
     __slots__ = ['time', 'security', 'action', 'quantity', 'price', 'value', 'order_id', 'commission', 'reqQuantity',
-                 'ufQuantity', 'reqPrice', 'status', 'side', 'reqTime', 'exchange', 'lever']
+                 'ufQuantity', 'reqPrice', 'status', 'side', 'reqTime', 'exchange', 'point', 'deposit_rate']
 
     def __init__(
-            self, time=datetime.now(), security=EMPTY_STRING, action=EMPTY_STRING,
+            self, time=datetime.now(), security=EMPTY_UNICODE, action=EMPTY_UNICODE,
             quantity=0, price=0, value=0, commission=0, order_id=0
     ):
         self.time = time
@@ -274,7 +274,7 @@ class Transaction(BaseData):
         self.reqPrice = price
         self.status = EMPTY_STRING
         self.side = EMPTY_STRING
-        self.action = EMPTY_STRING
         self.reqTime = time
         self.exchange = EMPTY_STRING
-        self.lever = 1
+        self.point = 1
+        self.deposit_rate = 1

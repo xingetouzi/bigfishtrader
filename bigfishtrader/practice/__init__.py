@@ -1,9 +1,9 @@
 from bigfishtrader.trader import Component
 from collections import OrderedDict
-from _portfolio import Portfolio
+from bigfishtrader.practice._portfolio import Portfolio
 from bigfishtrader.context import Context
 from bigfishtrader.data.support import MultiDataSupport
-from _dummy_exchange import PracticeExchange, BACKTESTDEALMODE
+from bigfishtrader.practice._dummy_exchange import PracticeExchange, BACKTESTDEALMODE
 from bigfishtrader.engine.core import Engine
 try:
     from Queue import PriorityQueue

@@ -115,7 +115,8 @@ class Portfolio(AbstractPortfolio):
         transaction.status = execution.status
         transaction.side = execution.side
         transaction.exchange = execution.exchange
-        transaction.lever = execution.lever*execution.deposit_rate
+        transaction.point = execution.lever
+        transaction.deposit_rate = execution.deposit_rate
 
         position = self._positions.get(execution.ticker, None)
         if position:
@@ -199,6 +200,8 @@ class Portfolio(AbstractPortfolio):
             ed.commission = 0
             ed.status = ORDERSTATUS.ALLTRADED.value
             ed.side = SIDE.BUY.value if ed.quantity > 0 else SIDE.SELL.value
+            ed.lever = getattr(position, 'lever', 1)
+            ed.deposit_rate = getattr(position, 'deposit_rate', 1)
 
             self.execution_handler[ed.secType](ed)
 
