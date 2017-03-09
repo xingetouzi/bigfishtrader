@@ -43,8 +43,8 @@ def handle_data(context, data):
 
 
 if __name__ == '__main__':
-    from bigfishtrader.trader import Trader, Optimizer
-    from bigfishtrader.practice import BACKTESTDEALMODE
+    from fxdayu.trader import Trader, Optimizer
+    from fxdayu.practice import BACKTESTDEALMODE
 
     trader = Trader()
 

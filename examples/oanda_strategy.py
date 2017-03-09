@@ -1,4 +1,4 @@
-from bigfishtrader.operation import *
+from fxdayu.operation import *
 from datetime import datetime
 import pandas as pd
 from pymongo import MongoClient

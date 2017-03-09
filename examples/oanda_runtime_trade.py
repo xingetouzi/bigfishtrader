@@ -7,13 +7,13 @@ import time
 from datetime import datetime, timedelta
 
 import oanda_strategy as strategy
-from bigfishtrader.data.support import MultiDataSupport
-from bigfishtrader.engine.core import Engine
-from bigfishtrader.event import EVENTS, OrderEvent, OPEN_ORDER, CLOSE_ORDER
-from bigfishtrader.middleware.logger import LogRecorder
-from bigfishtrader.portfolio.context import Context
-from bigfishtrader.portfolio.handlers import PortfolioHandler
-from bigfishtrader.router.oanda._oanda import BFOandaApi, OandaRouter
+from fxdayu.data.support import MultiDataSupport
+from fxdayu.engine.core import Engine
+from fxdayu.event import EVENTS, OrderEvent, OPEN_ORDER, CLOSE_ORDER
+from fxdayu.middleware.logger import LogRecorder
+from fxdayu.portfolio.context import Context
+from fxdayu.portfolio.handlers import PortfolioHandler
+from fxdayu.router.oanda._oanda import BFOandaApi, OandaRouter
 
 try:
     from Queue import PriorityQueue
@@ -149,5 +149,5 @@ if __name__ == '__main__':
         "db": "Oanda",
     }
 
-    account_info = json.load(open('../bigfishtrader/bigfish_oanda.json'))
+    account_info = json.load(open('../fxdayu/bigfish_oanda.json'))
     run(setting, account_info)
