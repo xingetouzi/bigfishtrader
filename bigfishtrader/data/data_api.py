@@ -42,7 +42,7 @@ class DataCollector(object):
         db = self.client[db] if db else self.db
 
         result = db[col_name].delete_many(
-            {'datetime': {'$gte': data[0]['datetime'], '$lte': data[1]['datetime']}}
+            {'datetime': {'$gte': data[0]['datetime'], '$lte': data[-1]['datetime']}}
         )
 
         db[col_name].insert(data)
@@ -94,13 +94,13 @@ class DataCollector(object):
         elif end:
             kwargs['filter'] = {'datetime': {'$lte': end}}
 
-        data = pd.DataFrame(
-            list(db[col_name].find(**kwargs))
-        )
+        data = list(db[col_name].find(**kwargs))
 
         for key, value in kwargs.get('sort', []):
             if value < 0:
-                data = data.iloc[::-1]
+                data.reverse()
+
+        data = pd.DataFrame(data)
 
         data.pop('_id')
         return data
@@ -268,7 +268,7 @@ class OandaData(DataCollector):
 
         else:
             if isinstance(granularity, list):
-                self._save_manny(
+                self._save_many(
                     start, end, t,
                     [(instruments, g) for g in granularity]
                 )
@@ -299,7 +299,15 @@ class OandaData(DataCollector):
                              'please check your DataBase' % col_name)
 
         i, g = col_name.split('.')
-        return self.save_history(i, granularity=g, start=doc['time'], includeFirst=False)
+        if g == 'COT':
+            return self.save(col_name, self.get_cot(i))
+        elif g == 'HPR':
+            return self.save(col_name, self.get_hpr(i))
+        else:
+            return self.save_history(i, granularity=g, start=doc['time'], includeFirst=False)
+
+    def update_candle(self, i, g, **kwargs):
+        return self.save_history(i, granularity=g, **kwargs)
 
     def update_many(self, col_names=[], t=5):
         if len(col_names) == 0:
@@ -311,3 +319,18 @@ class OandaData(DataCollector):
         self.start(self.update, t)
         self.stop()
         self.join()
+
+    def get_hpr(self, instrument, period=31536000, **kwargs):
+        hpr = self.api.get_historical_position_ratios(instrument=instrument, period=period, **kwargs)
+        hpr = pd.DataFrame(
+            hpr['data'][instrument]['data'],
+            columns=['timestamp', 'long_position_ration', 'exchange_rate']
+        )
+        hpr['datetime'] = list(map(datetime.fromtimestamp, hpr['timestamp']))
+        return hpr
+
+    def get_cot(self, instrument, **kwargs):
+        cot = self.api.get_commitments_of_traders(instrument=instrument, **kwargs)
+        cot = pd.DataFrame(cot[instrument])
+        cot['datetime'] = list(map(datetime.fromtimestamp, cot['date']))
+        return cot
