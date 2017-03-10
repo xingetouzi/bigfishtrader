@@ -3,10 +3,11 @@
 from bigfishtrader.engine.handler import HandlerCompose, Handler
 from bigfishtrader.event import *
 from bigfishtrader.adapter import VtAdapter
+from bigfishtrader.context import InitializeMixin
 from bigfishtrader.const import GATEWAY
 
 
-class Gateway(HandlerCompose):
+class Gateway(HandlerCompose, InitializeMixin):
     """
     信息交换网关
     """
@@ -22,11 +23,15 @@ class Gateway(HandlerCompose):
 
         """
         super(Gateway, self).__init__()
+        InitializeMixin.__init__(self)
         self.eventEngine = eventEngine
         self._handlers = {
-            "on_order": Handler(self.send_order, EVENTS.ORDER, topic="", priority=0)
+            "on_order": Handler(self.send_order, EVENTS.ORDER, topic="", priority=0),
+            "on_init": Handler(self.on_init, EVENTS.INIT, topic="", priority=0)
         }
         self.gatewayName = gatewayName
+        self.context = None
+        self.environment = None
 
     def onTick(self, tick):
         """
@@ -50,6 +55,7 @@ class Gateway(HandlerCompose):
             trade(bigfishtrader.vt.vtGateway.VtTradeData):
         """
         execution = VtAdapter.transform(trade)
+        execution.account = self.context.account.id
         event = ExecutionEvent(execution)
         self.eventEngine.event_queue.put(event)
 
@@ -61,7 +67,8 @@ class Gateway(HandlerCompose):
             order(bigfishtrader.vt.vtGateway.VtOrderData):
         """
         order_status = VtAdapter.transform(order)
-        event = OrderStatusEvent(order_status, topic=order_status.gClOrderID)
+        order_status.account = self.context.account.id
+        event = OrderStatusEvent(order_status, topic=order_status.gClOrdID)
         self.eventEngine.event_queue.put(event)
 
     def onPosition(self, position):
@@ -86,7 +93,7 @@ class Gateway(HandlerCompose):
             None
         """
         account_ = VtAdapter.transform(account)
-        event = AccountEvent(account_, topic=account_.accountID)
+        event = AccountEvent(account_, topic=account_.gateway)
         self.eventEngine.event_queue.put(event)
 
     def onError(self, error):
@@ -165,6 +172,11 @@ class Gateway(HandlerCompose):
         vt_order = VtAdapter.transform(order)
         vt_order_id = self.sendOrder(vt_order)
         order.gateway, order.clOrdID = vt_order_id.split(".")
+
+    def on_init(self, event, kwargs=None):
+        self.context = kwargs["context"]
+        self.environment = kwargs["environment"]
+        self.environment["subscribe"] = self.subscribe_contract
 
     def cancel_order(self, event):
         pass

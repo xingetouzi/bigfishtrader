@@ -30,6 +30,7 @@ class DIRECTION(Enum):
     LONG = "多"
     SHORT = "空"
     UNKNOWN = "未知"
+    NET = "净"
 
 
 class SIDE(Enum):

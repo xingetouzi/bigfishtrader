@@ -89,7 +89,7 @@ class BFWrapper(object):
 
     def execDetails(self, msg):
         reqId = msg.reqId
-        contract = msg.contract
+        contract = msg.symbol
         execution = msg.execution
         fill = ExecutionData()
         fill.time = parse(execution.m_time)
@@ -213,7 +213,7 @@ class BFIbApi(object):
         print(msg)
 
     def on_exec_details(self, msg):
-        print(msg.contract)
+        print(msg.symbol)
         e = msg.execution
         print([e.m_orderId,
                e.m_clientId,
@@ -233,7 +233,7 @@ class BFIbApi(object):
                e.m_evMultiplier])
 
     def on_open_order(self, msg):
-        print(msg.contract)
+        print(msg.symbol)
         print(msg.order)
         print(msg.orderState)
 
@@ -271,11 +271,11 @@ if __name__ == "__main__":
     symbol = make_stk_contract(contract_tuple)
     api.symbol = symbol
     # api.conn.reqMktData(1, symbol, "", True)
-    api.conn.reqMktData(2, symbol, "", False)
+    # api.conn.reqMktData(2, symbol, "", False)
     # api.conn.reqMktDepth(2001, symbol, 10)
-    # api.send_order(api.symbol, 20000)
+    api.send_order(api.symbol, 20000)
     # time.sleep(1)
-    # api.send_order(api.symbol, -20000)
+    api.send_order(api.symbol, -20000)
     while True:
         time.sleep(1)
         raw_input()

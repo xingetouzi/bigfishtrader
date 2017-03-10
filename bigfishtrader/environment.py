@@ -1,6 +1,4 @@
 class Environment(object):
-    __slots__ = ["_d"]
-
     def __init__(self):
         self._d = {}
 

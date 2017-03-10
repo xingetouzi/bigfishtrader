@@ -10,7 +10,7 @@ MAP_VT_DIRECTION = {
     DIRECTION_LONG: DIRECTION.LONG.value,
     DIRECTION_SHORT: DIRECTION.SHORT.value,
     DIRECTION_UNKNOWN: DIRECTION.UNKNOWN.value,
-    DIRECTION_NET: DIRECTION.UNKNOWN.value,
+    DIRECTION_NET: DIRECTION.NET.value,
 }
 
 MAP_VT_DIRECTION_REVERSE = {
@@ -18,6 +18,7 @@ MAP_VT_DIRECTION_REVERSE = {
     DIRECTION.LONG.value: DIRECTION_LONG,
     DIRECTION.SHORT.value: DIRECTION_SHORT,
     DIRECTION.UNKNOWN.value: DIRECTION_UNKNOWN,
+    DIRECTION.NET.value: DIRECTION_NET,
 }
 
 MAP_VT_OFFSET = {
@@ -58,8 +59,9 @@ MAP_VT_PRICETYPE = {
 }
 
 MAP_VT_PRICETYPE_REVERSE = {
-    ORDERTYPE.MARKET.value: ORDERTYPE.MARKET,
-    ORDERTYPE.LIMIT.value: ORDERTYPE.LIMIT,
+    ORDERTYPE.MARKET.value: PRICETYPE_MARKETPRICE,
+    ORDERTYPE.LIMIT.value: PRICETYPE_LIMITPRICE,
+    ORDERTYPE.STOP.value: PRICETYPE_LIMITPRICE,  # 还未支持停损单
     ORDERTYPE.FAK.value: ORDERTYPE.FAK,
     ORDERTYPE.FOK.value: ORDERTYPE.FOK,
 }
@@ -99,12 +101,12 @@ exchangeMapReverse = {v: k for k, v in exchangeMap.items()}
 
 class VtAdapter(object):
     @classmethod
-    def transform(cls, data):
+    def transform(cls, data, *args, **kwargs):
         try:
             func = getattr(cls, "transform_" + data.__class__.__name__)
         except AttributeError:
             raise TypeError("VtAdapter don't support transformation of type: %s" % data.__class__)
-        return func(data)
+        return func(data, *args, **kwargs)
 
     @classmethod
     def transform_VtAccountData(cls, data):
@@ -127,6 +129,7 @@ class VtAdapter(object):
         account.margin = data.margin
         account.closePnL = data.closeProfit
         account.positionPnL = data.positionProfit
+        account.exchangeRate = getattr(data, "exchangeRate", 1.0)
         return account
 
     @classmethod
@@ -199,6 +202,14 @@ class VtAdapter(object):
         position.volume = data.position
         position.frozenVolume = data.frozen
         position.avgPrice = data.price
+        position.account = getattr(data, "account", EMPTY_STRING)
+        position.gateway = data.gatewayName
+        if position.side == DIRECTION.NET.value:
+            if position.volume >= 0:
+                position.side = DIRECTION.LONG.value
+            else:
+                position.side = DIRECTION.SHORT.value
+                position.volume = abs(position.volume)
         return position
 
     @classmethod
@@ -216,14 +227,16 @@ class VtAdapter(object):
         order_status.exchange = data.exchange
 
         order_status.clOrdID = data.orderID
-        order_status.secondaryClOrdID = data.frontID + "_" + data.sessionID
+        if data.frontID and data.sessionID:
+            order_status.secondaryClOrdID = str(data.frontID) + "_" + str(data.sessionID)
         order_status.side = MAP_VT_DIRECTION[data.direction]
-        order_status.action = MAP_VT_OFFSET[data.offset]
+        if data.offset:
+            order_status.action = MAP_VT_OFFSET[data.offset]
         order_status.price = data.offset
         order_status.orderQty = data.totalVolume
         order_status.cumQty = data.tradedVolume
         order_status.leavesQty = data.totalVolume - data.tradedVolume
-        order_status.ordStatus = MAP_VT_STATUS[data.status]
+        order_status.ordStatus = MAP_VT_STATUS.get(data.status, ORDERSTATUS.UNKNOWN.value)
         order_status.orderTime = data.orderTime
         order_status.cancelTime = data.cancelTime
         order_status.gateway = data.gatewayName
@@ -254,7 +267,7 @@ class VtAdapter(object):
             data(bigfishtrader.vt.vtGateway.VtLogData):
 
         Returns:
-            bigfishtrader.models.LogData
+            bigfishtrader.models.data.LogData
         """
         log = LogData()
         log.logTime = data.logTime
@@ -263,12 +276,37 @@ class VtAdapter(object):
         return log
 
     @classmethod
-    def transform_OrderReq(cls, data):
+    def transform_VtTradeData(cls, data):
         """
 
         Args:
-            data(bigfishtrader.models.OrderReq):
+            data(bigfishtrader.vt.vtGateway.VtTradeData):
 
+        Returns:
+            bigfishtrader.models.data.ExecutionData
+        """
+        execution = ExecutionData()
+        execution.time = data.tradeTime
+        execution.symbol = data.symbol
+        execution.gateway = data.gatewayName
+        execution.clOrderID = data.orderID
+        execution.execID = data.tradeID
+        execution.account = EMPTY_STRING  # TODO 确定账户
+        execution.exchange = data.exchange
+        if data.offset:
+            execution.action = MAP_VT_OFFSET[data.offset]
+        execution.side = MAP_VT_DIRECTION[data.direction]
+        execution.lastPx = data.price
+        execution.lastQty = data.volume
+        return execution
+
+    @classmethod
+    def transform_OrderReq(cls, data, security=None):
+        """
+
+        Args:
+            data(bigfishtrader.models.data.OrderReq):
+            security(bigfishtrader.models.data.Security):
         Returns:
             bigfishtrader.vt.vtGateway.VtOrderReq
         """
@@ -279,15 +317,17 @@ class VtAdapter(object):
         vt_order.volume = data.orderQty
         vt_order.priceType = MAP_VT_PRICETYPE_REVERSE[data.ordType]
         vt_order.direction = MAP_VT_DIRECTION_REVERSE[data.side]
-        vt_order.offset = MAP_VT_DIRECTION_REVERSE[data.action]
+        vt_order.offset = MAP_VT_OFFSET_REVERSE[data.action]
+        if data.security:
+            vt_order.productClass = productClassMapReverse[data.security.secType]
         return vt_order
 
     @classmethod
-    def transform_ContractData(cls, data):
+    def transform_Security(cls, data):
         """
 
         Args:
-            data(bigfishtrader.models.data.ContractData):
+            data(bigfishtrader.models.data.Security):
 
         Returns:
             bigfishtrader.vt.vtGateway.VtSubscribeReq

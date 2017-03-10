@@ -3,13 +3,22 @@ import time
 from bigfishtrader.trader import Trader, Component
 from bigfishtrader.vt.ctpGateway.ctpGateway import CtpGateway
 from bigfishtrader.vt.ibGateway.ibGateway import IbGateway
-from bigfishtrader.event import EVENTS
-from bigfishtrader.contract import ContractPool
+from bigfishtrader.account.handlers import AccountHandler
+from bigfishtrader.order.handlers import OrderBookHandler
+from bigfishtrader.position.handlers import PortfolioHandler
+from bigfishtrader.event import EVENTS, InitEvent
+from bigfishtrader.security import SecurityPool
 from bigfishtrader.environment import Environment
 from bigfishtrader.context import ContextMixin, Context
-from bigfishtrader.const import GATEWAY
+from bigfishtrader.const import GATEWAY, DIRECTION
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)
+
+last_time = time.time()
+
+
+class Context(object):
+    pass
 
 
 class RuntimeTrader(Trader):
@@ -31,29 +40,46 @@ class RuntimeTrader(Trader):
             else:
                 self.models[name] = co.constructor(*args, **kwargs)
         self._register_models()
-        self.context.link(**self.models)
+        # self.context.link(**self.models)
+        self.environment["_router"] = self.models["router"]
         self.initialized = True
         return self
 
     def init_settings(self):
         super(RuntimeTrader, self).init_settings()
-        self.settings["contract_pool"] = Component(
-            "contract_pool", ContractPool, (), {}
+        self.settings["security_pool"] = Component(
+            "security_pool", SecurityPool, (), {}
         )
         self.settings["router"] = Component(
             "router", IbGateway, (Component.Lazy("engine"),), {}
         )
+        self.settings["account_handler"] = Component(
+            "account_handler", AccountHandler, (), {}
+        )
+        self.settings["order_book_handler"] = Component(
+            "order_book_handler", OrderBookHandler,
+            (Component.Lazy("data"), Component.Lazy("event_queue"),), {}
+        )
+        self.settings["portfolio_handler"] = Component(
+            "portfolio_handler", PortfolioHandler, (), {}
+        )
+
+    def on_init(self, event, kwargs=None):
+        kwargs["context"] = self.context
+        kwargs["environment"] = self.environment
 
     def connect(self):
         self.models["router"].connect()
 
-    def run(self, strategy):
+    def run(self, filename):
         if not self.initialized:
             raise Exception('Models not initialized, please call initialize()')
         context, data, engine = self.context, self.models['data'], self.models['engine']
+        self.models["engine"].register(self.on_init, EVENTS.INIT, topic="", priority=1000)
+        strategy = execfile(filename, self.environment.dct)
 
         def on_time(event, kwargs=None):
-            strategy.handle_data(context, data)
+            self.environment.handle_data(context, data)
 
         def on_error(event, kwargs=None):
             error = event.data
@@ -76,8 +102,6 @@ class RuntimeTrader(Trader):
             account = event.data
             print("account:\n %s" % account.to_dict(ordered=True))
 
-        last_time = time.time()
-
         def on_tick(event, kwargs=None):
             """
 
@@ -90,24 +114,36 @@ class RuntimeTrader(Trader):
             """
             global last_time
 
+            self.context.symbol = self.environment.symbol("EUR.USD")
+            if time.time() - last_time >= 2:
+                position = self.context.portfolio.positions.get(self.context.symbol.sid, None)
+                if position:
+                    print("P: %s, %s" % (position.volume, position.frozenVolume))
+                else:
+                    print("P: 0, 0")
+                if position and position.volume > 0:
+                    self.environment.order(self.context.symbol.sid, -20000)
+                    last_time = time.time()
+                    print("SELL")
+                else:
+                    self.environment.order(self.context.symbol.sid, 20000)
+                    last_time = time.time()
+                    print("BUY")
 
-            last_time = time.time()
-
-            tick = event.data
-            print("tick: \n")
-            print(tick.askPrice)
-            print(tick.bidPrice)
-
-        self.models["engine"].register(on_time, EVENTS.TIME, topic='.', priority=100)
+        # self.models["engine"].register(on_time, EVENTS.TIME, topic='.', priority=100)
+        self.models["engine"].register(on_time, EVENTS.TICK, topic=".", priority=100)
         self.models["engine"].register(on_log, EVENTS.LOG, topic="")
         self.models["engine"].register(on_error, EVENTS.ERROR, topic="")
-        self.models["engine"].register(on_position, EVENTS.POSITION, topic="")
-        self.models["engine"].register(on_account, EVENTS.ACCOUNT, topic="")
-        self.models["engine"].register(on_tick, EVENTS.TICK, topic="")
-        strategy.initialize(context, data)
+        # self.models["engine"].register(on_position, EVENTS.POSITION, topic="")
+        # self.models["engine"].register(on_account, EVENTS.ACCOUNT, topic="")
+        # self.models["engine"].register(on_tick, EVENTS.TICK, topic="")
         engine.start()
         self.connect()
-        self.models["router"].subscribe_contract(self.environment.contract("EUR.USD"))
+        time.sleep(5)
+        self.models["event_queue"].put(InitEvent())
+        time.sleep(5)
+        self.environment.initialize(self.context, data)
+        self.models["router"].subscribe_contract(self.environment.symbol("EUR.USD"))
         engine.join()
 
     def stop(self):
@@ -115,14 +151,9 @@ class RuntimeTrader(Trader):
 
 
 if __name__ == "__main__":
-    class S(object):
-        def initialize(self, context, data):
-            pass
+    import os
 
-        def handle_data(self, context, data):
-            print(data)
-
-
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_strategy.py")
     trader = RuntimeTrader()
     trader.initialize()
-    trader.run(S())
+    trader.run(path)

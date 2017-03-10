@@ -101,13 +101,19 @@ class OrderStatusData(BaseData):
         else:
             return ".".join([self.gateway, self.account, self.clOrdID])
 
+    @property
+    def gSymbol(self):
+        return ".".join([self.gateway, self.symbol])
+
 
 class OrderReq(BaseData):
     """
     OrderReq is created by a strategy when it wants to open an order and
     will be handled by Simulation or Trade section
     """
-    __slots__ = ["clOrdID", "exchange", "symbol", "side", "action", "orderQty", "ordType", "price", "tradedQty",
+    __slots__ = ["clOrdID", "exchange", "security", "symbol", "side", "action", "orderQty", "ordType", "price",
+                 "stopPx",
+                 "tradedQty",
                  "timeInForce", "transactTime", "expireTime", "account", "slippage",
                  "gateway"]
 
@@ -115,12 +121,14 @@ class OrderReq(BaseData):
         super(OrderReq, self).__init__()
         self.clOrdID = EMPTY_STRING
         self.exchange = EMPTY_STRING
+        self.security = None
         self.symbol = EMPTY_STRING
         self.side = EMPTY_UNICODE
         self.action = EMPTY_UNICODE
         self.orderQty = EMPTY_INT
         self.ordType = EMPTY_STRING
         self.price = EMPTY_FLOAT
+        self.stopPx = EMPTY_FLOAT
         self.timeInForce = EMPTY_STRING
         self.transactTime = EMPTY_STRING
         self.expireTime = EMPTY_STRING
@@ -156,7 +164,7 @@ class AccountData(BaseData):
         positionPnL(float): profit and loss of holding position
     """
     __slots__ = ["accountID", "preBalance", "balance", "available", "commission", "margin",
-                 "closePnL", "positionPnL", "gateway"]
+                 "closePnL", "positionPnL", "exchangeRate", "gateway"]
 
     def __init__(self):
         super(AccountData, self).__init__()
@@ -172,6 +180,7 @@ class AccountData(BaseData):
         self.margin = EMPTY_FLOAT  # 保证金占用
         self.closePnL = EMPTY_FLOAT  # 平仓盈亏
         self.positionPnL = EMPTY_FLOAT  # 持仓盈亏
+        self.exchangeRate = 1.0  # 默认汇率(用于对子账户和分账户的基础货币不同的情况,主要是IB)
 
     @property
     def gAccountID(self):
@@ -184,21 +193,18 @@ class PositionData(BaseData):
     Attributes:
         symbol(str): symbol of position
     """
-    __slots__ = ["gateway", "account", "symbol", "exchange", "side", "volume", "frozenVolume", "avgPrice"]
+    __slots__ = ["gateway", "account", "symbol", "sid", "exchange", "side", "volume", "frozenVolume", "avgPrice"]
 
     def __init__(self):
         self.gateway = EMPTY_STRING
         self.account = EMPTY_STRING
         self.symbol = EMPTY_STRING
+        self.sid = EMPTY_INT
         self.exchange = EMPTY_STRING
         self.side = EMPTY_UNICODE
         self.volume = EMPTY_INT
         self.frozenVolume = EMPTY_UNICODE
         self.avgPrice = EMPTY_FLOAT
-
-    @property
-    def gSymbol(self):
-        return ".".join([self.gateway, self.exchange, self.symbol])
 
 
 class ExecutionData(BaseData):
@@ -233,12 +239,15 @@ class ExecutionData(BaseData):
         self.commission = EMPTY_FLOAT
         self.deposit_rate = 1
 
+    @property
     def gSymbol(self):
         return ".".join([self.gateway, self.symbol])
 
+    @property
     def gExecID(self):
         return ".".join([self.gateway, self.account, self.execID])
 
+    @property
     def gClOrdID(self):
         return ".".join([self.gateway, self.account, self.clOrderID])
 
@@ -264,13 +273,13 @@ class ErrorData(BaseData):
         self.gateway = EMPTY_STRING
 
 
-class ContractData(BaseData):
-    __slots__ = ["longName", "conId", "gateway", "symbol", "exchange", "secType", "currency",
+class Security(BaseData):
+    __slots__ = ["longName", "sid", "gateway", "symbol", "exchange", "secType", "currency",
                  "expiry", "right", "strike", "multiplier", ]
 
     def __init__(self):
+        self.sid = EMPTY_STRING
         self.longName = EMPTY_STRING
-        self.conId = EMPTY_STRING
         self.gateway = EMPTY_STRING
         self.symbol = EMPTY_STRING
         self.exchange = EMPTY_STRING
@@ -282,7 +291,7 @@ class ContractData(BaseData):
         self.multiplier = EMPTY_INT
 
     def __hash__(self):
-        return int(self.conId)
+        return int(self.sid)
 
     def __eq__(self, other):
-        return self.conId and self.conId == other.conId
+        return self.sid and self.sid == other.sid

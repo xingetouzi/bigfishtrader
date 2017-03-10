@@ -10,7 +10,7 @@ Interactive Brokers的gateway接入，已经替换为vn.ib封装。
 4. 目前只支持股票和期货交易，ib api里期权合约的确定是基于Contract对象的多个字段，比较复杂暂时没做
 5. 海外市场的交易规则和国内有很多细节上的不同，所以一些字段类型的映射可能不合理，如果发现问题欢迎指出
 """
-
+import logging
 import json
 import os
 from copy import copy
@@ -489,9 +489,10 @@ class IbWrapper(IbApi):
     def updateAccountValue(self, key, val, currency, accountName):
         """更新账户数据"""
         # 仅逐个字段更新数据，这里对于没有currency的推送忽略
+        # todo 修改获取字段方式
+        # logging.info("%s\t %s\t %s" % (key, val, currency))
         if currency:
             name = '.'.join([accountName, currency])
-
             if name in self.accountDict:
                 account = self.accountDict[name]
             else:
@@ -504,6 +505,9 @@ class IbWrapper(IbApi):
             if key in accountKeyMap:
                 k = accountKeyMap[key]
                 account.__setattr__(k, float(val))
+            # add
+            elif key == "ExchangeRate":  # 添加子账户对主账户汇率
+                account.exchangeRate = float(val)
 
     # ----------------------------------------------------------------------
     def updatePortfolio(self, contract, position, marketPrice, marketValue, averageCost, unrealizedPNL, realizedPNL,
@@ -519,6 +523,9 @@ class IbWrapper(IbApi):
         pos.price = averageCost
         pos.vtPositionName = pos.vtSymbol
         pos.gatewayName = self.gatewayName
+
+        # add
+        pos.account = accountName
 
         self.gateway.onPosition(pos)
 

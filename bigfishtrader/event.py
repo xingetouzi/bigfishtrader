@@ -129,6 +129,8 @@ class OrderEvent(Event):
         Returns:
 
         """
+        if timestamp is None:
+            timestamp = datetime.now()
         super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp, topic)
         self.data = order
 
@@ -191,9 +193,8 @@ class ExecutionEvent(Event):
 
         """
         if timestamp is None:
-            super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, datetime.now(), topic)
-        else:
-            super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, timestamp, topic)
+            timestamp = datetime.now()
+        super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, timestamp, topic)
         self.data = execution
 
 
@@ -286,7 +287,7 @@ class OrderStatusEvent(Event):
         """
 
         Args:
-            ord_status(bigfishtrader.models.OrderStatusData):
+            ord_status(bigfishtrader.models.data.OrderStatusData):
             priority:
             timestamp:
             topic:
@@ -338,7 +339,7 @@ class ErrorEvent(Event):
 
 
 class InitEvent(Event):
-    def __init__(self, priority=0, timestamp=None):
+    def __init__(self, priority=-1, timestamp=None):
         if timestamp is None:
             timestamp = datetime.now()
         super(InitEvent, self).__init__(EVENTS.INIT, priority, timestamp)

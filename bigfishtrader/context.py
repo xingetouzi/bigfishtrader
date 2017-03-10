@@ -1,5 +1,6 @@
 # encoding:utf-8
 from functools import wraps
+from weakref import proxy
 from bigfishtrader.engine.handler import HandlerCompose, Handler
 from bigfishtrader.event import *
 
@@ -147,9 +148,16 @@ class Context(HandlerCompose):
 
 
 class ContextMixin(object):
-    def __init__(self, context, environment):
-        self.context = context
-        self.environment = environment
+    def __init__(self, context, environment, data=None, use_proxy=False):
+        if use_proxy:
+            self.context = proxy(context)
+            self.environment = proxy(environment)
+            if self.data:
+                self.data = proxy(data)
+        else:
+            self.context = context
+            self.environment = environment
+            self.data = data
 
     def link_context(self):
         raise NotImplementedError
@@ -168,7 +176,6 @@ class InitializeMixin(object):
 
     def _reset_initialize(self):
         self._initialized = False
-
 
 if __name__ == '__main__':
     pass
