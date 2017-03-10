@@ -2,6 +2,7 @@ import tushare
 import json
 import pandas as pd
 import oandapy
+import pymongo
 from pandas_datareader.data import YahooDailyReader
 from datetime import datetime
 from threading import Thread
@@ -22,11 +23,9 @@ class DataCollector(object):
     }
 
     def __init__(self, **setting):
-        from pymongo import MongoClient
-
         db = setting.pop('db')
         users = setting.pop('user', {})
-        self.client = MongoClient(**setting)
+        self.client = pymongo.MongoClient(**setting)
         self.db = self.client[db]
 
         for db in users:
@@ -76,9 +75,30 @@ class DataCollector(object):
     def stop(self):
         self._running = False
 
-    def read(self, col_name, db=None, start=None, end=None, length=None, **kwargs):
-        db = self.client[db] if db else self.db
+    @staticmethod
+    def _read(collection, **kwargs):
+        data = list(collection.find(**kwargs))
 
+        for key, value in kwargs.get('sort', []):
+            if value < 0:
+                data.reverse()
+
+        data = pd.DataFrame(data)
+
+        try:
+            data.pop('_id')
+            data.index = data['datetime']
+        except KeyError as ke:
+            if '_id' in str(ke):
+                raise KeyError("unable to find required data, please check you data in %s" % collection.full_name)
+            elif 'datetime' in str(ke):
+                raise KeyError(
+                    "data is not in TimeSeries shape, "
+                    "please ensure that all documents in %s "
+                    "has a key: datetime and with a value of type<datetime>" % collection.full_name)
+        return data
+
+    def read(self, collection, db=None, start=None, end=None, length=None, **kwargs):
         if start:
             fter = {'datetime': {'$gte': start}}
             if end:
@@ -94,16 +114,27 @@ class DataCollector(object):
         elif end:
             kwargs['filter'] = {'datetime': {'$lte': end}}
 
-        data = list(db[col_name].find(**kwargs))
+        if isinstance(collection, (str, unicode)):
+            db = self.client[db] if db else self.db
+            return self._read(db[collection], **kwargs)
+        elif isinstance(collection, pymongo.collection.Collection):
+            return self._read(collection, **kwargs)
+        elif isinstance(collection, (list, tuple)):
+            db = self.client[db] if db else self.db
+            panel = {}
+            for col in collection:
+                if isinstance(col, (str, unicode)):
+                    panel[col] = self._read(db[col], **kwargs)
+                elif isinstance(col, pymongo.collection.Collection):
+                    panel[col.name] = self._read(col, **kwargs)
+            return pd.Panel.from_dict(panel)
 
-        for key, value in kwargs.get('sort', []):
-            if value < 0:
-                data.reverse()
-
-        data = pd.DataFrame(data)
-
-        data.pop('_id')
-        return data
+    def raw_read(self, collection, db=None, **kwargs):
+        if isinstance(collection, str):
+            db = self.client[db] if db else self.db
+            return pd.DataFrame(list(db[collection].find(**kwargs)))
+        elif isinstance(collection, pymongo.collection.Collection):
+            return pd.DataFrame(collection.find(**kwargs))
 
 
 class StockData(DataCollector):
@@ -151,7 +182,7 @@ class StockData(DataCollector):
             self, start='', end='',
             ktype='D', autype='qfq', index=False,
             retry_count=3, pause=0.001
-        ):
+    ):
         hs300 = tushare.get_hs300s()
         for code in hs300['code']:
             self.save_k_data(
