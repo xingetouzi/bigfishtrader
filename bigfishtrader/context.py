@@ -152,7 +152,7 @@ class ContextMixin(object):
         if use_proxy:
             self.context = proxy(context)
             self.environment = proxy(environment)
-            if self.data:
+            if data:
                 self.data = proxy(data)
         else:
             self.context = context

@@ -1,6 +1,6 @@
 import logging
 import time
-from bigfishtrader.trader import Trader, Component
+from bigfishtrader.trader import PracticeTrader, Component
 from bigfishtrader.vt.ctpGateway.ctpGateway import CtpGateway
 from bigfishtrader.vt.ibGateway.ibGateway import IbGateway
 from bigfishtrader.account.handlers import AccountHandler
@@ -18,13 +18,9 @@ logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=loggin
 last_time = time.time()
 
 
-class Context(object):
-    pass
-
-
-class RuntimeTrader(Trader):
+class NewBackTrader(PracticeTrader):
     def __init__(self):
-        super(RuntimeTrader, self).__init__()
+        super(NewBackTrader, self).__init__()
         self.context = Context()
         self.environment = Environment()
         self.environment_context = EnvironmentContext(self.environment)
@@ -42,17 +38,14 @@ class RuntimeTrader(Trader):
             else:
                 self.models[name] = co.constructor(*args, **kwargs)
         self._register_models()
-        # self.context.link(**self.models)
+        self.context.link(**self.models)
         self.initialized = True
         return self
 
     def init_settings(self):
-        super(RuntimeTrader, self).init_settings()
+        super(NewBackTrader, self).init_settings()
         self.settings["security_pool"] = Component(
             "security_pool", SecurityPool, (), {}
-        )
-        self.settings["router"] = Component(
-            "router", IbGateway, (Component.Lazy("engine"),), {}
         )
         self.settings["account_handler"] = Component(
             "account_handler", AccountHandler, (), {}
@@ -61,8 +54,8 @@ class RuntimeTrader(Trader):
             "order_book_handler", OrderBookHandler,
             (Component.Lazy("data"), Component.Lazy("event_queue")), {}
         )
-        self.settings["portfolio_handler"] = Component(
-            "portfolio_handler", PortfolioHandler, (), {}
+        self.settings["portfolio"] = Component(
+            "portfolio_handler", PortfolioHandler, (Component.Lazy("data"),), {}
         )
 
     def on_init(self, event, kwargs=None):
@@ -146,6 +139,7 @@ class RuntimeTrader(Trader):
         self.environment.initialize(self.context, data)
         self.models["router"].subscribe_contract(self.environment.symbol("EUR.USD"))
         engine.join()
+        self.initialized = False
 
     def run(self, filename):
         with self.environment_context:
@@ -154,11 +148,60 @@ class RuntimeTrader(Trader):
     def stop(self):
         self.models["engine"].stop()
 
+    def back_test(self, filename, tickers, frequency, start=None, end=None,
+                  ticker_type=None, **kwargs):
+        if not self.initialized:
+            raise Exception('Models not initialized, please call initialize()')
+
+        context, data, engine = self.context, self.models['data'], self.models['engine']
+        strategy = self.environment.dct.copy()
+        for key, value in kwargs.items():
+            strategy["key"] = value
+        execfile(filename, strategy, strategy)
+        data.init(tickers, frequency, start, end, ticker_type)
+        context.tickers = tickers
+
+        # TODO XXX
+        context.account = Environment()
+        context.account.id = "hahaha"
+
+        def on_time(event, kwargs=None):
+            strategy["handle_data"](context, data)
+
+        self.models['engine'].register(on_time, EVENTS.TIME, topic='.', priority=100)
+
+        strategy["initialize"](context, data)
+        engine.start()
+        engine.join()
+        engine.stop()
+
+        self.initialized = False
+
+        return self.models['portfolio']
+
 
 if __name__ == "__main__":
     import os
+    import pandas as pd
+    from datetime import datetime
 
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "test_strategy.py")
-    trader = RuntimeTrader()
-    trader.initialize()
-    trader.run(path)
+    pwd = os.path.dirname(os.path.abspath(__file__))
+    name = "NEW_MA_strategy"
+    path = os.path.join(pwd, name + ".py")
+    trader = NewBackTrader()
+    trader["data"].kwargs.update({"port": 27018, "host": "192.168.0.103"})
+    p = trader.initialize().back_test(
+        path,
+        ['000001'], 'D', datetime(2016, 1, 1),
+        ticker_type='HS', fast=10, slow=15
+    )
+    equity = (pd.DataFrame(
+        p.info
+    ))
+    equity.to_csv(os.path.join(pwd, "result", "equity.csv"), encoding="utf-8")
+    position = (pd.DataFrame(
+        p.history)
+    )
+    equity.to_csv(os.path.join(pwd, "result", "position.csv"), encoding="utf-8")
+    execution = pd.DataFrame(trader.models["order_handler"].get_executions(method="df"))
+    execution.to_csv(os.path.join(pwd, "result", "execution.csv"), encoding="utf-8")

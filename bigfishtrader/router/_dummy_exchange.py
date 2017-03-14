@@ -1,7 +1,7 @@
 # encoding: utf-8
 from enum import Enum
 
-from bigfishtrader.const import ORDERTYPE, ACTION
+from bigfishtrader.const import ORDERTYPE, ACTION, ORDERSTATUS
 from bigfishtrader.engine.handler import Handler
 from bigfishtrader.event import ExecutionEvent, RecallEvent, EVENTS
 from bigfishtrader.models.data import ExecutionData
@@ -45,6 +45,14 @@ class DummyExchange(AbstractRouter):
             ORDERTYPE.LIMIT.value: self._fill_limit,
             ORDERTYPE.STOP.value: self._fill_stop
         }
+        self._order_id = 0
+        self.account = "BACKTEST"
+        self.gateway = "BACKTEST"
+
+    @property
+    def next_order_id(self):
+        self._order_id += 1
+        return self._order_id
 
     @staticmethod
     def calculate_commission(order, price):
@@ -71,7 +79,9 @@ class DummyExchange(AbstractRouter):
         fill = ExecutionData()
         fill.time = timestamp
         fill.symbol = order.symbol
-        fill.orderQty = order.orderQty
+        fill.cumQty = order.orderQty
+        fill.leavesQty = 0
+        fill.lastQty = order.orderQty
         fill.action = order.action
         fill.lastPx = price + self.calculate_slippage(order, price)
         fill.commission = self.calculate_commission(order, price)
@@ -181,6 +191,9 @@ class DummyExchange(AbstractRouter):
 
         """
         order = event.data
+        order.clOrdID = str(self.next_order_id)
+        order.account = self.account
+        order.gateway = self.gateway
         self.event_queue.put(RecallEvent(order.transactTime, order))  # 不管何种订单，都先返回已经挂单成功事件
         if order.ordType == ORDERTYPE.MARKET and self.deal_mode == BACKTESTDEALMODE.THIS_BAR_CLOSE:
             current = self._data.current(order.symbol)
@@ -201,17 +214,22 @@ class PracticeExchange(DummyExchange):
         if price != price:
             print("%s is not able to trade at %s" % (order.symbol, timestamp))
             return
-        fill = ExecutionData()
-        fill.time = timestamp
-        fill.symbol = order.symbol
-        fill.orderQty = order.orderQty
-        fill.action = order.action
-        fill.lastPx = price + self.calculate_slippage(order, price)
-        fill.commission = self.calculate_commission(order, price)
-        fill.clOrderID = order.clOrdID
-        fill.position_id = order.clOrdID
+        execution = ExecutionData()
+        execution.time = timestamp
+        execution.symbol = order.symbol
+        execution.side = order.side
+        execution.cumQty = order.orderQty
+        execution.leavesQty = 0
+        execution.lastQty = order.orderQty
+        execution.action = order.action
+        execution.lastPx = price + self.calculate_slippage(order, price)
+        execution.commission = self.calculate_commission(order, price)
+        execution.clOrderID = order.clOrdID
+        execution.account = order.account
+        execution.gateway = order.gateway
+        execution.position_id = order.clOrdID
         for k, v in self.ticker_info.get(order.symbol, {}):
-            setattr(fill, k, v)
-        event = ExecutionEvent(fill, timestamp=timestamp, topic=order.symbol)
+            setattr(execution, k, v)
+        event = ExecutionEvent(execution, timestamp=timestamp, topic=order.symbol)
         self._orders.pop(order.clOrdID, None)
         self.portfolio.on_execution(event)

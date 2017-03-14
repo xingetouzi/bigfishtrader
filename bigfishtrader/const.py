@@ -18,6 +18,7 @@ class ORDERTYPE(Enum):
 
 
 class ORDERSTATUS(Enum):
+    GENERATE = "已生成"
     NOTTRADED = "未成交"
     PARTTRADED = "部分成交"
     ALLTRADED = "全部成交"

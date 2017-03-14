@@ -4,9 +4,10 @@ import copy
 import time
 
 from dictproxyhack import dictproxy
+import numpy as np
 from enum import Enum
 
-from bigfishtrader.const import ACTION, DIRECTION, ORDERSTATUS
+from bigfishtrader.const import *
 from bigfishtrader.engine.handler import HandlerCompose, Handler
 from bigfishtrader.event import EVENTS
 from bigfishtrader.models.data import PositionData
@@ -14,9 +15,10 @@ from bigfishtrader.context import ContextMixin, InitializeMixin
 
 STAGE = {
     ORDERSTATUS.UNKNOWN.value: 0,
-    ORDERSTATUS.NOTTRADED.value: 1,
-    ORDERSTATUS.ALLTRADED.value: 2,
-    ORDERSTATUS.CANCELLED.value: 3,
+    ORDERSTATUS.GENERATE.value: 1,
+    ORDERSTATUS.NOTTRADED.value: 2,
+    ORDERSTATUS.ALLTRADED.value: 3,
+    ORDERSTATUS.CANCELLED.value: 4,
 }
 
 
@@ -31,23 +33,29 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         STRATEGY = 1
         NONE = 2
 
-    SYNC_FREQUENCY = 1000  # in millisecond
+    class EXECUTION_MODE(Enum):
+        AVG = "AVG"  # 持仓均价成交模式,适合股票
+        FIFO = "FIFO"  # 先进先出成交模式，适合期货
 
-    def __init__(self, context, environment, mode=None, sync_policy=None, has_frozen=False):
+    SYNC_FREQUENCY = 1000  # in millisecond
+    DEFAULT_CAPITAL_BASE = 100000
+
+    def __init__(self, context, environment, data=None, mode=None, sync_policy=None, execution_mode=None,
+                 has_frozen=False):
         super(PortfolioHandler, self).__init__()
-        ContextMixin.__init__(self, context, environment, use_proxy=True)
+        ContextMixin.__init__(self, context, environment, data, use_proxy=True)
         InitializeMixin.__init__(self)
+        # setting
         if mode is None:
-            mode = self.MODE.SYNC.value
+            mode = self.MODE.SYNC.value  # 默认同步的方式
         if sync_policy is None:
             sync_policy = self.SYNCPOLICY.BROKER.value
-        self._strategy_positions = {}
-        self._broker_positions = {}
-        self._strategy_positions_snapshot = {}
-        self._broker_positions_snapshot = {}
+        if execution_mode is None:
+            execution_mode = self.EXECUTION_MODE.AVG.value
         self._mode = mode
         # sync policy when there is difference between broker position and strategy position
         self._sync_policy = sync_policy  # TODO realize the sync logic
+        self._execution_mode = execution_mode
         self._has_frozen = has_frozen  # Is there frozen volume field in position message from broker
         self._handlers = {
             "on_position": Handler(self.on_position, EVENTS.POSITION, topic=".", priority=0),
@@ -57,9 +65,91 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         if self._mode == self.MODE.STRATEGY.value:
             self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER)
         else:
-            # 由于根据成交回报不一定是全量式的，比如ctp，所以只能根据订单状态改变来计算仓位的变化
             self._handlers["on_order_status"] = Handler(self.on_order_status, EVENTS.ORD_STATUS, topic="", priority=100)
-            # self._handlers["on_execution"] = Handler(self.on_execution, EVENTS.EXECUTION)
+            self._handlers["on_execution"] = Handler(self.on_execution, EVENTS.EXECUTION)
+        self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
+
+        # position data
+        self._strategy_positions = {}
+        self._broker_positions = {}
+
+        # back_test
+        self._history_positions = []
+        self._info = []
+
+        # account relative data
+        self._ur_pnl = EMPTY_FLOAT
+        self._pnl = EMPTY_FLOAT
+
+        self._capital_used = EMPTY_FLOAT
+        self._positions_value = EMPTY_FLOAT
+        self._starting_cash = self.DEFAULT_CAPITAL_BASE
+        self._cash = self.DEFAULT_CAPITAL_BASE
+        self._margin = EMPTY_FLOAT  # TODO realize it
+
+    @staticmethod
+    def get_sign(n):
+        if n > 0:
+            return 1
+        elif n < 0:
+            return -1
+        else:
+            return 0  # position = 0
+
+    @staticmethod
+    def _trans_position(position):
+        """
+
+        Args:
+            position(bigfishtrader.models.data.PositionData):
+
+        Returns:
+            None
+        """
+        if position.side == DIRECTION.SHORT.value:
+            position.volume = - position.volume
+            position.frozenVolume = - position.frozenVolume
+        position.side = DIRECTION.NET.value
+
+    @staticmethod
+    def _empty_position(sid, data):
+        """
+
+        Args:
+            sid:
+            data(bigfishtrader.models.data.OrderStatusData | bigfishtrader.models.data.ExecutionData):
+
+        Returns:
+
+        """
+        position = PositionData()
+        position.account = data.account
+        position.symbol = data.symbol
+        position.sid = sid
+        position.side = DIRECTION.NET.value  # 保存下来的position都使用net模式
+        position.exchange = data.exchange
+        position.gateway = data.gateway
+        position.volume = 0
+        position.frozenVolume = 0
+        position.avgPrice = 0  # avgPrice 暂时不可用
+        return position
+
+    def _close_position(self, position):
+        """
+
+        Args:
+            position(bigfishtrader.models.data.PositionData):
+
+        Returns:
+
+        """
+        security = self.environment.symbol(position.sid)
+        close = self.data.current(security.symbol).close
+        traded_qty = position.volume - position.frozenVolume
+        if close != np.nan:
+            return traded_qty * (close - position.avgPrice)
+        else:
+            return 0
 
     def on_init_start(self, event, kwargs=None):
         self.environment.gateway.qryPosition()
@@ -109,30 +199,6 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         order = event.data
         # TODO 发单即仓位更新模式
 
-    @staticmethod
-    def get_sign(n):
-        if n > 0:
-            return 1
-        elif n < 0:
-            return -1
-        else:
-            return 0  # position = 0
-
-    @staticmethod
-    def _trans_position(position):
-        """
-
-        Args:
-            position(bigfishtrader.models.data.PositionData):
-
-        Returns:
-            None
-        """
-        if position.side == DIRECTION.SHORT.value:
-            position.volume = - position.volume
-            position.frozenVolume = - position.frozenVolume
-        position.side = DIRECTION.NET.value
-
     def on_order_status(self, event, kwargs=None):
         """
 
@@ -145,65 +211,38 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         """
         new = event.data
         old = self.environment.get_order_status(new.gClOrdID)
-        print("old: %s" % new.to_dict(ordered=True))
-        print("new: %s" % new.to_dict(ordered=True))
+        # print("old: %s" % new.to_dict(ordered=True))
+        # print("new: %s" % new.to_dict(ordered=True))
         security = self.environment.symbol(new.symbol)
         if security is None:
             return
         sid = security.sid
-        if new.ordStatus in {ORDERSTATUS.NOTTRADED.value, ORDERSTATUS.PARTTRADED.value, ORDERSTATUS.ALLTRADED.value,
-                             ORDERSTATUS.CANCELLED.value}:
-            if STAGE[old.ordStatus] > STAGE[new.ordStatus]:  # error stage of order
-                return
-            last_qty = new.cumQty - old.cumQty
+        if STAGE[old.ordStatus] > STAGE[new.ordStatus]:  # error stage of order
+            return  # TODO test order status == unknown
+        sign = 1 if new.side == DIRECTION.LONG.value else -1
+        if old.ordStatus == ORDERSTATUS.GENERATE.value:  # new order execution in first time
             if sid not in self._strategy_positions:  # create new position
-                position = PositionData()
-                position.account = new.account
-                position.symbol = new.symbol
-                position.sid = sid
-                position.side = DIRECTION.NET  # 保存下来的position都使用net模式
-                position.exchange = new.exchange
-                position.gateway = new.gateway
-                position.volume = 0
-                position.frozenVolume = 0
-                position.avgPrice = 0  # avgPrice 暂时不可用
-            else:
-                position = self._strategy_positions[sid]
-            sign = 1 if new.side == DIRECTION.LONG.value else -1
-            # tradedVolume = position.volume - position.frozenVolume
-            # sign_t = self.get_sign(tradedVolume) * sign_p
-            # if sign_t * sign_e >= 0:  # 加仓
-            #     position.avgPrice = (position.avgPrice * tradedVolume + execution.lastQty * execution.lastPx) / \
-            #                         (tradedVolume + execution.lastQty)
-            # else:
-            #     if tradedVolume < execution.lastQty:  # 反向
-            #         position.avgPrice = execution.lastPx
-            #         # 其他情况 avxPrice 不变
-            if old.ordStatus == ORDERSTATUS.UNKNOWN.value:  # new order execution in first time
-                position.volume += new.orderQty * sign
-                position.frozenVolume += new.leavesQty * sign
-            else:
-                position.frozenVolume -= last_qty * sign
-            if new.ordStatus == ORDERSTATUS.CANCELLED.value:  # when cancel order or reject order or order expire
-                position.volume -= old.leavesQty * sign
-                position.frozenVolume -= old.leavesQty * sign
+                self._strategy_positions[sid] = self._empty_position(sid, new)
+            position = self._strategy_positions[sid]
+            position.volume += new.orderQty * sign
+            position.frozenVolume += new.leavesQty * sign
 
-            # copy frozenVolume to broker positions
-            if not self._has_frozen and self._mode == self.MODE.BROKER.value:
-                if sid not in self._broker_positions:
-                    if position.frozenVolume:
-                        temp = copy.copy(position)
-                        # there is no realized volume in broker side
-                        temp.volume = temp.frozenVolume
-                        temp.avgPrice = 0
-                        self._broker_positions[sid] = temp
-                else:
-                    temp = self._broker_positions[sid]
-                    temp.volume -= temp.frozenVolume
-                    temp.frozenVolume = position.frozenVolume
-                    temp.volume += temp.frozenVolume
+        position = self._strategy_positions[sid]
+        if not self._has_frozen and self._mode == self.MODE.BROKER.value:
+            if sid not in self._broker_positions:
+                if position.frozenVolume:
+                    temp = copy.copy(position)
+                    # there is no realized volume in broker side
+                    temp.volume = temp.frozenVolume
+                    temp.avgPrice = 0
+                    self._broker_positions[sid] = temp
+            else:
+                temp = self._broker_positions[sid]
+                temp.volume -= temp.frozenVolume
+                temp.frozenVolume = position.frozenVolume
+                temp.volume += temp.frozenVolume
 
-    def on_execution(self, event, kwargs=None):  # deprecated
+    def on_execution(self, event, kwargs=None):
         """
 
         Args:
@@ -213,59 +252,71 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         Returns:
             None
         """
-
         execution = event.data
-        if execution.gSymbol not in self._strategy_positions:  # create new position
-            position = PositionData()
-            position.account = execution.account
-            position.symbol = execution.symbol
-            position.side = execution.side
-            position.exchange = execution.exchange
-            position.gateway = execution.gateway
-            position.volume = 0
-            position.frozenVolume = 0
-            position.avgPrice = 0
-        else:
-            position = self._strategy_positions[execution.gSymbol]
+        order = self.environment.get_order_status(execution.gClOrdID)
+        sid = self.environment.symbol(execution.symbol).sid
+        if sid not in self._strategy_positions:
+            self._strategy_positions[sid] = self._empty_position(sid, execution)
+        position = self._strategy_positions[sid]
+        sign_o = 1 if order.side == DIRECTION.LONG.value else -1
+        if order.ordStatus == ORDERSTATUS.GENERATE.value:
+            # # new order execution in first time, and execution arrive before order status
+            position.volume += order.orderQty * sign_o
+            position.frozenVolume += order.leavesQty * sign_o
+            order.ordStatus = ORDERSTATUS.NOTTRADED.value
+        if self._execution_mode == self.EXECUTION_MODE.AVG.value:
+            traded_qty = position.volume - position.frozenVolume
+            last_qty = execution.lastQty * (1 if execution.side == DIRECTION.LONG.value else -1)
 
-        # change position according to execution
-        tradedVolume = position.volume - position.frozenVolume
-        sign_p = 1 if position.side == DIRECTION.LONG.value else -1
-        sign_t = self.get_sign(tradedVolume) * sign_p
-        sign_e = 1 if execution.side == DIRECTION.LONG.value else -1
-        if sign_t * sign_e >= 0:  # 加仓
-            position.avgPrice = (position.avgPrice * tradedVolume + execution.lastQty * execution.lastPx) / \
-                                (tradedVolume + execution.lastQty)
-        else:
-            if tradedVolume < execution.lastQty:  # 反向
-                position.avgPrice = execution.lastPx
-                # 其他情况 avxPrice 不变
-        sign = 1 if (sign_p * sign_e) >= 0 else -1
-        if execution.cumQty == execution.lastQty:  # new order execution in first time
-            position.volume += (execution.cumQty + execution.leavesQty) * sign
-            position.frozenVolume += execution.leavesQty * sign
-        else:
-            position.frozenVolume -= execution.lastQty * sign
-        if position.volume < 0:
-            position.side = DIRECTION.SHORT.value if position.side == DIRECTION.LONG.value else DIRECTION.LONG.value
-            position.volume = - position.volume
-            position.frozenVolume = - position.frozenVolume
-        if execution.leavesQty == 0:  # when cancel order or reject order or order expire
-            order = self.environment.get_order(execution.gClOrdID)
-            position.frozenVolume -= (order.orderQty - execution.cumQty) * sign
-
-        # copy frozenVolume to broker positions
-        if not self._has_frozen and self._mode == self.MODE.BROKER.value:
-            if execution.gSymbol not in self._broker_positions:
-                if position.frozenVolume:
-                    temp = copy.copy(position)
-                    # there is no realized volume in broker side
-                    temp.volume = 0
-                    temp.avgPrice = 0
-                    self._broker_positions[execution.gSymbol] = temp
+            if traded_qty * last_qty >= 0:  # 加仓
+                position.avgPrice = (position.avgPrice * traded_qty + execution.lastPx * last_qty) / \
+                                    (traded_qty + last_qty)
+                self._cash -= last_qty * execution.lastPx
             else:
-                temp = self._broker_positions[execution.gSymbol]
-                temp.frozenVolume = position.frozenVolume
+                if abs(traded_qty) < abs(last_qty):  # 反向
+                    position.avgPrice = execution.lastPx if last_qty != traded_qty else 0
+                    self._cash -= last_qty * abs(last_qty - traded_qty)  # 减掉新开仓现金
+                    # 其他情况 avxPrice 不变
+                if traded_qty > 0:
+                    delta = execution.lastPx - position.avgPrice
+                else:
+                    delta = position.avgPrice - execution.lastPx
+                self._cash += delta * min(abs(last_qty), abs(traded_qty))
+            position.frozenVolume -= last_qty
+            self._positions_value = abs(position.volume - position.frozenVolume) * position.avgPrice
+            self._pnl += last_qty * execution.lastPx
+            if position.volume == 0 and position.frozenVolume == 0:
+                self._strategy_positions.pop(sid)
+        elif self._execution_mode == self.EXECUTION_MODE.FIFO.value:
+            # TODO 先开先平的结算
+            pass
+
+    def on_time(self, event, kwargs=None):
+        for sid, position in self._strategy_positions.items():
+            self._history_positions.append(position.to_dict())
+        self._info.append(
+            {'datetime': event.time, 'cash': self.cash, 'equity': self.portfolio_value},
+        )
+
+    @property
+    def capital_used(self):
+        return self._capital_used
+
+    @property
+    def cash(self):
+        return self._cash
+
+    @property
+    def pnl(self):
+        return self._pnl
+
+    @property
+    def portfolio_value(self):
+        return self._cash + sum([self._close_position(p) for p in self.positions.values()])
+
+    @property
+    def returns(self):
+        return self._positions_value / self._starting_cash
 
     @property
     def positions(self):
@@ -273,6 +324,14 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
             return dictproxy(self._broker_positions)
         else:
             return dictproxy(self._strategy_positions)
+
+    @property
+    def info(self):
+        return self._info
+
+    @property
+    def history(self):
+        return self._history_positions
 
     def link_context(self):
         self.context.portfolio = self

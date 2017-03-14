@@ -193,7 +193,8 @@ class PositionData(BaseData):
     Attributes:
         symbol(str): symbol of position
     """
-    __slots__ = ["gateway", "account", "symbol", "sid", "exchange", "side", "volume", "frozenVolume", "avgPrice"]
+    __slots__ = ["gateway", "account", "symbol", "sid", "exchange", "side", "volume", "frozenVolume", "avgPrice",
+                 "marketValue"]
 
     def __init__(self):
         self.gateway = EMPTY_STRING
@@ -205,6 +206,7 @@ class PositionData(BaseData):
         self.volume = EMPTY_INT
         self.frozenVolume = EMPTY_UNICODE
         self.avgPrice = EMPTY_FLOAT
+        self.marketValue = EMPTY_FLOAT
 
 
 class ExecutionData(BaseData):

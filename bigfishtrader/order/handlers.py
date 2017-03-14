@@ -1,6 +1,7 @@
 # encoding: utf-8
 
 import copy
+import pandas as pd
 
 from bigfishtrader.const import ORDERSTATUS
 from bigfishtrader.engine.handler import HandlerCompose, Handler
@@ -8,10 +9,11 @@ from bigfishtrader.event import EVENTS, OrderEvent
 from bigfishtrader.models.data import OrderStatusData, Security, OrderReq
 from bigfishtrader.context import ContextMixin
 from bigfishtrader.order.style import *
+from bigfishtrader.utils.api_support import api_method
 
 
 class AbstractOrderHandler(HandlerCompose, ContextMixin):
-    def __init__(self, context, environment):
+    def __init__(self, context, environment, data):
         """
 
         Args:
@@ -22,7 +24,7 @@ class AbstractOrderHandler(HandlerCompose, ContextMixin):
 
         """
         super(AbstractOrderHandler, self).__init__()
-        ContextMixin.__init__(self, context, environment)
+        ContextMixin.__init__(self, context, environment, data)
         #  Order.clOrderID should be confirmed before this handler be called in working stream
         self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-100)
         self._handlers["on_execution"] = Handler(self.on_execution, EVENTS.EXECUTION, topic=".", priority=-100)
@@ -75,7 +77,7 @@ class OrderBookHandler(AbstractOrderHandler):
             status.price = order.price
             status.orderQty = order.orderQty
             status.leavesQty = order.orderQty
-            status.ordStatus = ORDERSTATUS.UNKNOWN.value
+            status.ordStatus = ORDERSTATUS.GENERATE.value
             status.gateway = order.gateway
             status.account = order.account
             self._order_status[status.gClOrdID] = status
@@ -146,6 +148,13 @@ class OrderBookHandler(AbstractOrderHandler):
     def _miss_security(self):
         pass  # TODO warning
 
+    def get_executions(self, method="df"):
+        if method == "df":
+            return pd.DataFrame(list(map(lambda x: x.to_dict(ordered=True), self._executions)))
+        elif method == "list":
+            return copy.deepcopy(self._executions)
+
+    @api_method
     def order(self, security, amount, limit_price=None, stop_price=None, style=None):
         if not style:
             if limit_price and stop_price:
@@ -169,8 +178,12 @@ class OrderBookHandler(AbstractOrderHandler):
             security = self.environment.symbol(security)
         amount = int(amount)
         if security:
-            position = self.environment.portfolio.positions.get(security.sid)
-            delta = amount - position
+            position = self.context.portfolio.positions.get(security.sid)
+            if position:
+                volume = position.volume
+            else:
+                volume = 0
+            delta = amount - volume
             if delta != 0:
                 return self.order(security, delta, style=style)
             else:
@@ -180,11 +193,12 @@ class OrderBookHandler(AbstractOrderHandler):
 
     def _value2shares(self, security, value):
         # TODO 完成实时的current和history遍写
-        point = self.data.current(security, ["close"])
-        return int(value / point / security.point_value)
+        point = self.data.current(security.symbol, ["close"])
+        point_value = security.point_value if hasattr(security, "point_value") else 1
+        return int(value / point / point_value)
 
     def _percent2shares(self, security, percent):
-        value = self.environment.account.balance * percent
+        value = self.context.portfolio.cash * percent
         return self._value2shares(security, value)
 
     def order_value(self, security, value, style=None):
@@ -232,9 +246,11 @@ class OrderBookHandler(AbstractOrderHandler):
 
         # place order
         self.environment["order"] = self.order
-        self.environment["order_value"] = self.order_value
         self.environment["order_target"] = self.order_target
+        self.environment["order_value"] = self.order_value
         self.environment["order_target_value"] = self.order_target_value
+        self.environment["order_percent"] = self.order_percent
+        self.environment["order_target_percent"] = self.order_target_percent
         self.environment["get_order_status"] = self.get_order_status
         self.environment["cancel_order"] = self.cancel_order
 
