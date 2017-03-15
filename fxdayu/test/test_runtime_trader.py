@@ -1,17 +1,16 @@
 import logging
 import time
-from fxdayu.trader import Trader, Component
-from fxdayu.vt.ctpGateway.ctpGateway import CtpGateway
-from fxdayu.vt.ibGateway.ibGateway import IbGateway
+
 from fxdayu.account.handlers import AccountHandler
-from fxdayu.order.handlers import OrderBookHandler
-from fxdayu.position.handlers import PortfolioHandler
-from fxdayu.event import EVENTS, InitEvent
-from fxdayu.security import SecurityPool
-from fxdayu.environment import Environment
 from fxdayu.context import ContextMixin, Context
+from fxdayu.environment import Environment
+from fxdayu.event import EVENTS, InitEvent
+from fxdayu.modules.order import OrderBookHandler
+from fxdayu.modules.security import SecurityPool
+from fxdayu.position.handlers import PortfolioHandler
+from fxdayu.trader import Trader, Component
 from fxdayu.utils.api_support import EnvironmentContext
-from fxdayu.const import GATEWAY, DIRECTION
+from fxdayu.vt.ibGateway.ibGateway import IbGateway
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)
 

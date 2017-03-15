@@ -6,11 +6,11 @@ except ImportError:
 import types
 from collections import OrderedDict
 
-from fxdayu.engine.core import Engine
+from fxdayu.engine import Engine
 from fxdayu.context import Context
 from fxdayu.portfolio.portfolio import OrderPortfolio, PositionPortfolio
 from fxdayu.data.support import MultiDataSupport
-from fxdayu.router.exchange import DummyExchange, PracticeExchange
+from fxdayu.router.exchange import DummyExchange
 from fxdayu.event import EVENTS
 
 
@@ -158,16 +158,6 @@ class Trader(object):
         self.initialized = False
 
         return self.models['portfolio']
-
-
-class PracticeTrader(Trader):
-    def init_settings(self):
-        super(PracticeTrader, self).init_settings()
-        self.settings["router"] = Component("router", PracticeExchange, (), {
-            'event_queue': Component.Lazy('event_queue'),
-            'data': Component.Lazy('data'),
-            'portfolio': Component.Lazy('portfolio'),
-        })
 
 
 class Optimizer(object):

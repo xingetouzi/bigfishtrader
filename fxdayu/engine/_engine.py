@@ -4,9 +4,9 @@ import logging
 from threading import Thread
 
 try:
-    from Queue import Empty
+    from Queue import Empty, PriorityQueue
 except ImportError:
-    from queue import Empty
+    from queue import Empty, PriorityQueue
 from fxdayu.engine.stream import StreamManager, StreamEnd
 from fxdayu.event import EVENTS
 
@@ -19,15 +19,19 @@ class Engine(object):
     工作流开始处理外部输入的事件
 
     Attributes:
-        event_queue(Queue): 事件队列，推荐使用优先级队列PriorityQueue。
+        queue(type): 事件队列类型，推荐使用优先级队列PriorityQueue。
         is_running(bool): 引擎是否在运行的标记。
         _stream_manager(StreamManager): 工作流管理器对象。
         _thread(Thread): 工作线程
     """
 
-    def __init__(self, event_queue):
-        self.event_queue = event_queue
-        self._stream_manager = StreamManager()
+    def __init__(self, queue=None, manager=None):
+        if queue is None:
+            queue = PriorityQueue
+        if manager is None:
+            manager = StreamManager
+        self.event_queue = queue()
+        self._stream_manager = manager()
         self._is_running = False
         self._thread = None
         self.register(self._stop, EVENTS.EXIT, topic=".", priority=0)
