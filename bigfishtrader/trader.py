@@ -55,10 +55,8 @@ class Trader(object):
             ('portfolio', Component('portfolio', PositionPortfolio, (
                 Component.Lazy("event_queue"), Component.Lazy("data")
             ), {})),
-            ('router', Component('router', DummyExchange, (), {
-                'event_queue': Component.Lazy('event_queue'),
-                'data': Component.Lazy('data')
-            })),
+            ('router', Component('router', DummyExchange, (
+                Component.Lazy("event_queue"), ), {})),
         ])
 
     def __getitem__(self, item):

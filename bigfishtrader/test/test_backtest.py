@@ -1,6 +1,6 @@
 import logging
 import time
-from bigfishtrader.trader import PracticeTrader, Component
+from bigfishtrader.trader import Trader, Component
 from bigfishtrader.vt.ctpGateway.ctpGateway import CtpGateway
 from bigfishtrader.vt.ibGateway.ibGateway import IbGateway
 from bigfishtrader.account.handlers import AccountHandler
@@ -18,7 +18,7 @@ logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=loggin
 last_time = time.time()
 
 
-class NewBackTrader(PracticeTrader):
+class NewBackTrader(Trader):
     def __init__(self):
         super(NewBackTrader, self).__init__()
         self.context = Context()
@@ -33,7 +33,7 @@ class NewBackTrader(PracticeTrader):
             kwargs = {key: self.models[para.name] if isinstance(para, Component.Lazy) else para for key, para in
                       co.kwargs.items()}
             if issubclass(co.constructor, ContextMixin):
-                self.models[name] = co.constructor(self.context, self.environment, *args, **kwargs)
+                self.models[name] = co.constructor(self.context, self.environment, self.models["data"], *args, **kwargs)
                 self.models[name].link_context()
             else:
                 self.models[name] = co.constructor(*args, **kwargs)
@@ -52,10 +52,10 @@ class NewBackTrader(PracticeTrader):
         )
         self.settings["order_book_handler"] = Component(
             "order_book_handler", OrderBookHandler,
-            (Component.Lazy("data"), Component.Lazy("event_queue")), {}
+            (Component.Lazy("event_queue"),), {}
         )
         self.settings["portfolio"] = Component(
-            "portfolio_handler", PortfolioHandler, (Component.Lazy("data"),), {}
+            "portfolio_handler", PortfolioHandler, (), {}
         )
 
     def on_init(self, event, kwargs=None):
@@ -168,7 +168,7 @@ class NewBackTrader(PracticeTrader):
         def on_time(event, kwargs=None):
             strategy["handle_data"](context, data)
 
-        self.models['engine'].register(on_time, EVENTS.TIME, topic='.', priority=100)
+        self.models['engine'].register(on_time, EVENTS.TIME, topic='bar.close', priority=100)
 
         strategy["initialize"](context, data)
         engine.start()
@@ -198,10 +198,10 @@ if __name__ == "__main__":
     equity = (pd.DataFrame(
         p.info
     ))
-    equity.to_csv(os.path.join(pwd, "result", "equity.csv"), encoding="utf-8")
+    equity.to_csv(os.path.join(pwd, "result", "equity.csv"), index=False, encoding="utf-8")
     position = (pd.DataFrame(
         p.history)
     )
-    equity.to_csv(os.path.join(pwd, "result", "position.csv"), encoding="utf-8")
-    execution = pd.DataFrame(trader.models["order_handler"].get_executions(method="df"))
+    position.to_csv(os.path.join(pwd, "result", "position.csv"), index=False, encoding="utf-8")
+    execution = pd.DataFrame(trader.models["order_book_handler"].get_executions(method="df"))
     execution.to_csv(os.path.join(pwd, "result", "execution.csv"), encoding="utf-8")

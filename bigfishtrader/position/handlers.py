@@ -40,7 +40,7 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
     SYNC_FREQUENCY = 1000  # in millisecond
     DEFAULT_CAPITAL_BASE = 100000
 
-    def __init__(self, context, environment, data=None, mode=None, sync_policy=None, execution_mode=None,
+    def __init__(self, context, environment, data, mode=None, sync_policy=None, execution_mode=None,
                  has_frozen=False):
         super(PortfolioHandler, self).__init__()
         ContextMixin.__init__(self, context, environment, data, use_proxy=True)
@@ -67,7 +67,7 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         else:
             self._handlers["on_order_status"] = Handler(self.on_order_status, EVENTS.ORD_STATUS, topic="", priority=100)
             self._handlers["on_execution"] = Handler(self.on_execution, EVENTS.EXECUTION)
-        self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, priority=150)
+        self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, topic="bar.close", priority=150)
 
         # position data
         self._strategy_positions = {}
@@ -76,10 +76,6 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         # back_test
         self._history_positions = []
         self._info = []
-
-        # account relative data
-        self._ur_pnl = EMPTY_FLOAT
-        self._pnl = EMPTY_FLOAT
 
         self._capital_used = EMPTY_FLOAT
         self._positions_value = EMPTY_FLOAT
@@ -277,14 +273,9 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
                     position.avgPrice = execution.lastPx if last_qty != traded_qty else 0
                     self._cash -= last_qty * abs(last_qty - traded_qty)  # 减掉新开仓现金
                     # 其他情况 avxPrice 不变
-                if traded_qty > 0:
-                    delta = execution.lastPx - position.avgPrice
-                else:
-                    delta = position.avgPrice - execution.lastPx
+                delta = execution.lastPx if traded_qty > 0 else - execution.lastPx
                 self._cash += delta * min(abs(last_qty), abs(traded_qty))
             position.frozenVolume -= last_qty
-            self._positions_value = abs(position.volume - position.frozenVolume) * position.avgPrice
-            self._pnl += last_qty * execution.lastPx
             if position.volume == 0 and position.frozenVolume == 0:
                 self._strategy_positions.pop(sid)
         elif self._execution_mode == self.EXECUTION_MODE.FIFO.value:
@@ -293,7 +284,9 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
 
     def on_time(self, event, kwargs=None):
         for sid, position in self._strategy_positions.items():
-            self._history_positions.append(position.to_dict())
+            show = position.to_dict()
+            show["datetime"] = event.time
+            self._history_positions.append(show)
         self._info.append(
             {'datetime': event.time, 'cash': self.cash, 'equity': self.portfolio_value},
         )
@@ -308,15 +301,19 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
 
     @property
     def pnl(self):
-        return self._pnl
+        return self.portfolio_value - self._starting_cash
 
     @property
     def portfolio_value(self):
-        return self._cash + sum([self._close_position(p) for p in self.positions.values()])
+        return self._cash + sum([self._close_position(p) for p in self.positions.values()]) + self._margin
+
+    @property
+    def positions_value(self):
+        return self._cash + sum([abs(p.volume - p.tradedVolume) * p.avgPrice for p in self.positions.values()])
 
     @property
     def returns(self):
-        return self._positions_value / self._starting_cash
+        return self.portfolio_value / self._starting_cash
 
     @property
     def positions(self):

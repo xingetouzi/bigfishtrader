@@ -17,8 +17,8 @@ class SecurityPool(ContextMixin):
             cls.DICT_SID = {s.sid: s for s in cls.DICT_STR.values()}
         return object.__new__(cls, *args, **kwargs)
 
-    def __init__(self, context, environment):
-        ContextMixin.__init__(self, context, environment)
+    def __init__(self, context, environment, data):
+        ContextMixin.__init__(self, context, environment, None)
         self.columns = self.DF.reset_index().columns
 
     @classmethod
@@ -61,5 +61,5 @@ class SecurityPool(ContextMixin):
 
 
 if __name__ == "__main__":
-    security = SecurityPool(object(), {}).symbol("EUR.USD")
+    security = SecurityPool(object(), {}, None).symbol("EUR.USD")
     print(security.to_dict())

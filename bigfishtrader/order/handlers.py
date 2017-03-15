@@ -95,7 +95,7 @@ class OrderBookHandler(AbstractOrderHandler):
 
         """
         execution = event.data
-        self._executions[execution.execID] = event
+        self._executions[execution.execID] = execution
 
     def on_order_status(self, event, kwargs=None):
         """
@@ -150,7 +150,10 @@ class OrderBookHandler(AbstractOrderHandler):
 
     def get_executions(self, method="df"):
         if method == "df":
-            return pd.DataFrame(list(map(lambda x: x.to_dict(ordered=True), self._executions)))
+            df = pd.DataFrame(list(map(lambda x: x.to_dict(ordered=True), self._executions.values())))
+            if not df.empty:
+                df = df.set_index("time", drop=True).sort_index()
+            return df
         elif method == "list":
             return copy.deepcopy(self._executions)
 

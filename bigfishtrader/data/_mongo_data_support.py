@@ -308,7 +308,8 @@ class MultiDataSupport(AbstractDataSupport):
 
     def put_time_events(self, queue):
         for time_ in self._panel_data.major_axis:
-            queue.put(TimeEvent(time_, ''))
+            queue.put(TimeEvent(time_, "bar.open"))
+            queue.put(TimeEvent(time_, "bar.close"))
         queue.put(ExitEvent())
 
     def put_limit_time(self, queue, topic, **condition):
