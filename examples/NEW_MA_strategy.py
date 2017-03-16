@@ -1,4 +1,5 @@
-from datetime import datetime
+from fxdayu.api import *
+
 from talib import abstract
 import pandas as pd
 
@@ -18,8 +19,8 @@ def initialize(context, data):
 
 def handle_data(context, data):
     portfolio = context.portfolio
-    for sid in portfolio.positions.keys():
-        ticker = symbol(sid).symbol
+    for ticker in portfolio.positions.keys():
+        ticker = symbol(ticker).symbol
         if not data.can_trade(ticker):
             continue
 
@@ -27,10 +28,10 @@ def handle_data(context, data):
         ma_slow = abstract.MA(data.history(ticker, 'D', length=slow + 1), timeperiod=slow, price='close').dropna()
 
         if ma_slow[0] < ma_fast[0] and ma_slow[1] > ma_fast[1]:
-            order(sid, -1000)
+            order(ticker, -1000)
 
     for ticker in context.tickers:
-        sid = symbol(ticker).sid
+        ticker = symbol(ticker).sid
         if not data.can_trade(ticker):
             continue
 
@@ -38,7 +39,7 @@ def handle_data(context, data):
         ma_slow = abstract.MA(data.history(ticker, 'D', length=slow + 1), timeperiod=slow, price='close').dropna()
 
         if ma_slow[0] > ma_fast[0] and ma_slow[1] < ma_fast[1]:
-            order(sid, 1000)
+            order(ticker, 1000)
 
 
 if __name__ == "__main__":

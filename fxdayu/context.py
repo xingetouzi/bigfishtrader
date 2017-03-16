@@ -58,14 +58,6 @@ class Context(HandlerCompose):
 
         return function
 
-    @property
-    def send_open(self):
-        return self.portfolio.send_open
-
-    @property
-    def send_close(self):
-        return self.portfolio.send_close
-
     def set_commission(self, buy_cost=None, sell_cost=None, unit='value', min_cost=0, calculate_function=None):
         """
         佣金设置
@@ -177,6 +169,7 @@ class InitializeMixin(object):
 
     def _reset_initialize(self):
         self._initialized = False
+
 
 if __name__ == '__main__':
     pass

@@ -7,7 +7,7 @@ from fxdayu.engine import Engine
 from fxdayu.event import EVENTS
 from fxdayu.engine.handler import HandlerCompose
 from fxdayu.modules.account.handlers import AccountHandler
-from fxdayu.modules.order.handlers import OrderBookHandler
+from fxdayu.modules.order.handlers import OrderStatusHandler
 from fxdayu.modules.portfolio.handlers import PortfolioHandler
 from fxdayu.modules.security import SecurityPool
 from fxdayu.environment import *
@@ -80,7 +80,7 @@ class Trader(object):
             "account_handler", AccountHandler, (), {}
         )
         self.settings["order_book_handler"] = Component(
-            "order_book_handler", OrderBookHandler,
+            "order_book_handler", OrderStatusHandler,
             (), {}
         )
         self.settings["portfolio"] = Component(

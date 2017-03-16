@@ -5,7 +5,7 @@ from fxdayu.context import ContextMixin, Context
 from fxdayu.environment import Environment
 from fxdayu.event import EVENTS, InitEvent
 from fxdayu.modules.account.handlers import AccountHandler
-from fxdayu.modules.order.handlers import OrderBookHandler
+from fxdayu.modules.order.handlers import OrderStatusHandler
 from fxdayu.modules.security import SecurityPool
 from fxdayu.position.handlers import PortfolioHandler
 from fxdayu.trader import Trader, Component
@@ -50,7 +50,7 @@ class NewBackTrader(Trader):
             "account_handler", AccountHandler, (), {}
         )
         self.settings["order_book_handler"] = Component(
-            "order_book_handler", OrderBookHandler,
+            "order_book_handler", OrderStatusHandler,
             (Component.Lazy("engine"),), {}
         )
         self.settings["portfolio"] = Component(

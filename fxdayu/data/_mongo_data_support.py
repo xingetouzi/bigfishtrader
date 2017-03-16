@@ -224,39 +224,39 @@ class MultiDataSupport(AbstractDataSupport):
             for ticker in tickers:
                 f.remove(ticker)
 
-    def current(self, tickers, fields=None, **kwargs):
+    def current(self, assets, fields=None, **kwargs):
         """
         获取最新数据
 
-        :param tickers: str or list
+        :param assets: str or list
         :param fields: str or list, [close, open, high, low, volume]
         :return: float, series or DataFrame
         """
         try:
-            return self._panel_data.current(tickers, fields)
+            return self._panel_data.current(assets, fields)
         except KeyError:
             f = self._panel_data.frequency
             t = self.current_time
-            if isinstance(tickers, str):
+            if isinstance(assets, str):
                 return self.history_db(
-                    tickers, f, end=t, length=1, **kwargs
+                    assets, f, end=t, length=1, **kwargs
                 )
-            elif isinstance(tickers, list):
+            elif isinstance(assets, list):
                 return pd.DataFrame(
                     dict(map(
                         lambda ticker: (ticker, self.history_db(ticker, f, end=t, length=1, **kwargs)),
-                        tickers
+                        assets
                     ))
                 )
 
     def history(
-            self, tickers, frequency, fields=None,
+            self, assets, frequency, fields=None,
             start=None, end=None, length=None
     ):
         """
         获取历史数据
 
-        :param tickers: str or list
+        :param assets: str or list
         :param frequency: str
         :param fields: str or list, [close, open, high, low, volume]
         :param start: datetime
@@ -269,7 +269,7 @@ class MultiDataSupport(AbstractDataSupport):
 
         try:
             data = self._panel_data.history(
-                tickers, frequency, fields,
+                assets, frequency, fields,
                 start, end, length
             )
             if length:
@@ -282,11 +282,11 @@ class MultiDataSupport(AbstractDataSupport):
             if not end:
                 end = self.current_time
 
-            if isinstance(tickers, str):
-                return self.history_db(tickers, frequency, fields, start, end, length)
-            elif isinstance(tickers, list):
+            if isinstance(assets, str):
+                return self.history_db(assets, frequency, fields, start, end, length)
+            elif isinstance(assets, list):
                 frames = {}
-                for ticker in tickers:
+                for ticker in assets:
                     frames[ticker] = self.history_db(ticker, frequency, fields, start, end, length)
                 return pd.Panel.from_dict(frames)
 

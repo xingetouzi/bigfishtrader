@@ -1,3 +1,5 @@
+# encoding: utf-8
+
 from functools import wraps
 
 import fxdayu.api
@@ -27,6 +29,8 @@ def api_method(f):
             )
         return environment[f.__name__](*args, **kwargs)
 
+    wrapper.is_api_method = True  # 用于自动生成fxdayu.
     setattr(fxdayu.api, f.__name__, wrapper)
-    fxdayu.api.__all__.append(f.__name__)
+    if f.__name__ not in fxdayu.api.__all__:
+        fxdayu.api.__all__.append(f.__name__)
     return f
