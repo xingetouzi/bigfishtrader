@@ -176,8 +176,8 @@ class Context(object):
 
 
 class MultiPanelData(AbstractDataSupport):
-    def __init__(self, context=None):
-        super(MultiPanelData, self).__init__()
+    def __init__(self, engine, context=None):
+        super(MultiPanelData, self).__init__(engine)
         self._panels = {}
         self._frequency = None
         self.major_axis = None

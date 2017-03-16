@@ -112,6 +112,9 @@ class Engine(object):
             self._thread.join()
             self._thread = None
 
+    def put(self, event):
+        self.event_queue.put(event)
+
     def register(self, handler, stream, topic=".", priority=0):
         """
         在引擎上注册事件处理函数
@@ -141,3 +144,9 @@ class Engine(object):
             None
         """
         self._stream_manager.unregister_handler(handler, stream, topic)
+
+    def show_flows(self, stream):
+        self._stream_manager.show_flows(stream)
+
+    def get_flows(self, stream, topic):
+        return list(self._stream_manager.get_iter(stream, topic))

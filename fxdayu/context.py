@@ -10,11 +10,11 @@ class Context(HandlerCompose):
     全局变量, 可以通过context调用所有模块
     """
 
-    def __init__(self):
-        super(Context, self).__init__()
+    def __init__(self, engine):
+        super(Context, self).__init__(engine)
         self._current_time = None
         self._handlers['on_time'] = Handler(
-            self.on_time, EVENTS.TIME, '', 100
+            self.on_time, EVENTS.TIME, 'bar.open', 200
         )
 
     @property
@@ -158,6 +158,7 @@ class ContextMixin(object):
             self.context = context
             self.environment = environment
             self.data = data
+        self.link_context()
 
     def link_context(self):
         raise NotImplementedError

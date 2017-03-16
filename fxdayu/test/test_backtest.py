@@ -1,11 +1,11 @@
 import logging
 import time
 
-from fxdayu.account.handlers import AccountHandler
 from fxdayu.context import ContextMixin, Context
 from fxdayu.environment import Environment
 from fxdayu.event import EVENTS, InitEvent
-from fxdayu.modules.order import OrderBookHandler
+from fxdayu.modules.account.handlers import AccountHandler
+from fxdayu.modules.order.handlers import OrderBookHandler
 from fxdayu.modules.security import SecurityPool
 from fxdayu.position.handlers import PortfolioHandler
 from fxdayu.trader import Trader, Component
@@ -22,6 +22,7 @@ class NewBackTrader(Trader):
         self.context = Context()
         self.environment = Environment()
         self.environment_context = EnvironmentContext(self.environment)
+        self.initialized = False
 
     def initialize(self):
         """
@@ -40,8 +41,8 @@ class NewBackTrader(Trader):
         self.initialized = True
         return self
 
-    def init_settings(self):
-        super(NewBackTrader, self).init_settings()
+    def _init_settings(self):
+        super(NewBackTrader, self)._init_settings()
         self.settings["security_pool"] = Component(
             "security_pool", SecurityPool, (), {}
         )
@@ -50,7 +51,7 @@ class NewBackTrader(Trader):
         )
         self.settings["order_book_handler"] = Component(
             "order_book_handler", OrderBookHandler,
-            (Component.Lazy("event_queue"),), {}
+            (Component.Lazy("engine"),), {}
         )
         self.settings["portfolio"] = Component(
             "portfolio_handler", PortfolioHandler, (), {}
@@ -184,8 +185,7 @@ if __name__ == "__main__":
     from datetime import datetime
 
     pwd = os.path.dirname(os.path.abspath(__file__))
-    name = "NEW_MA_strategy"
-    path = os.path.join(pwd, name + ".py")
+    path = os.path.abspath(__file__)
     trader = NewBackTrader()
     trader["data"].kwargs.update({"port": 27018, "host": "192.168.0.103"})
     p = trader.initialize().back_test(

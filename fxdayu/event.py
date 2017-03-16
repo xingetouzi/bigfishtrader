@@ -1,11 +1,16 @@
 # encoding: utf-8
 
+import threading
 from datetime import datetime
 
 from dateutil.parser import parse
 
 from fxdayu.const import *
 from fxdayu.models.data import ExecutionData
+
+G = threading.local()
+ID_WIDTH = 12  # 0xffffffffffff / (365 * 24 * 60 * 60 * 100000) = 89
+THREAD_ID_WITH = 5  # 0xfffff = 1048575
 
 
 class EVENTS(Enum):
@@ -37,44 +42,32 @@ class Event(object):
     which compares its own priority and other event's priority
     Other events that extends from this class must set the 'priority' attribution
     """
-    __slots__ = ["type", "priority", "topic", "time", "local_time"]
+    __slots__ = ["type", "priority", "topic", "time", "pid"]
 
     def __init__(self, _type, priority, timestamp, topic=""):
         self.type = _type
         self.priority = priority
         self.topic = topic
         self.time = timestamp
-        self.local_time = datetime.now()
+        self.pid = self.next_pid()
+
+    @classmethod
+    def next_pid(cls):
+        # XXX in a thread, event keep in order, but not totally threading-safe
+        global G
+        try:
+            G.count += 1
+        except AttributeError:
+            G.count = 1
+        result = hex(threading.current_thread().ident)[2:].replace("L", "").zfill(THREAD_ID_WITH)
+        result += hex(G.count)[2:].replace("L", "").zfill(ID_WIDTH)
+        return result
 
     def to_dict(self):
         return {field: getattr(self, field) for field in self.__slots__}
 
-    def lt_time(self, other):
-        if self.__eq__(other):
-            return self.time < other.time or self.local_time < other.local_time
-        else:
-            return False
-
-    def lt_local_time(self, other):
-        if self.time == other.time:
-            return self.local_time < other.local_time
-        else:
-            return False
-
-    def __eq__(self, other):
-        return self.priority == other.priority
-
     def __lt__(self, other):
-        return self.priority < other.priority or self.lt_time(other)
-
-    def __le__(self, other):
-        return self.priority <= other.priority
-
-    def __ge__(self, other):
-        return self.priority >= other.priority
-
-    def __gt__(self, other):
-        return self.priority > other.priority
+        return (self.priority, self.time, self.pid) < (other.priority, other.time, other.pid)
 
 
 class TickEvent(Event):

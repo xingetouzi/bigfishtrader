@@ -4,8 +4,8 @@ from datetime import datetime
 
 
 class AbstractDataSupport(HandlerCompose):
-    def __init__(self):
-        super(AbstractDataSupport, self).__init__()
+    def __init__(self, engine):
+        super(AbstractDataSupport, self).__init__(engine)
 
     def current(self, tickers, fields=None):
         """

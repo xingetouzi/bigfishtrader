@@ -18,6 +18,7 @@ class PriorityList(object):
     and inserting timestamp if have same priority,
     maintained by bisect (binary search)
     """
+
     def __init__(self):
         self._p = []
         self._v = []
@@ -91,6 +92,7 @@ class StreamManager(object):
     """
     Manager all event stream
     """
+
     def __init__(self):
         self._streams = {}
 
@@ -189,3 +191,13 @@ class StreamManager(object):
             del handlers[topic]
         if len(handlers) == 0:
             self.unregister_stream(stream)
+
+    def _show_flows(self, stream):
+        pass
+
+    def show_flows(self, stream):
+        if stream is None:
+            for stream in self._streams.keys():
+                self._show_flows(stream)
+        else:
+            self._show_flows(stream)

@@ -1,10 +1,10 @@
 import logging
 import time
 
-from fxdayu.account.handlers import AccountHandler
 from fxdayu.context import ContextMixin, Context
 from fxdayu.environment import Environment
 from fxdayu.event import EVENTS, InitEvent
+from fxdayu.modules.account.handlers import AccountHandler
 from fxdayu.modules.order import OrderBookHandler
 from fxdayu.modules.security import SecurityPool
 from fxdayu.position.handlers import PortfolioHandler
@@ -45,8 +45,8 @@ class RuntimeTrader(Trader):
         self.initialized = True
         return self
 
-    def init_settings(self):
-        super(RuntimeTrader, self).init_settings()
+    def _init_settings(self):
+        super(RuntimeTrader, self)._init_settings()
         self.settings["security_pool"] = Component(
             "security_pool", SecurityPool, (), {}
         )

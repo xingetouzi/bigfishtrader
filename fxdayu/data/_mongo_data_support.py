@@ -23,8 +23,8 @@ _BAR_FIELDS_MAP = OrderedDict([
 
 
 class MongoDataSupport(AbstractDataSupport):
-    def __init__(self, db="admin", **info):
-        super(MongoDataSupport, self).__init__()
+    def __init__(self, engine, db="admin", **info):
+        super(MongoDataSupport, self).__init__(engine)
         self._client = connect(**info)
         self._db = db
         self._tickers = {}
@@ -133,15 +133,14 @@ class MongoDataSupport(AbstractDataSupport):
 
 
 class MultiDataSupport(AbstractDataSupport):
-    def __init__(self, context=None, event_queue=None, **info):
-        super(MultiDataSupport, self).__init__()
+    def __init__(self, engine, context=None, event_queue=None, **info):
+        super(MultiDataSupport, self).__init__(engine)
         self._db = info.pop('db', None)
         self._client = connect(**info)
-        self._panel_data = MultiPanelData(context)
+        self._panel_data = MultiPanelData(engine, context)
         self._initialized = False
         self.tickers = {}
         self.event_queue = event_queue
-
         self.mapper = {}
         self.bar_general = ['open', 'high', 'low', 'close', 'volume', 'datetime']
         self.set_bar_map(
