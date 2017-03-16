@@ -20,7 +20,7 @@ def initialize(context, data):
 def handle_data(context, data):
     portfolio = context.portfolio
     for ticker in portfolio.positions.keys():
-        ticker = symbol(ticker).symbol
+        ticker = sid(ticker).symbol
         if not data.can_trade(ticker):
             continue
 
@@ -31,7 +31,7 @@ def handle_data(context, data):
             order(ticker, -1000)
 
     for ticker in context.tickers:
-        ticker = symbol(ticker).sid
+        ticker = symbol(ticker).symbol
         if not data.can_trade(ticker):
             continue
 
@@ -51,29 +51,32 @@ if __name__ == "__main__":
     from fxdayu.trader.trader import Trader
     from fxdayu.event import EVENTS
 
-    s = time.time()
     pwd = os.path.dirname(os.path.abspath(__file__))
     name = "NEW_MA_strategy"
     path = os.path.join(pwd, name + ".py")
     trader = Trader()
     trader["data"].kwargs.update({"port": 27018, "host": "192.168.0.103"})
-    p = trader.initialize().back_test(
+    trader = trader.initialize()
+    print(trader.engine.get_flows(EVENTS.ORDER, ""))
+    s = time.time()
+    p = trader.back_test(
         path,
         ['000001'], 'D', datetime(2016, 1, 1),
-        ticker_type='HS', fast=10, slow=15
+        ticker_type='HS', params=dict(fast=10, slow=15),
+        save=True
     )
     # print(trader.engine.get_flows(EVENTS.TIME, "bar.open"))
     # print(trader.engine.get_flows(EVENTS.TIME, "bar.close"))
     # print(trader.engine.get_flows(EVENTS.TIME, ""))
     # print(trader.engine.get_flows(EVENTS.ORDER, ""))
-    equity = (pd.DataFrame(
-        p.info
-    ))
-    equity.to_csv(os.path.join(pwd, "result", "equity.csv"), index=False, encoding="utf-8")
-    position = (pd.DataFrame(
-        p.history)
-    )
-    position.to_csv(os.path.join(pwd, "result", "position.csv"), index=False, encoding="utf-8")
-    execution = pd.DataFrame(trader.models["order_book_handler"].get_executions(method="df"))
-    execution.to_csv(os.path.join(pwd, "result", "execution.csv"), encoding="utf-8")
+    # equity = (pd.DataFrame(
+    #     p.info
+    # ))
+    # equity.to_csv(os.path.join(pwd, "result", "equity.csv"), index=False, encoding="utf-8")
+    # position = (pd.DataFrame(
+    #     p.history)
+    # )
+    # position.to_csv(os.path.join(pwd, "result", "position.csv"), index=False, encoding="utf-8")
+    # execution = pd.DataFrame(trader.modules["order_book_handler"].get_executions(method="df"))
+    # execution.to_csv(os.path.join(pwd, "result", "execution.csv"), encoding="utf-8")
     print(time.time() - s)

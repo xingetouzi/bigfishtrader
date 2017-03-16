@@ -76,7 +76,7 @@ class RuntimeTrader(Trader):
             raise Exception('Models not initialized, please call initialize()')
         context, data, engine = self.context, self.models['data'], self.models['engine']
         self.models["engine"].register(self.on_init, EVENTS.INIT, topic="", priority=1000)
-        strategy = execfile(filename, self.environment.dct)
+        strategy = execfile(filename, self.environment.public)
 
         def on_time(event, kwargs=None):
             self.environment.handle_data(context, data)

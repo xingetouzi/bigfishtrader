@@ -74,6 +74,14 @@ class HandlerCompose(object):
     """
 
     def __init__(self, engine):
+        """
+
+        Args:
+            engine(fxdayu.engine.Engine): HandlerCompose对象的事件驱动引擎engine
+
+        Returns:
+            None
+        """
         self.engine = engine
         self._handlers = {}
 
@@ -81,29 +89,25 @@ class HandlerCompose(object):
     def handlers(self):
         return dictproxy(self._handlers)
 
-    def register(self, engine):
+    def register(self):
         """
-        将组件内部的所有事件处理函数对象注册到事件驱动引擎engine上
-
-        Args:
-            engine(fxdayu.engine.core.Engine): 所注册的事件驱动引擎。
+        将组件内部的所有事件处理函数对象注册到HandlerCompose对象的事件驱动引擎engine上
 
         Returns:
             None
         """
+        engine = self.engine
         for handler in self._handlers.values():
             handler.register(engine)
 
-    def unregister(self, engine):
+    def unregister(self):
         """
-        取消组件内部的所有事件处理函数对象在事件驱动引擎engine上的注册
-
-        Args:
-            engine(fxdayu.engine.core.Engine): 所取消注册的事件驱动引擎。
+        取消组件内部的所有事件处理函数对象在HandlerCompose对象的事件驱动引擎engine上的注册
 
         Returns:
             None
         """
+        engine = self.engine
         for handler in self._handlers.values():
             handler.unregister(engine)
 

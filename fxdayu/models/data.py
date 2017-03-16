@@ -112,10 +112,7 @@ class OrderReq(BaseData):
     will be handled by Simulation or Trade section
     """
     __slots__ = ["clOrdID", "exchange", "security", "symbol", "side", "action", "orderQty", "ordType", "price",
-                 "stopPx",
-                 "tradedQty",
-                 "timeInForce", "transactTime", "expireTime", "account", "slippage",
-                 "gateway"]
+                 "stopPx", "timeInForce", "transactTime", "expireTime", "account", "gateway"]
 
     def __init__(self):
         super(OrderReq, self).__init__()
@@ -276,12 +273,13 @@ class ErrorData(BaseData):
 
 
 class Security(BaseData):
-    __slots__ = ["longName", "sid", "gateway", "symbol", "exchange", "secType", "currency",
+    __slots__ = ["name", "localSymbol", "sid", "gateway", "symbol", "exchange", "secType", "currency",
                  "expiry", "right", "strike", "multiplier", ]
 
     def __init__(self):
         self.sid = EMPTY_STRING
-        self.longName = EMPTY_STRING
+        self.name = EMPTY_UNICODE
+        self.localSymbol = EMPTY_STRING
         self.gateway = EMPTY_STRING
         self.symbol = EMPTY_STRING
         self.exchange = EMPTY_STRING

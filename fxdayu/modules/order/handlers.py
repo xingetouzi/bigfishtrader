@@ -81,6 +81,7 @@ class OrderStatusHandler(AbstractOrderHandler):
             status.ordStatus = ORDERSTATUS.GENERATE.value
             status.gateway = order.gateway
             status.account = order.account
+            status.orderTime = self.context.current_time
             self._order_status[status.gClOrdID] = status
         else:
             pass  # TODO warning Order send failed
@@ -122,17 +123,6 @@ class OrderStatusHandler(AbstractOrderHandler):
             except ValueError:
                 pass
 
-    def get_order_status(self, order):
-        """
-
-        Args:
-            order:
-
-        Returns:
-            fxdayu.models.data.OrderStatusData
-        """
-        return self._order_status.get(order, None)
-
     @api_method
     def get_order(self, order):
         return copy.copy(self._orders[order])
@@ -148,17 +138,40 @@ class OrderStatusHandler(AbstractOrderHandler):
         else:
             return {}
 
+    def _make_order_req(self, security, amount, style):
+        return self._adapter.parse(security, amount, style)
+
     def _miss_security(self):
         pass  # TODO warning
 
-    def get_executions(self, method="df"):
+    def get_order_status(self, order):
+        """
+
+        Args:
+            order:
+
+        Returns:
+            fxdayu.models.data.OrderStatusData
+        """
+        return self._order_status.get(order, None)
+
+    def _get_base_data(self, dct, index="time", method="df"):
         if method == "df":
-            df = pd.DataFrame(list(map(lambda x: x.to_dict(ordered=True), self._executions.values())))
+            df = pd.DataFrame(list(map(lambda x: x.to_dict(ordered=True), dct.values())))
             if not df.empty:
-                df = df.set_index("time", drop=True).sort_index()
+                df = df.set_index(index, drop=False).sort_index()
             return df
         elif method == "list":
-            return copy.deepcopy(self._executions)
+            return copy.deepcopy(dct)
+
+    def get_status(self, method="df"):
+        return self._get_base_data(self._order_status, index="orderTime", method=method)
+
+    def get_orders(self, method="df"):
+        return self._get_base_data(self._orders, index="transactTime", method=method)
+
+    def get_executions(self, method="df"):
+        return self._get_base_data(self._executions, method=method)
 
     @api_method
     def order(self, security, amount, limit_price=None, stop_price=None, style=None):
@@ -371,3 +384,6 @@ class OrderStatusHandler(AbstractOrderHandler):
         self.environment["StopOrder"] = MarketOrder
         self.environment["LimitOrder"] = LimitOrder
         self.environment["StopLimitOrder"] = StopLimitOrder
+
+        # private
+        self.environment.set_private("make_order_req", self._make_order_req)

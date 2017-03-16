@@ -333,7 +333,7 @@ class VtAdapter(object):
             fxdayu.vt.vtGateway.VtSubscribeReq
         """
         sub_req = VtSubscribeReq()
-        sub_req.symbol = data.longName
+        sub_req.symbol = data.localSymbol
         sub_req.exchange = exchangeMapReverse[data.exchange]
         sub_req.productClass = productClassMapReverse[data.secType]
         sub_req.currency = data.currency

@@ -16,8 +16,8 @@ class SecurityPool(ContextMixin):
     def __new__(cls, *args, **kwargs):
         if cls.DF is None:
             cls.DF = pd.DataFrame.from_csv(_PATH)
-            cls.DICT_STR = {k: cls._to_security(s) for k, s in cls.DF.iterrows()}
-            cls.DICT_SID = {s.sid: s for s in cls.DICT_STR.values()}
+            cls.DICT_SID = {k: cls._to_security(s) for k, s in cls.DF.iterrows()}
+            cls.DICT_STR = {s.symbol: s for s in cls.DICT_SID.values()}
         return object.__new__(cls, *args, **kwargs)
 
     def __init__(self, context, environment, data):
@@ -29,7 +29,7 @@ class SecurityPool(ContextMixin):
         c = Security()
         for field in cls.DF.columns:
             setattr(c, field, series[field])
-        c.longName = series.name
+        c.sid = series.name
         return c
 
     @staticmethod

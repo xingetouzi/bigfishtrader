@@ -1,5 +1,10 @@
 # encoding:utf-8
 from collections import OrderedDict
+from datetime import datetime
+import os
+
+import pandas as pd
+from pandas import ExcelWriter
 
 from fxdayu.context import Context, ContextMixin
 from fxdayu.data.support import MultiDataSupport
@@ -13,6 +18,37 @@ from fxdayu.modules.security import SecurityPool
 from fxdayu.environment import *
 from fxdayu.router.exchange import DummyExchange
 from fxdayu.utils.api_support import EnvironmentContext
+from fxdayu.performance import OrderAnalysis
+
+OUTPUT_COLUMN_MAP = {
+    "equity": OrderedDict([("datetime", "时间"), ("equity", "净值")]),
+    "execution": OrderedDict([("clOrderID", "报单编号"),
+                              ("symbol", "合约"),
+                              ("side", "买卖"),
+                              ("action", "开平"),
+                              ("leavesQty", "未成交数"),
+                              ("lastQty", "成交数"),
+                              ("time", "最后成交时间"),
+                              ("lastPx", "成交均价"),
+                              ("commission", "手续费"),
+                              ("exchange", "交易所")]),
+    "order": OrderedDict([("clOrdID", "报单编号"),
+                          ("orderQty", "报单数"),
+                          ("ordStatus", "报单状态"),
+                          ("price", "报单价格"),
+                          ("orderTime", "报单时间")
+                        ])
+}
+
+ROUND_MAP = {u"五年平均年收益": 2,
+             u"净利回撤比": 2,
+             u"夏普比率": 2,
+             u"平均月收益": 2,
+             u"年化收益标准差": 2,
+             u"最大回撤率": 2,
+             u"最大回撤比率": 2,
+             u"最大回撤金额": 2,
+             u"盈利因子": 2}
 
 
 class Component(object):
@@ -37,39 +73,42 @@ class Trader(object):
     用于自由组织模块并进行回测
     """
 
-    def __init__(self):
+    def __init__(self, settings=None):
         self.engine = Engine()
         self.context = Context(self.engine)
-        self.context.register(self.engine)
+        self.context.register()
         self.environment = Environment()
         self.environment_context = EnvironmentContext(self.environment)
-        self.settings = {}
-        self.models = {}
-        self._init_settings()
+        self.performance = OrderAnalysis()
+        if settings:
+            self.settings = settings
+        else:
+            self._init_settings()
+        self.modules = {}
         self.initialized = False
 
     def _init_settings(self):
         self.settings = OrderedDict([
-            ('data', Component(
-                'data',
+            ("data", Component(
+                "data",
                 MultiDataSupport,
                 (),
                 {
-                    'context': self.context,
-                    'event_queue': self.engine,
-                    'port': 27017
+                    "context": self.context,
+                    "event_queue": self.engine,
+                    "port": 27017
                 }
             )),
-            ('portfolio', Component(
-                'PortfolioHandler',
+            ("portfolio", Component(
+                "PortfolioHandler",
                 PortfolioHandler,
                 (),
                 {}
             )),
-            ('router', Component(
-                'router',
+            ("router", Component(
+                "router",
                 DummyExchange,
-                (self.engine, ),
+                (self.engine,),
                 {}
             )),
         ])
@@ -96,48 +135,55 @@ class Trader(object):
         elif isinstance(value, tuple):
             self.settings[key] = Component(*value)
         else:
-            raise TypeError("settings's value should be Component or tuple, not: %s" % type(value))
+            raise TypeError("settings‘s value should be Component or tuple, not: %s" % type(value))
 
     def _register_models(self):
-        for name, model in self.models.items():
-            if hasattr(model, "register"):
-                model.register(self.engine)
+        for name, module in self.modules.items():
+            if hasattr(module, "register"):
+                module.register()
 
     def initialize(self):
         """
         """
         for name, co in self.settings.items():
-            args = [self.models[para.name] if isinstance(para, Component.Lazy) else para for para in co.args]
-            kwargs = {key: self.models[para.name] if isinstance(para, Component.Lazy) else para for key, para in
+            args = [self.modules[para.name] if isinstance(para, Component.Lazy) else para for para in co.args]
+            kwargs = {key: self.modules[para.name] if isinstance(para, Component.Lazy) else para for key, para in
                       co.kwargs.items()}
             if issubclass(co.constructor, ContextMixin):
-                args[:0] = [self.context, self.environment, self.models["data"]]
+                args[:0] = [self.context, self.environment, self.modules["data"]]
             if issubclass(co.constructor, HandlerCompose):
                 args[:0] = [self.engine]
-            self.models[name] = co.constructor(*args, **kwargs)
+            self.modules[name] = co.constructor(*args, **kwargs)
         self._register_models()
-        self.context.link(**self.models)
+        self.context.link(**self.modules)
         self.initialized = True
         return self
 
-    def back_test(self, filename, tickers, frequency, start=None, end=None, ticker_type=None, **kwargs):
+    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False):
         """
         运行一个策略, 完成后返回一个账户对象
 
-        :param filename: 策略模块
-        :param kwargs: 需要修改的策略参数
-        :return: Portfolio
+        Args:
+            filename:
+            symbols:
+            frequency:
+            start:
+            end:
+            ticker_type:
+            params:
+            save:
         """
         if not self.initialized:
-            raise Exception('Models not initialized, please call initialize()')
+            raise Exception("Models not initialized, please call initialize()")
 
-        context, data, engine = self.context, self.models['data'], self.engine
-        strategy = self.environment.dct.copy()
-        for key, value in kwargs.items():
-            strategy["key"] = value
+        context, data, engine = self.context, self.modules["data"], self.engine
+        strategy = self.environment.public.copy()
+        if params:
+            for key, value in params.items():
+                strategy["key"] = value
         execfile(filename, strategy, strategy)
-        data.init(tickers, frequency, start, end, ticker_type)
-        context.tickers = tickers
+        data.init(symbols, frequency, start, end, ticker_type)
+        context.tickers = symbols
 
         # TODO XXX
         context.account = Environment()
@@ -146,37 +192,117 @@ class Trader(object):
         def on_time(event, kwargs=None):
             strategy["handle_data"](context, data)
 
-        self.engine.register(on_time, EVENTS.TIME, topic='bar.close', priority=100)
+        self.engine.register(on_time, EVENTS.TIME, topic="bar.close", priority=100)
 
         strategy["initialize"](context, data)
+        engine.set_context(self.environment_context)
         engine.start()
         engine.join()
         engine.stop()
-
+        self.perform()
+        if save:
+            name = os.path.basename(filename).split(".")[0]
+            dt = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            pa = "&".join(map(lambda item: item[0] + "_" + str(item[1]), params.items()))
+            path = "%s&%s&%s.xls" % (name, dt, pa)
+            self._save_origin(path)
         self.initialized = False
 
-        return self.models['portfolio']
+        return self.modules["portfolio"]
+
+    def _save_origin(self, path):
+        if not self.initialized:
+            raise ValueError("trader not initialized, no data to perform")
+
+        writer = ExcelWriter(path, encoding="utf-8")
+        pd.DataFrame(self.performance.equity).to_excel(writer, "净值")
+        self.performance.order_details.to_excel(writer, "交易")
+        writer.save()
+
+    def perform(self):
+        if not self.initialized:
+            raise ValueError("trader not initialized, no data to perform")
+
+        def reorganize(data_frame, key):
+            return data_frame.rename_axis(OUTPUT_COLUMN_MAP[key], axis=1) \
+                .reindex(columns=OUTPUT_COLUMN_MAP[key].values())
+
+        eqt = pd.DataFrame(self.modules["portfolio"].info)
+        eqt = pd.Series(eqt["equity"].values, index=eqt["datetime"])
+        execs = self.modules["order_book_handler"].get_executions(method="df")
+        orders = self.modules["order_book_handler"].get_status(method="df")
+        execs = reorganize(execs, "execution")
+        orders = reorganize(orders, "order")
+        trades = pd.merge(orders, execs, how="left", left_on=["报单编号"], right_on=["报单编号"])
+        self.performance.set_equity(eqt)
+        self.performance.set_orders(trades)
+        return self.performance
+
+    def output(self, *args):
+        return {attr: getattr(self.performance, attr, None) for attr in args}
+
+    def save_performance(self, *args):
+        w = pd.ExcelWriter("performance&%s.xls" % datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
+
+        def iter_save(dict_like, name=None):
+            for key, data in dict_like.items():
+                table = key if not name else name + "_" + key
+                if isinstance(data, dict):
+                    iter_save(data, key)
+                    continue
+                elif isinstance(data, pd.Series):
+                    data = pd.DataFrame(data)
+
+                try:
+                    data.to_excel(w, table)
+                except Exception as e:
+                    print(e.message)
+                    print("%s can not be saved as .xls file" % table)
+                    print(data)
+
+        iter_save(self.output(*args))
+        w.save()
 
 
 class Optimizer(object):
-    def __init__(self):
-        self._trader = Trader()
+    def __init__(self, settings=None):
+        if settings:
+            self.settings = {}
 
-    def optimization(self, strategy, tickers, frequency, start=None, end=None, ticker_type=None,
-                     models=(), settings=None, **params):
-        if settings is None:
-            settings = {}
-        portfolios = []
-        for k in self.exhaustion(**params):
-            portfolio = self._trader.initialize().backtest(
-                strategy, tickers, frequency,
-                start, end, ticker_type, **k
+    def __getitem__(self, item):
+        return self.settings[item]
+
+    def __setitem__(self, item, value):
+        self.settings[item] = value
+
+    def optimization(self, filename, symbols, frequency,
+                     start=None, end=None, ticker_type=None,
+                     sort=u"夏普比率", ascending=False, save=False,
+                     **params):
+        result = []
+
+        for param in self.exhaustion(**params):
+            trader = Trader(self.settings)
+            trader.back_test(
+                filename, symbols, frequency,
+                start, end, ticker_type, params=param, save=False
             )
+            op_dict = trader.output("strategy_summary", "risk_indicator")
+            print(param, "accomplish")
+            for p in op_dict.values():
+                param.update(p)
+            result.append(param)
 
-            k['portfolio'] = portfolio
-            portfolios.append(k)
+        result = pd.DataFrame(result).sort_values(by=sort, ascending=ascending)
+        for key, value in ROUND_MAP.items():
+            result[key] = result[key].round(value)
 
-        return portfolios
+        if save:
+            name = os.path.basename(filename).split(".")[0]
+            dt = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            result.to_excel("Optimization_%s&%s.xls" % (name, dt), encoding="utf-8")
+        print(result)
+        return result
 
     def exhaustion(self, **kwargs):
         """
@@ -196,5 +322,5 @@ class Optimizer(object):
                 yield {key: value}
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     pass

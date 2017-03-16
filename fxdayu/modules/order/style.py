@@ -74,7 +74,7 @@ class OrderReqAdapter(ContextMixin):
                 style = MarketOrder(exchange=None)
             if isinstance(style, OrderType):
                 order_req.security = s
-                order_req.symbol = s.longName  # order
+                order_req.symbol = s.localSymbol  # order
                 order_req.orderQty = int(abs(amount))
                 if amount > 0:
                     order_req.side = DIRECTION.LONG.value  # IB

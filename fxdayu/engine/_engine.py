@@ -34,6 +34,7 @@ class Engine(object):
         self._stream_manager = manager()
         self._is_running = False
         self._thread = None
+        self._context = None
         self.register(self._stop, EVENTS.EXIT, topic=".", priority=0)
 
     @property
@@ -47,22 +48,23 @@ class Engine(object):
         Returns:
             None
         """
-        self._is_running = True
-        handle = None
-        while self._is_running:
-            try:
-                event = self.event_queue.get(timeout=0)
-                kwargs = {}
-                for handle in self._stream_manager.get_iter(event.type, event.topic):
-                    handle(event, kwargs)
-            except StreamEnd:
-                pass
-            except Empty:
-                pass
-            except Exception as e:
-                if handle:
-                    logging.error("error occurs when in handler: %s" % handle)
-                logging.exception(e)
+        with self._context:
+            self._is_running = True
+            handle = None
+            while self._is_running:
+                try:
+                    event = self.event_queue.get(timeout=0)
+                    kwargs = {}
+                    for handle in self._stream_manager.get_iter(event.type, event.topic):
+                        handle(event, kwargs)
+                except StreamEnd:
+                    pass
+                except Empty:
+                    pass
+                except Exception as e:
+                    if handle:
+                        logging.error("error occurs when in handler: %s" % handle)
+                    logging.exception(e)
 
     def start(self):
         """
@@ -114,6 +116,9 @@ class Engine(object):
 
     def put(self, event):
         self.event_queue.put(event)
+
+    def set_context(self, context):
+        self._context = context
 
     def register(self, handler, stream, topic=".", priority=0):
         """

@@ -9,8 +9,8 @@ from enum import Enum
 
 from fxdayu.const import *
 from fxdayu.engine.handler import HandlerCompose, Handler
-from fxdayu.event import EVENTS
-from fxdayu.models.data import PositionData
+from fxdayu.event import EVENTS, ExecutionEvent
+from fxdayu.models.data import PositionData, ExecutionData
 from fxdayu.context import ContextMixin, InitializeMixin
 
 STAGE = {
@@ -139,7 +139,7 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         Returns:
 
         """
-        security = self.environment.symbol(position.sid)
+        security = self.environment.sid(position.sid)
         close = self.data.current(security.symbol).close
         traded_qty = position.volume - position.frozenVolume
         if close != np.nan:
@@ -223,20 +223,22 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
             position.volume += new.orderQty * sign
             position.frozenVolume += new.leavesQty * sign
 
-        position = self._strategy_positions[sid]
-        if not self._has_frozen and self._mode == self.MODE.BROKER.value:
-            if sid not in self._broker_positions:
-                if position.frozenVolume:
-                    temp = copy.copy(position)
-                    # there is no realized volume in broker side
-                    temp.volume = temp.frozenVolume
-                    temp.avgPrice = 0
-                    self._broker_positions[sid] = temp
-            else:
-                temp = self._broker_positions[sid]
-                temp.volume -= temp.frozenVolume
-                temp.frozenVolume = position.frozenVolume
-                temp.volume += temp.frozenVolume
+        # TODO position为None时候的处理
+        position = self._strategy_positions.get(sid, None)
+        if position:
+            if not self._has_frozen and self._mode == self.MODE.BROKER.value:
+                if sid not in self._broker_positions:
+                    if position.frozenVolume:
+                        temp = copy.copy(position)
+                        # there is no realized volume in broker side
+                        temp.volume = temp.frozenVolume
+                        temp.avgPrice = 0
+                        self._broker_positions[sid] = temp
+                else:
+                    temp = self._broker_positions[sid]
+                    temp.volume -= temp.frozenVolume
+                    temp.frozenVolume = position.frozenVolume
+                    temp.volume += temp.frozenVolume
 
     def on_execution(self, event, kwargs=None):
         """
@@ -290,6 +292,14 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         self._info.append(
             {'datetime': event.time, 'cash': self.cash, 'equity': self.portfolio_value},
         )
+
+    def on_exit(self, event, kwargs=None):
+        # TODO 对待挂单的处理
+        # for sid, position in self._strategy_positions.copy().items():
+        #     execution = ExecutionData()
+        #     security = self.environment.symbol(sid)
+        #     amount = position.volume
+        pass
 
     @property
     def capital_used(self):
