@@ -1,4 +1,4 @@
-from bigfishtrader.strategy.base import Strategy
+from fxdayu.strategy.base import Strategy
 
 
 class RotateStrategy(Strategy):
@@ -44,8 +44,8 @@ class RotateStrategy(Strategy):
 
 
 if __name__ == '__main__':
-    from bigfishtrader.trader import PracticeTrader
-    from bigfishtrader.portfolio.portfolio import PositionPortfolio
+    from fxdayu.trader import PracticeTrader
+    from fxdayu.portfolio.portfolio import PositionPortfolio
     import pandas as pd
     from datetime import datetime
 

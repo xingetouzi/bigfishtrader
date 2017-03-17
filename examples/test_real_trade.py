@@ -3,14 +3,14 @@ try:
 except ImportError:
     from queue import PriorityQueue
 
-from bigfishtrader.engine.core import Engine
-from bigfishtrader.engine.handler import BigFishTrader
-from bigfishtrader.middleware.timer import StatsdTimer
-from bigfishtrader.operation import *
-from bigfishtrader.order.handlers import OrderHandler
-from bigfishtrader.portfolio.handlers import PortfolioHandler
-from bigfishtrader.quotation.handlers import ArtificialTickHandler
-from bigfishtrader.router.exchange import DummyExchange
+from fxdayu.engine.core import Engine
+from fxdayu.engine.handler import BigFishTrader
+from fxdayu.middleware.timer import StatsdTimer
+from fxdayu.operation import *
+from fxdayu.order.handlers import OrderHandler
+from fxdayu.portfolio.handlers import PortfolioHandler
+from fxdayu.quotation.handlers import ArtificialTickHandler
+from fxdayu.router.exchange import DummyExchange
 
 
 class MyTrader(BigFishTrader):

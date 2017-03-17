@@ -5,20 +5,21 @@ except ImportError:
     from queue import PriorityQueue
 
 from datetime import datetime
+
 from pymongo import MongoClient
 import pandas as pd
 
 import strategy
-from bigfishtrader.portfolio.handlers import PortfolioHandler
-from bigfishtrader.quotation.handlers import MongoHandler
-from bigfishtrader.router.exchange import DummyExchange
-from bigfishtrader.engine.core import Engine
-from bigfishtrader.backtest.engine_backtest import EngineBackTest
-from bigfishtrader.middleware.timer import CountTimer
-from bigfishtrader.performance import WindowFactorPerformance, ReportSheet
-from bigfishtrader.data.mongo_data_support import MongoDataSupport
-from bigfishtrader.order.handlers import OrderBookHandler
-from bigfishtrader.portfolio.context import Context
+from fxdayu.portfolio.handlers import PortfolioHandler
+from fxdayu.quotation.handlers import MongoHandler
+from fxdayu.router.exchange import DummyExchange
+from fxdayu.engine.core import Engine
+from fxdayu.backtest.engine_backtest import EngineBackTest
+from fxdayu.middleware.timer import CountTimer
+from fxdayu.performance import WindowFactorPerformance, ReportSheet
+from fxdayu.data.mongo_data_support import MongoDataSupport
+from fxdayu.order.handlers import OrderBookHandler
+from fxdayu.context import Context
 
 
 def run_backtest(collection, ticker, start, end, period='D'):

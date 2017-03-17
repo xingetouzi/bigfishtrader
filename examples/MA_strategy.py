@@ -1,25 +1,27 @@
 from datetime import datetime
 from talib import abstract
-import pandas as pd
+
 
 fast = 10
 slow = 15
+
+
+def after_week_end(context, data):
+    print context.current_time
 
 
 def initialize(context, data):
     # context.time_schedule(
     #     after_week_end,
     #     context.time_rules(isoweekday=5),
-    #     topic='.',
     #     priority=0
     # )
-    context.set_commission(0.0007, 0.0007, min_cost=5)
-
+    pass
 
 def handle_data(context, data):
     portfolio = context.portfolio
 
-    for ticker in portfolio.security:
+    for ticker, position in portfolio.positions.items():
         if not data.can_trade(ticker):
             continue
 
@@ -27,7 +29,7 @@ def handle_data(context, data):
         ma_slow = abstract.MA(data.history(ticker, 'D', length=slow + 1), timeperiod=slow, price='close').dropna()
 
         if ma_slow[0] < ma_fast[0] and ma_slow[1] > ma_fast[1]:
-            portfolio.send_close(ticker)
+            portfolio.send_order(ticker, -position['quantity'])
 
     for ticker in context.tickers:
         if not data.can_trade(ticker):
@@ -37,28 +39,32 @@ def handle_data(context, data):
         ma_slow = abstract.MA(data.history(ticker, 'D', length=slow + 1), timeperiod=slow, price='close').dropna()
 
         if ma_slow[0] > ma_fast[0] and ma_slow[1] < ma_fast[1]:
-            portfolio.send_open(ticker, 1000)
-
-
-# def after_week_end(context, data):
-#     print context.current_time
+            portfolio.send_order(ticker, 1000)
 
 
 if __name__ == '__main__':
-    from bigfishtrader.trader import PracticeTrader
+    from fxdayu.trader import Trader, Optimizer
+    from fxdayu.practice import BACKTESTDEALMODE
 
-    trader = PracticeTrader()
-    trader["data"].kwargs.update({'port': 27018, 'host': '192.168.0.103'})
+    trader = Trader()
+
+    trader["data"].kwargs.update({'port': 10001})
+    trader["router"].kwargs.update({'deal_model': BACKTESTDEALMODE.THIS_BAR_CLOSE})
     p = trader.initialize().back_test(
         __import__('MA_strategy'),
-        ['000001'], 'D', datetime(2016, 1, 1),
-        ticker_type='HS', fast=10, slow=15
+        ['000001', '600016'], 'D', datetime(2016, 1, 1),
+        ticker_type='HS', params={'fast': 15, 'slow': 20}, save=True
     )
 
-    print pd.DataFrame(
-        p.info
-    )
+    for values in trader.output('strategy_summary', 'risk_indicator').values():
+        print values
 
-    print pd.DataFrame(
-        p.trades
-    )
+    # optimizer = Optimizer()
+    # optimizer["data"].kwargs.update({'port': 10001})
+    # optimizer["router"].kwargs.update({'deal_model': BACKTESTDEALMODE.THIS_BAR_CLOSE})
+    # optimizer.optimization(
+    #     __import__('MA_strategy'),
+    #     ['000001', '600016'], 'D', datetime(2016, 1, 1),
+    #     ticker_type='HS', save=True,
+    #     fast=range(10, 15), slow=range(20, 30, 2)
+    # )

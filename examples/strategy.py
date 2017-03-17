@@ -1,4 +1,4 @@
-from bigfishtrader.operation import *
+from fxdayu.operation import *
 
 gap = 0.02
 

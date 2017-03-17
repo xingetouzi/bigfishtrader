@@ -51,3 +51,23 @@ class AbstractDataSupport(HandlerCompose):
     @property
     def current_time(self):
         return datetime.now()
+
+    @staticmethod
+    def connect(host='localhost', port=27017, users={}, **kwargs):
+        """
+        连接MongoDB，返回MongoClient对象
+
+        :param host:
+        :param port:
+        :param users: 权限相关，格式: {'db_name': {'name': XXX, 'password': *********} ....}
+        :param kwargs: MongoDB其他信息
+        :return:
+        """
+        from pymongo import MongoClient
+
+        client = MongoClient(host, port, **kwargs)
+
+        for db, user in users.items():
+            client[db].authenticate(user['name'], user['password'])
+
+        return client
