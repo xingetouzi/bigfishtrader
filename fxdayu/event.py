@@ -32,6 +32,7 @@ class EVENTS(Enum):
     LOG = 15
     ERROR = 16
     INIT = 17
+    SCHEDULE = 18
     EXIT = 999
 
 
@@ -196,6 +197,12 @@ class TimeEvent(Event):
 
     def __init__(self, timestamp, topic=""):
         super(TimeEvent, self).__init__(EVENTS.TIME, 1, timestamp, topic)
+
+
+class ScheduleEvent(Event):
+    __slots__ = []
+    def __init__(self, timestamp, topic=""):
+        super(ScheduleEvent, self).__init__(EVENTS.SCHEDULE, 1, timestamp, topic)
 
 
 class ModifyEvent(Event):

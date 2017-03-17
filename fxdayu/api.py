@@ -2,7 +2,8 @@
 from fxdayu.modules.order.style import MarketOrder, LimitOrder, StopLimitOrder, StopOrder
 
 __all__ = ["sid", "symbol", "symbols", "order", "order_target", "order_percent",
-           "order_target_percent", "order_target_value", "order_value"]
+           "order_target_percent", "order_target_value", "order_value",
+           "time_schedule", "time_rules"]
 
 
 # Security 相关
@@ -211,3 +212,40 @@ def cancel_order(order):
         None
     """
     pass
+
+
+def time_schedule(func, time_rule, ahead=True):
+    """
+    设置定时任务
+
+    :param func:
+    :param time_rule:
+    :param ahead:
+    :return:
+    """
+    pass
+
+
+def time_rules(**kwargs):
+    """
+    定时任务的时间条件
+
+    :param kwargs:
+    :return:
+    """
+
+    def function(time):
+        for key, value in kwargs.items():
+            v = getattr(time, key)
+            if not callable(v):
+                if v != value:
+                    return False
+            else:
+                if v() != value:
+                    return False
+
+        return True
+
+    return function
+
+

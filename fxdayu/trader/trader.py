@@ -16,9 +16,11 @@ from fxdayu.modules.order.handlers import OrderStatusHandler
 from fxdayu.modules.portfolio.handlers import PortfolioHandler
 from fxdayu.modules.security import SecurityPool
 from fxdayu.environment import *
-from fxdayu.router.exchange import DummyExchange
+from fxdayu.router import DummyExchange
 from fxdayu.utils.api_support import EnvironmentContext
 from fxdayu.performance import OrderAnalysis
+from fxdayu.modules.timer.simulation import TimeSimulation
+
 
 OUTPUT_COLUMN_MAP = {
     "equity": OrderedDict([("datetime", "时间"), ("equity", "净值")]),
@@ -98,6 +100,12 @@ class Trader(object):
                     "event_queue": self.engine,
                     "port": 27017
                 }
+            )),
+            ("timer", Component(
+                "timer",
+                TimeSimulation,
+                (),
+                {'engine': self.engine}
             )),
             ("portfolio", Component(
                 "PortfolioHandler",
@@ -194,7 +202,10 @@ class Trader(object):
 
         self.engine.register(on_time, EVENTS.TIME, topic="bar.close", priority=100)
 
-        strategy["initialize"](context, data)
+        with self.environment_context:
+            strategy["initialize"](context, data)
+
+        self.modules['timer'].put_time()
         engine.set_context(self.environment_context)
         engine.start()
         engine.join()

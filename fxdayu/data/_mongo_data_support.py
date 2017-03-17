@@ -167,8 +167,8 @@ class MultiDataSupport(AbstractDataSupport):
         self._db = ticker_type
         self.subscribe(tickers, frequency, start, end, ticker_type)
         self._initialized = True
-        if self.event_queue:
-            self.put_time_events(self.event_queue)
+        # if self.event_queue:
+        #     self.put_time_events(self.event_queue)
 
     def subscribe(self, tickers, frequency, start=None, end=None, ticker_type=None):
         """
@@ -438,6 +438,10 @@ class MultiDataSupport(AbstractDataSupport):
             return True
         else:
             return False
+
+    @property
+    def all_time(self):
+        return self._panel_data.major_axis
 
 
 if __name__ == "__main__":
