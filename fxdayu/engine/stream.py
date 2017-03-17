@@ -18,6 +18,7 @@ class PriorityList(object):
     and inserting timestamp if have same priority,
     maintained by bisect (binary search)
     """
+
     def __init__(self):
         self._p = []
         self._v = []
@@ -91,6 +92,7 @@ class StreamManager(object):
     """
     Manager all event stream
     """
+
     def __init__(self):
         self._streams = {}
 
@@ -99,7 +101,7 @@ class StreamManager(object):
         Search for handlers chain in given event stream under given topic
 
         Args:
-            stream(bigfishtrader.event.EVENTS): type of event stream
+            stream(fxdayu.event.EVENTS): type of event stream
             topic(str): topic of event
         Returns:
             chain: chain of the handlers
@@ -120,13 +122,15 @@ class StreamManager(object):
                         tail.appendleft(handlers[path_])
                     path += "."
             return chain(*chain(head, tail))
+        else:
+            return chain()
 
     def register_stream(self, stream):
         """
         Register given new event stream
 
         Args:
-            stream(bigfishtrader.event.EVENTS):
+            stream(fxdayu.event.EVENTS):
 
         Returns:
             None
@@ -139,7 +143,7 @@ class StreamManager(object):
         Remove given event stream
 
         Args:
-            stream(bigfishtrader.event.EVENTS): event stream
+            stream(fxdayu.event.EVENTS): event stream
 
         Returns:
             None
@@ -153,8 +157,8 @@ class StreamManager(object):
         given priority.
 
         Args:
-            handler(bigfishtrader.engine.handler.Handler): event handler
-            stream(bigfishtrader.event.EVENTS): type of event stream
+            handler(fxdayu.engine.handler.Handler): event handler
+            stream(fxdayu.event.EVENTS): type of event stream
             topic(str): topic of event
             priority(int): priority of handler
 
@@ -172,8 +176,8 @@ class StreamManager(object):
         Unregister a handler in given event stream under given topic.
 
         Args:
-            handler(bigfishtrader.engine.handler.Handler): event handler
-            stream(bigfishtrader.event.EVENTS): type of event stream
+            handler(fxdayu.engine.handler.Handler): event handler
+            stream(fxdayu.event.EVENTS): type of event stream
             topic(str): topic of event
 
         Returns:
@@ -187,3 +191,13 @@ class StreamManager(object):
             del handlers[topic]
         if len(handlers) == 0:
             self.unregister_stream(stream)
+
+    def _show_flows(self, stream):
+        pass
+
+    def show_flows(self, stream):
+        if stream is None:
+            for stream in self._streams.keys():
+                self._show_flows(stream)
+        else:
+            self._show_flows(stream)

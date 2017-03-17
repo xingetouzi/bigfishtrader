@@ -2,10 +2,9 @@ import tushare
 import json
 import pandas as pd
 import oandapy
-import pymongo
-from pandas_datareader.data import YahooDailyReader
 from datetime import datetime
 from threading import Thread
+import requests
 try:
     from Queue import Queue, Empty
 except:
@@ -13,19 +12,12 @@ except:
 
 
 class DataCollector(object):
-    trans_map = {
-        'yahoo': {'Date': 'datetime',
-                  'Close': 'close',
-                  'High': 'high',
-                  'Low': 'low',
-                  'Open': 'open',
-                  'Volume': 'volume'}
-    }
-
     def __init__(self, **setting):
+        from pymongo import MongoClient
+
         db = setting.pop('db')
         users = setting.pop('user', {})
-        self.client = pymongo.MongoClient(**setting)
+        self.client = MongoClient(**setting)
         self.db = self.client[db]
 
         for db in users:
@@ -35,18 +27,27 @@ class DataCollector(object):
         self.queue = Queue()
         self._threads = {}
 
-    def save(self, col_name, data, db=None):
+    def save(self, col_name, data):
         data = [doc.to_dict() for index, doc in data.iterrows()] if isinstance(data, pd.DataFrame) else data
+        deleted = 0
+        for doc in data:
+            db_doc = self.db[col_name].find_one({'datetime': doc['datetime']})
+            if db_doc:
+                self.db[col_name].delete_one({'datetime': doc['datetime']})
+                deleted += 1
+            else:
+                break
+        for doc in reversed(data):
+            db_doc = self.db[col_name].find_one({'datetime': doc['datetime']})
+            if db_doc:
+                self.db[col_name].delete_one({'datetime': doc['datetime']})
+                deleted += 1
+            else:
+                break
 
-        db = self.client[db] if db else self.db
-
-        result = db[col_name].delete_many(
-            {'datetime': {'$gte': data[0]['datetime'], '$lte': data[-1]['datetime']}}
-        )
-
-        db[col_name].insert(data)
-        db[col_name].create_index('datetime')
-        return [col_name, data[0]['datetime'], data[-1]['datetime'], len(data), result.deleted_count]
+        self.db[col_name].insert(data)
+        self.db[col_name].create_index('datetime')
+        return [col_name, data[0]['datetime'], data[-1]['datetime'], len(data), deleted]
 
     def run(self, function):
         while self._running or self.queue.qsize():
@@ -56,7 +57,7 @@ class DataCollector(object):
                 continue
             result = function(**params)
             if result is not None:
-                print(result)
+                print result
 
     def start(self, function, t=5):
         self._running = True
@@ -75,71 +76,11 @@ class DataCollector(object):
     def stop(self):
         self._running = False
 
-    @staticmethod
-    def _read(collection, **kwargs):
-        data = list(collection.find(**kwargs))
-
-        for key, value in kwargs.get('sort', []):
-            if value < 0:
-                data.reverse()
-
-        data = pd.DataFrame(data)
-
-        try:
-            data.pop('_id')
-            data.index = data['datetime']
-        except KeyError as ke:
-            if '_id' in str(ke):
-                raise KeyError("unable to find required data, please check you data in %s" % collection.full_name)
-            elif 'datetime' in str(ke):
-                raise KeyError(
-                    "data is not in TimeSeries shape, "
-                    "please ensure that all documents in %s "
-                    "has a key: datetime and with a value of type<datetime>" % collection.full_name)
-        return data
-
-    def read(self, collection, db=None, start=None, end=None, length=None, **kwargs):
-        if start:
-            fter = {'datetime': {'$gte': start}}
-            if end:
-                fter['datetime']['$lte'] = end
-            elif length:
-                kwargs['limit'] = length
-            kwargs['filter'] = fter
-        elif length:
-            kwargs['sort'] = [('datetime', -1)]
-            kwargs['limit'] = length
-            if end:
-                kwargs['filter'] = {'datetime': {'$lte': end}}
-        elif end:
-            kwargs['filter'] = {'datetime': {'$lte': end}}
-
-        if isinstance(collection, (str, unicode)):
-            db = self.client[db] if db else self.db
-            return self._read(db[collection], **kwargs)
-        elif isinstance(collection, pymongo.collection.Collection):
-            return self._read(collection, **kwargs)
-        elif isinstance(collection, (list, tuple)):
-            db = self.client[db] if db else self.db
-            panel = {}
-            for col in collection:
-                if isinstance(col, (str, unicode)):
-                    panel[col] = self._read(db[col], **kwargs)
-                elif isinstance(col, pymongo.collection.Collection):
-                    panel[col.name] = self._read(col, **kwargs)
-            return pd.Panel.from_dict(panel)
-
-    def raw_read(self, collection, db=None, **kwargs):
-        if isinstance(collection, str):
-            db = self.client[db] if db else self.db
-            return pd.DataFrame(list(db[collection].find(**kwargs)))
-        elif isinstance(collection, pymongo.collection.Collection):
-            return pd.DataFrame(collection.find(**kwargs))
-
 
 class StockData(DataCollector):
-    def __init__(self, host='localhost', port=27017, db='HS', user={}):
-        super(StockData, self).__init__(host=host, port=port, db=db, user=user)
+    def __init__(self, **setting):
+        setting.setdefault('db', 'HS')
+        super(StockData, self).__init__(**setting)
 
     def save_k_data(
             self, code=None, start='', end='',
@@ -164,7 +105,6 @@ class StockData(DataCollector):
         frame.pop('code')
 
         self.save('.'.join((code, ktype)), frame)
-        print (code, 'saved')
 
     def update(self, col_name):
         doc = self.db[col_name].find_one(sort=[('datetime', -1)])
@@ -182,7 +122,7 @@ class StockData(DataCollector):
             self, start='', end='',
             ktype='D', autype='qfq', index=False,
             retry_count=3, pause=0.001
-    ):
+        ):
         hs300 = tushare.get_hs300s()
         for code in hs300['code']:
             self.save_k_data(
@@ -191,25 +131,80 @@ class StockData(DataCollector):
                 retry_count, pause
             )
 
-    def save_yahoo(self, symbols=None, start=None, end=None, retry_count=3,
-                   pause=0.001, session=None, adjust_price=False, ret_index=False,
-                   chunksize=25, interval='d', db='yahoo'):
-        data = YahooDailyReader(symbols, start, end, retry_count, pause, session,
-                                adjust_price, ret_index, chunksize, interval).read()
-        data['datetime'] = data.index
+    @staticmethod
+    def get_yahoo_bar(code, retype='dict', start=None, end=None, **f):
+        """
 
-        self.save('.'.join((symbols, interval)), data.rename_axis(self.trans_map['yahoo'], 1), db)
+        :param code: stockCode (0700.hk, 600000.ss .....)
+        :param f:
+            a = begin month - 1
+            b = begin day
+            c = begin year
+            d = end month - 1
+            e = end day
+            f = end year
+            g = timeframe(w:week, d:day, w:week, m:month)
+        :return: DataFrame, dict
+        """
+
+        if start:
+            if isinstance(start, str):
+                start = datetime.strptime(start, '%Y-%m-%d')
+            elif not isinstance(start, datetime):
+                raise TypeError("type of start must be datetime or str('YYYY-MM-DD')")
+            f['a'] = start.month - 1
+            f['b'] = start.day
+            f['c'] = start.year
+
+        if end:
+            if isinstance(end, str):
+                end = datetime.strptime(end, '%Y-%m-%d')
+            elif not isinstance(end, datetime):
+                raise TypeError("type of end must be datetime or str('YYYY-MM-DD')")
+            f['d'] = end.month - 1
+            f['e'] = end.day
+            f['f'] = end.year
+
+        print(code, f)
+
+        url = "http://table.finance.yahoo.com/table.csv?s=%s" % code
+        param = ''.join(map(lambda (key, value): '&%s=%s' % (key, value), f.items()))
+        url += param + '&ignore=.csv'
+        data = requests.get(url, timeout=10)
+        lines = data.text.split('\n')
+        lines.pop()
+        columns = list(map(lambda w: w.lower(), lines[0].split(',')))
+        docs = []
+        for line in lines[1:]:
+            line = line.split(',')
+            doc = {'datetime': datetime.strptime(line[0], '%Y-%m-%d')}
+
+            for i in range(1, len(columns)):
+                doc[columns[i]] = float(line[i])
+            if doc['volume'] == 0:
+                continue
+
+            docs.append(doc)
+
+        docs.reverse()
+
+        if retype == 'dict':
+            return docs
+        elif retype == 'DataFrame':
+            return pd.DataFrame(docs)
 
 
 class OandaData(DataCollector):
-    def __init__(self, oanda_info, host='localhost', port=27017, db='Oanda', user={}):
+    def __init__(self, oanda_info, **setting):
         """
 
         :param oanda_info: dict, oanda account info {'environment': 'practice', 'access_token': your access_token}
+        :param setting:
         :return:
         """
 
-        super(OandaData, self).__init__(host=host, port=port, db='Oanda', user={})
+        setting.setdefault('db', 'Oanda')
+        super(OandaData, self).__init__(**setting)
 
         if isinstance(oanda_info, str):
             with open(oanda_info) as info:
@@ -217,6 +212,7 @@ class OandaData(DataCollector):
                 info.close()
 
         self.api = oandapy.API(oanda_info['environment'], oanda_info['access_token'])
+        self.account_id = oanda_info['account_id']
         self.time_format = '%Y-%m-%dT%H:%M:%S.%fZ'
         self.default_period = [
             'M15', 'M30', 'H1', 'H4', 'D', 'M'
@@ -251,7 +247,7 @@ class OandaData(DataCollector):
         try:
             result = self.get_history(instrument, **kwargs)
         except oandapy.OandaError as oe:
-            print (oe.message)
+            print oe.message
             if oe.error_response['code'] == 36:
                 return self.save_div(instrument, **kwargs)
             else:
@@ -283,23 +279,23 @@ class OandaData(DataCollector):
         else:
             raise ValueError('In save data mode, start is required')
 
-    def save_many(self, instruments, granularity, start, end=None, t=5):
+    def save_manny(self, instruments, granularity, start, end=None, t=5):
         if isinstance(instruments, list):
             if isinstance(granularity, list):
-                self._save_many(
+                self._save_manny(
                     start, end, t,
                     [(i, g) for i in instruments for g in granularity]
                 )
 
             else:
-                self._save_many(
+                self._save_manny(
                     start, end, t,
                     [(i, granularity) for i in instruments]
                 )
 
         else:
             if isinstance(granularity, list):
-                self._save_many(
+                self._save_manny(
                     start, end, t,
                     [(instruments, g) for g in granularity]
                 )
@@ -307,7 +303,7 @@ class OandaData(DataCollector):
             else:
                 self.save_history(instruments, granularity=granularity, start=start, end=end)
 
-    def _save_many(self, start, end, t, i_g):
+    def _save_manny(self, start, end, t, i_g):
         for i, g in i_g:
             self.queue.put({
                 'instrument': i,
@@ -321,7 +317,7 @@ class OandaData(DataCollector):
         self.join()
 
     def save_main(self):
-        self.save_many(self.MAIN_CURRENCY, self.default_period, datetime(2010, 1, 1), datetime.now())
+        self.save_manny(self.MAIN_CURRENCY, self.default_period, datetime(2010, 1, 1), datetime.now())
 
     def update(self, col_name):
         doc = self.db[col_name].find_one(sort=[('datetime', -1)], projection=['time'])
@@ -330,38 +326,25 @@ class OandaData(DataCollector):
                              'please check your DataBase' % col_name)
 
         i, g = col_name.split('.')
-        if g == 'COT':
-            return self.save(col_name, self.get_cot(i))
-        elif g == 'HPR':
-            return self.save(col_name, self.get_hpr(i))
-        else:
-            return self.save_history(i, granularity=g, start=doc['time'], includeFirst=False)
+        return self.save_history(i, granularity=g, start=doc['time'], includeFirst=False)
 
-    def update_candle(self, i, g, **kwargs):
-        return self.save_history(i, granularity=g, **kwargs)
-
-    def update_many(self, col_names=[], t=5):
+    def update_manny(self, *col_names, **others):
         if len(col_names) == 0:
             col_names = self.db.collection_names()
 
         for col_name in col_names:
             self.queue.put({'col_name': col_name})
 
-        self.start(self.update, t)
+        self.start(self.update, others.pop('t', 5))
         self.stop()
         self.join()
 
-    def get_hpr(self, instrument, period=31536000, **kwargs):
-        hpr = self.api.get_historical_position_ratios(instrument=instrument, period=period, **kwargs)
-        hpr = pd.DataFrame(
-            hpr['data'][instrument]['data'],
-            columns=['timestamp', 'long_position_ration', 'exchange_rate']
-        )
-        hpr['datetime'] = list(map(datetime.fromtimestamp, hpr['timestamp']))
-        return hpr
 
-    def get_cot(self, instrument, **kwargs):
-        cot = self.api.get_commitments_of_traders(instrument=instrument, **kwargs)
-        cot = pd.DataFrame(cot[instrument])
-        cot['datetime'] = list(map(datetime.fromtimestamp, cot['date']))
-        return cot
+if __name__ == '__main__':
+    # oanda = OandaData("D:/fxdayu/fxdayu/router/oanda_account.json", db='Oanda')
+
+    # oanda.save_main()
+
+    stock = StockData(port=10001, db='stock_test')
+
+    print stock.get_yahoo_bar('000002.sz', 'DataFrame', '2016-01-01')

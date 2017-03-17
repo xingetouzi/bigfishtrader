@@ -1,6 +1,7 @@
 # encoding:utf-8
 
 from dictproxyhack import dictproxy
+from weakref import proxy
 from fxdayu.event import EVENTS
 
 
@@ -41,7 +42,7 @@ class Handler(object):
         将事件处理函数对象注册到事件驱动引擎engine上
 
         Args:
-            engine(bigfishtrader.engine.core.Engine): 所注册的事件驱动引擎。
+            engine(fxdayu.engine.core.Engine): 所注册的事件驱动引擎。
 
         Returns:
             None
@@ -53,7 +54,7 @@ class Handler(object):
         取消事件处理函数对象在事件驱动引擎engine上的注册
 
         Args:
-            engine(bigfishtrader.engine.core.Engine): 所取消注册的事件驱动引擎。
+            engine(fxdayu.engine.core.Engine): 所取消注册的事件驱动引擎。
 
         Returns:
             None
@@ -71,67 +72,44 @@ class HandlerCompose(object):
         handlers(dict): 字典，按便于识别的名字储存了组件内部所包含的所有
             :class:`Handler` 对象
     """
-    def __init__(self):
+
+    def __init__(self, engine):
+        """
+
+        Args:
+            engine(fxdayu.engine.Engine): HandlerCompose对象的事件驱动引擎engine
+
+        Returns:
+            None
+        """
+        self.engine = engine
         self._handlers = {}
 
     @property
     def handlers(self):
         return dictproxy(self._handlers)
 
-    def register(self, engine):
+    def register(self):
         """
-        将组件内部的所有事件处理函数对象注册到事件驱动引擎engine上
-
-        Args:
-            engine(bigfishtrader.engine.core.Engine): 所注册的事件驱动引擎。
+        将组件内部的所有事件处理函数对象注册到HandlerCompose对象的事件驱动引擎engine上
 
         Returns:
             None
         """
+        engine = self.engine
         for handler in self._handlers.values():
             handler.register(engine)
 
-    def unregister(self, engine):
+    def unregister(self):
         """
-        取消组件内部的所有事件处理函数对象在事件驱动引擎engine上的注册
-
-        Args:
-            engine(bigfishtrader.engine.core.Engine): 所取消注册的事件驱动引擎。
+        取消组件内部的所有事件处理函数对象在HandlerCompose对象的事件驱动引擎engine上的注册
 
         Returns:
             None
         """
+        engine = self.engine
         for handler in self._handlers.values():
             handler.unregister(engine)
 
-
-class BigFishTrader(object):
-    def __init__(self, event_queue, engine, price_handler, portfolio_handler, order_handler, trade_handler):
-        self.event_queue = event_queue
-        self.engine = engine
-        self.price_handler = price_handler
-        self.portfolio_handler = portfolio_handler
-        self.order_handler = order_handler
-        self.portfolio = portfolio_handler.portfolio
-        self.trade_handler = trade_handler
-        if self.order_handler:
-            self.order_handler.register(self.engine)
-        if self.price_handler:
-            self.price_handler.register(self.engine)
-        if self.portfolio_handler:
-            self.portfolio_handler.register(self.engine)
-        if self.trade_handler:
-            self.trade_handler.register(self.engine)
-        self.engine.register(self.on_tick, stream=EVENTS.TICK, topic=".", priority=0)
-
-    def run(self):
-        self.engine.start()
-        self.price_handler.run()
-        self.engine.join()
-        self.engine.stop()
-
-    def stop(self):
-        self.engine.stop()
-
-    def on_tick(self, event, kwargs):
-        pass
+    def put(self, event):
+        return self.engine.put(event)

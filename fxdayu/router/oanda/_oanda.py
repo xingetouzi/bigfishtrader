@@ -38,7 +38,7 @@ class OandaRouter(AbstractRouter):
         """
 
         Args:
-            event(bigfishtrader.event.OrderEvent): OrderEvent
+            event(fxdayu.event.OrderEvent): OrderEvent
             kwargs:
 
         Returns:

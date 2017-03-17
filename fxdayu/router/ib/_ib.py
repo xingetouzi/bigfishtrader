@@ -1,19 +1,19 @@
 # encoding:utf-8
 import logging
+from copy import copy
 from datetime import datetime
 from weakref import proxy
-from copy import copy
 
-from dateutil.parser import parse
 import numpy as np
+from dateutil.parser import parse
 from ib.ext.Contract import Contract
 from ib.ext.Order import Order
-import ib.ext.Execution
 from ib.opt import ibConnection, message
-from fxdayu.router.gateway import Gateway
-from fxdayu.router.ib.constants import *
+
 from fxdayu.event import TickEvent, ExecutionEvent
-from fxdayu.model import ExecutionData
+from fxdayu.gateway import Gateway
+from fxdayu.models.data import ExecutionData
+from fxdayu.router.ib.constants import *
 
 
 class BFWrapper(object):
@@ -89,17 +89,17 @@ class BFWrapper(object):
 
     def execDetails(self, msg):
         reqId = msg.reqId
-        contract = msg.contract
+        contract = msg.symbol
         execution = msg.execution
         fill = ExecutionData()
         fill.time = parse(execution.m_time)
-        fill.ticker = contract
+        fill.symbol = contract
         fill.action = execution.m_side
-        fill.quantity = execution.m_shares
-        fill.price = execution.m_price
+        fill.orderQty = execution.m_shares
+        fill.lastPx = execution.m_price
         fill.exchange = execution.m_exchange
-        fill.order_ext_id = execution.m_permId
-        fill.avg_price = execution.m_avgPrice
+        fill.orderID = execution.m_permId
+        fill.avgPx = execution.m_avgPrice
         fill.account = execution.m_acctNumber
         event = ExecutionEvent(
             fill,
@@ -213,7 +213,7 @@ class BFIbApi(object):
         print(msg)
 
     def on_exec_details(self, msg):
-        print(msg.contract)
+        print(msg.symbol)
         e = msg.execution
         print([e.m_orderId,
                e.m_clientId,
@@ -233,7 +233,7 @@ class BFIbApi(object):
                e.m_evMultiplier])
 
     def on_open_order(self, msg):
-        print(msg.contract)
+        print(msg.symbol)
         print(msg.order)
         print(msg.orderState)
 

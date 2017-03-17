@@ -1,4 +1,5 @@
 # encoding: utf-8
+
 from __future__ import unicode_literals
 from enum import Enum
 
@@ -17,6 +18,7 @@ class ORDERTYPE(Enum):
 
 
 class ORDERSTATUS(Enum):
+    GENERATE = "已生成"
     NOTTRADED = "未成交"
     PARTTRADED = "部分成交"
     ALLTRADED = "全部成交"
@@ -29,6 +31,7 @@ class DIRECTION(Enum):
     LONG = "多"
     SHORT = "空"
     UNKNOWN = "未知"
+    NET = "净"
 
 
 class SIDE(Enum):
@@ -43,28 +46,6 @@ class ACTION(Enum):
     UNKNOWN = "未知"
 
 
-class SecType(Enum):
-    # stock
-    STK = "STK"
-    # option
-    OPT = "OPT"
-    # future
-    FUT = "FUT"
-    # index
-    IND = "IND"
-    # futures option
-    FOP = "FOP"
-    # forex pair
-    CASH = "CASH"
-    # combo
-    BAG = "BAG"
-    # warrant
-    WAR = "WAR"
-    # bond
-    BOND = "BOND"
-    # commodity
-    CMDTY = "CMDTY"
-    # news
-    NEWS = "NEWS"
-    # mutual fund
-    FUND = "FUND"
+class GATEWAY(Enum):
+    CTP = "CTP"
+    IB = "IB"

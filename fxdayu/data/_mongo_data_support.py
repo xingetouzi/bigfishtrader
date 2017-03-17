@@ -6,7 +6,7 @@ from collections import OrderedDict
 import pandas as pd
 from dictproxyhack import dictproxy
 
-from fxdayu.event import TimeEvent, ExitEvent, ScheduleEvent
+from fxdayu.event import TimeEvent, ExitEvent
 from fxdayu.data.mongo_support import connect
 from fxdayu.data.base import AbstractDataSupport
 from fxdayu.data.cache import MemoryCacheProxy
@@ -23,8 +23,8 @@ _BAR_FIELDS_MAP = OrderedDict([
 
 
 class MongoDataSupport(AbstractDataSupport):
-    def __init__(self, db="admin", **info):
-        super(MongoDataSupport, self).__init__()
+    def __init__(self, engine, db="admin", **info):
+        super(MongoDataSupport, self).__init__(engine)
         self._client = connect(**info)
         self._db = db
         self._tickers = {}
@@ -132,19 +132,15 @@ class MongoDataSupport(AbstractDataSupport):
         self._ds.insert(ticker, frame, frequency)
 
 
-from fxdayu.engine.base import AbstractDataSupport
-
-
 class MultiDataSupport(AbstractDataSupport):
-    def __init__(self, context=None, event_queue=None, host='localhost', port=27017, users={}, db=None, **kwargs):
-        super(MultiDataSupport, self).__init__()
-        self._db = db
-        self._client = self.connect(host, port, users, **kwargs)
-        self._panel_data = MultiPanelData(context)
+    def __init__(self, engine, context=None, event_queue=None, **info):
+        super(MultiDataSupport, self).__init__(engine)
+        self._db = info.pop('db', None)
+        self._client = connect(**info)
+        self._panel_data = MultiPanelData(engine, context)
         self._initialized = False
         self.tickers = {}
         self.event_queue = event_queue
-
         self.mapper = {}
         self.bar_general = ['open', 'high', 'low', 'close', 'volume', 'datetime']
         self.set_bar_map(
@@ -228,39 +224,39 @@ class MultiDataSupport(AbstractDataSupport):
             for ticker in tickers:
                 f.remove(ticker)
 
-    def current(self, tickers, fields=None, **kwargs):
+    def current(self, assets, fields=None, **kwargs):
         """
         获取最新数据
 
-        :param tickers: str or list
+        :param assets: str or list
         :param fields: str or list, [close, open, high, low, volume]
         :return: float, series or DataFrame
         """
         try:
-            return self._panel_data.current(tickers, fields)
+            return self._panel_data.current(assets, fields)
         except KeyError:
             f = self._panel_data.frequency
             t = self.current_time
-            if isinstance(tickers, str):
+            if isinstance(assets, str):
                 return self.history_db(
-                    tickers, f, end=t, length=1, **kwargs
+                    assets, f, end=t, length=1, **kwargs
                 )
-            elif isinstance(tickers, list):
+            elif isinstance(assets, list):
                 return pd.DataFrame(
                     dict(map(
                         lambda ticker: (ticker, self.history_db(ticker, f, end=t, length=1, **kwargs)),
-                        tickers
+                        assets
                     ))
                 )
 
     def history(
-            self, tickers, frequency, fields=None,
+            self, assets, frequency, fields=None,
             start=None, end=None, length=None
     ):
         """
         获取历史数据
 
-        :param tickers: str or list
+        :param assets: str or list
         :param frequency: str
         :param fields: str or list, [close, open, high, low, volume]
         :param start: datetime
@@ -273,7 +269,7 @@ class MultiDataSupport(AbstractDataSupport):
 
         try:
             data = self._panel_data.history(
-                tickers, frequency, fields,
+                assets, frequency, fields,
                 start, end, length
             )
             if length:
@@ -286,26 +282,23 @@ class MultiDataSupport(AbstractDataSupport):
             if not end:
                 end = self.current_time
 
-            if isinstance(tickers, str):
-                return self.history_db(tickers, frequency, fields, start, end, length)
-            elif isinstance(tickers, list):
+            if isinstance(assets, str):
+                return self.history_db(assets, frequency, fields, start, end, length)
+            elif isinstance(assets, list):
                 frames = {}
-                for ticker in tickers:
+                for ticker in assets:
                     frames[ticker] = self.history_db(ticker, frequency, fields, start, end, length)
-                if isinstance(fields, str):
-                    return pd.Panel.from_dict(frames)[:, :, fields]
-                else:
-                    return pd.Panel.from_dict(frames)
+                return pd.Panel.from_dict(frames)
 
     @staticmethod
     def match_length(frame, length):
         if isinstance(frame, (pd.DataFrame, pd.Series)):
-            if len(frame.dropna(how='all')) != length:
+            if len(frame) != length:
                 return False
             else:
                 return True
         elif isinstance(frame, pd.Panel):
-            if len(frame.major_axis) != length:
+            if len(frame.major) != length:
                 return False
             else:
                 return True
@@ -314,13 +307,14 @@ class MultiDataSupport(AbstractDataSupport):
 
     def put_time_events(self, queue):
         for time_ in self._panel_data.major_axis:
-            queue.put(TimeEvent(time_, ''))
+            queue.put(TimeEvent(time_, "bar.open"))
+            queue.put(TimeEvent(time_, "bar.close"))
         queue.put(ExitEvent())
 
-    def time_schedule(self, topic, ahead, time_rules):
+    def put_limit_time(self, queue, topic, **condition):
         for time_ in self._panel_data.major_axis:
-            if time_rules(time_):
-                self.event_queue.put(ScheduleEvent(time_, topic))
+            if self._time_match(time_, **condition):
+                queue.put(TimeEvent(time_, topic))
 
     @staticmethod
     def _time_match(time, **condition):
@@ -444,3 +438,41 @@ class MultiDataSupport(AbstractDataSupport):
             return True
         else:
             return False
+
+
+if __name__ == "__main__":
+    setting = {
+        "host": "192.168.0.103",
+        "port": 27018,
+        "db": "Oanda",
+    }
+
+    data = MultiDataSupport(**setting)
+    data.set_bar_map('Data', close='Close', high='High', low='Low', open='Open', datetime='Date', volume='Volume')
+
+    data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1), ticker_type='Oanda')
+    print data.current('EUR_USD')
+    print("\n")
+    print(data.current("EUR_USD", "open"))
+    print("\n")
+    print(data.current("EUR_USD", ["open", "close"]))
+    print("\n")
+    print(data.current(["EUR_USD", "GBP_USD"], "open"))
+    print("\n")
+    print(data.current(["EUR_USD", "GBP_USD"], ["open", "close"]))
+    print("\n<test history>:")
+    print(data.history("EUR_USD", "D", "open", length=4))
+    print("\n")
+    print(data.history("EUR_USD", "D", ["open", "close"], length=4))
+    print("\n")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", length=4))
+    print("\n")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", ["open", "close"], length=4))
+    print("\n<test start,end and length>:")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", start=datetime(2014, 3, 2), length=5))
+    print("\n")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", end=datetime(2014, 4, 1), length=5))
+    print("\n")
+    print(data.history(["EUR_USD", "GBP_USD"], "D", "open", start=datetime(2014, 3, 2), end=datetime(2014, 4, 1)))
+    print("\n")
+    print(data.history_db('000001', 'D', start=datetime(2016, 1, 1), ticker_type='HS'))

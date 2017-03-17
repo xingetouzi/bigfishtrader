@@ -30,7 +30,7 @@ class AbstractRouter(HandlerCompose):
         处理OrderEvent
 
         Args:
-            event (bigfishtrader.event.OrderEvent): 订单事件
+            event (fxdayu.event.OrderEvent): 订单事件
             kwargs (dict): 共享数据字典,存储工作流中需要传递的数据，如需传递数据，
                 请将其key和value含义写入文档中。
 

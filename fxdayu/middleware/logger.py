@@ -21,7 +21,7 @@ class LogRecorder(HandlerCompose):
         """
 
         Args:
-            event(bigfishtrader.event.TickEvent): TickEvent
+            event(fxdayu.event.TickEvent): TickEvent
             kwarg(dct): dict for sharing data
 
         Returns:
@@ -41,7 +41,7 @@ class LogRecorder(HandlerCompose):
         """
 
         Args:
-            event(bigfishtrader.event.OrderEvent):
+            event(fxdayu.event.OrderEvent):
             kwarg(dct):
 
         Returns:
@@ -54,7 +54,7 @@ class LogRecorder(HandlerCompose):
         """
 
         Args:
-            event(bigfishtrader.event.ExecutionEvent):
+            event(fxdayu.event.ExecutionEvent):
             kwarg(dct):
 
         Returns:

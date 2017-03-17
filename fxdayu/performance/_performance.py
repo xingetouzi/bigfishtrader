@@ -413,14 +413,18 @@ class OrderAnalysis(WindowFactorPerformance):
     def order_details(self):
         self._orders["报单编号"] = self._orders["报单编号"].astype(int)
         df = self._orders[["报单编号", "合约", "买卖", "开平", "报单状态", "报单价格", "报单数", "未成交数",
-                           "成交数", "成交均价", "报单时间", "最后成交时间"]]
-
-        return self._orders
+                           "成交数",  "报单时间", "最后成交时间", "成交均价", "手续费"]]
+        return df
 
     @property
     @lru_cache()
-    def position_details(self):
+    def position_details(self, mode="avg"):
         """
+
+        Args:
+            mode(str):
+            "avg" means maintain average price of position,
+            "fifo" means the first the order was filled the first it was closed
 
         Returns:
             pandas.DataFrame
@@ -448,29 +452,41 @@ class OrderAnalysis(WindowFactorPerformance):
             temp["持仓方向"] = (temp["持仓数量"] >= 0).apply(sign2direction)
             market_values = []
             position_avx_prices = []
-            cum_profits = []
+            profits = []
             market_value = 0
             position_avx_price = 0
-            cum_profit = 0
             last_volume = 0
             for _, direction, volume in zip(orders.iterrows(), temp["持仓方向"].values, temp["持仓数量"].values):
                 # TODO 未考虑反向开仓
                 _, order = _
-                if last_volume * side2sign(order["买卖"]) >= 0:
-                    market_value += order["成交数"] * order["成交均价"]
-                else:
-                    market_value -= order["成交数"] * position_avx_price  # 按持仓均价平仓
-                    cum_profit += (position_avx_price - order["成交均价"]) * order["成交数"] * side2sign(order["买卖"])
-                last_volume = volume
-                position_avx_price = market_value / volume if volume else 0
-                market_values.append(market_value)
-                position_avx_prices.append(position_avx_price)
-                cum_profits.append(cum_profit)
+                if mode == "avg":
+                    if last_volume * side2sign(order["买卖"]) >= 0:
+                        market_value += order["成交数"] * order["成交均价"]
+                        profits.append(np.nan)
+                    else:
+                        market_value -= order["成交数"] * position_avx_price  # 按持仓均价平仓
+                        profits.append((position_avx_price - order["成交均价"]) * order["成交数"] * side2sign(order["买卖"]))
+                    last_volume = volume
+                    position_avx_price = market_value / volume if volume else 0
+                    market_values.append(market_value)
+                    position_avx_prices.append(position_avx_price)
+                elif mode == "fifo":
+                    return  # TODO fifo
+
             temp["持仓编号"] = (temp["持仓数量"] == 0).cumsum().shift(1).fillna(0) + 1  # TODO 未考虑反向开仓
+            temp["持仓编号"] = temp["持仓编号"].astype(int)
             temp["市值"] = market_values
             temp["持仓均价"] = position_avx_prices
-            temp["累积盈利"] = cum_profits
-            temp["盈利"] = temp["累积盈利"] - temp["累积盈利"].shift(1).fillna(0)
+            temp["盈利"] = profits
+            # cover commission to every pair of trade
+            commission_sum = orders.groupby["持仓编号"].sum()
+            commission_num = orders.groupby["持仓编号"].count()
+            print(commission_sum)
+            print(commission_num)
+            commission_cover = commission_sum / commission_num
+            temp["盈利"] -= temp["持仓编号"].map(lambda x: commission_cover[x])
+            # cumsum profit
+            temp["累积盈利"] = temp["盈利"].sum()
             addition.append(temp)
         position = pd.concat([df, pd.concat(addition, axis=0)],
                              axis=1)  # concat addition position info of all tickers with order info

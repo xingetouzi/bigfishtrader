@@ -1,11 +1,16 @@
 # encoding: utf-8
 
+import threading
 from datetime import datetime
 
-import numpy as np
+from dateutil.parser import parse
 
 from fxdayu.const import *
-from fxdayu.model import ExecutionData
+from fxdayu.models.data import ExecutionData
+
+G = threading.local()
+ID_WIDTH = 12  # 0xffffffffffff / (365 * 24 * 60 * 60 * 100000) = 89
+THREAD_ID_WITH = 5  # 0xfffff = 1048575
 
 
 class EVENTS(Enum):
@@ -22,8 +27,11 @@ class EVENTS(Enum):
     CONFIG = 10
     RECALL = 11
     POSITION = 12
-    ORD_STATUS = 13
-    SCHEDULE = 14
+    ACCOUNT = 13
+    ORD_STATUS = 14
+    LOG = 15
+    ERROR = 16
+    INIT = 17
     EXIT = 999
 
 
@@ -34,44 +42,32 @@ class Event(object):
     which compares its own priority and other event's priority
     Other events that extends from this class must set the 'priority' attribution
     """
-    __slots__ = ["type", "priority", "topic", "time", "local_time"]
+    __slots__ = ["type", "priority", "topic", "time", "pid"]
 
     def __init__(self, _type, priority, timestamp, topic=""):
         self.type = _type
         self.priority = priority
         self.topic = topic
         self.time = timestamp
-        self.local_time = datetime.now()
+        self.pid = self.next_pid()
+
+    @classmethod
+    def next_pid(cls):
+        # XXX in a thread, event keep in order, but not totally threading-safe
+        global G
+        try:
+            G.count += 1
+        except AttributeError:
+            G.count = 1
+        result = hex(threading.current_thread().ident)[2:].replace("L", "").zfill(THREAD_ID_WITH)
+        result += hex(G.count)[2:].replace("L", "").zfill(ID_WIDTH)
+        return result
 
     def to_dict(self):
         return {field: getattr(self, field) for field in self.__slots__}
 
-    def lt_time(self, other):
-        if self.__eq__(other):
-            return self.time < other.time or self.lt_local_time(other)
-        else:
-            return False
-
-    def lt_local_time(self, other):
-        if self.time == other.time:
-            return self.local_time < other.local_time
-        else:
-            return False
-
-    def __eq__(self, other):
-        return self.priority == other.priority
-
     def __lt__(self, other):
-        return self.priority < other.priority or self.lt_time(other)
-
-    def __le__(self, other):
-        return self.priority <= other.priority
-
-    def __ge__(self, other):
-        return self.priority >= other.priority
-
-    def __gt__(self, other):
-        return self.priority > other.priority
+        return (self.priority, self.time, self.pid) < (other.priority, other.time, other.pid)
 
 
 class TickEvent(Event):
@@ -119,13 +115,15 @@ class OrderEvent(Event):
         """
 
         Args:
-            order(bigfishtrader.model.OrderReq):
+            order(fxdayu.models.OrderReq):
             timestamp:
             topic:
 
         Returns:
 
         """
+        if timestamp is None:
+            timestamp = datetime.now()
         super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp, topic)
         self.data = order
 
@@ -137,21 +135,20 @@ class OrderEvent(Event):
         return True
 
     def to_fill(self, timestamp, price, commission=0, lever=1, deposit_rate=1,
-                sec_type=None, position_id=None, external_id=None, topic=''):
+                position_id=None, external_id=None, topic=''):
         order = self.data
         fill = ExecutionData()
         fill.time = timestamp
-        fill.ticker = order.symbol
+        fill.symbol = order.symbol
         fill.action = order.action
-        fill.quantity = order.orderQty
-        fill.secType = self.data.secType if self.data.secType != EMPTY_UNICODE else SecType.STK.value
-        fill.price = price
+        fill.orderQty = order.orderQty
+        fill.lastPx = price
         fill.commission = commission
         fill.lever = lever
         fill.deposit_rate = deposit_rate
-        fill.order_id = order.clOrdID
+        fill.clOrderID = order.clOrdID
         fill.position_id = position_id if position_id else order.clOrdID
-        fill.order_ext_id = external_id
+        fill.orderID = external_id
         return ExecutionEvent(fill, timestamp=fill.time, topic=topic)
 
 
@@ -178,10 +175,19 @@ class ExecutionEvent(Event):
     __slots__ = ["data"]
 
     def __init__(self, execution, timestamp=None, topic=''):
+        """
+
+        Args:
+            execution(fxdayu.models.ExecutionData):
+            timestamp:
+            topic:
+
+        Returns:
+
+        """
         if timestamp is None:
-            super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, datetime.now(), topic)
-        else:
-            super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, timestamp, topic)
+            timestamp = datetime.now()
+        super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, timestamp, topic)
         self.data = execution
 
 
@@ -190,36 +196,6 @@ class TimeEvent(Event):
 
     def __init__(self, timestamp, topic=""):
         super(TimeEvent, self).__init__(EVENTS.TIME, 1, timestamp, topic)
-
-    def lt_local_time(self, other):
-        if self.time > other.time:
-            return False
-        elif isinstance(other, ScheduleEvent):
-            return not other.ahead
-        else:
-            return self.local_time < other.local_time
-
-
-class ScheduleEvent(Event):
-    __slots__ = ['ahead']
-
-    def __init__(self, timestamp, topic="", ahead=False):
-        super(ScheduleEvent, self).__init__(EVENTS.SCHEDULE, 1, timestamp, topic)
-        self.ahead = ahead
-
-    def lt_time(self, other):
-        if self.__eq__(other):
-            if self.time < other.time:
-                return True
-            elif self.time == other.time:
-                if other.type == EVENTS.TIME:
-                    return self.ahead
-                else:
-                    return self.local_time < other.local_time
-            else:
-                return False
-        else:
-            return False
 
 
 class ModifyEvent(Event):
@@ -263,6 +239,16 @@ class ExitEvent(Event):
         super(ExitEvent, self).__init__(EVENTS.EXIT, 999, datetime.now())
 
 
+class AccountEvent(Event):
+    __slots__ = ["data"]
+
+    def __init__(self, account, priority=0, timestamp=None, topic=""):
+        if timestamp is None:
+            timestamp = datetime.now()
+        super(AccountEvent, self).__init__(EVENTS.ACCOUNT, priority, timestamp, topic)
+        self.data = account
+
+
 class PositionEvent(Event):
     """
 
@@ -270,6 +256,17 @@ class PositionEvent(Event):
     __slots__ = ["data"]
 
     def __init__(self, position, priority=0, timestamp=None, topic=""):
+        """
+
+        Args:
+            position(fxdayu.models.PositionData):
+            priority:
+            timestamp:
+            topic:
+
+        Returns:
+
+        """
         if timestamp is None:
             timestamp = datetime.now()
         super(PositionEvent, self).__init__(EVENTS.POSITION, priority, timestamp, topic)
@@ -280,7 +277,62 @@ class OrderStatusEvent(Event):
     __slots__ = ["data"]
 
     def __init__(self, ord_status, priority=0, timestamp=None, topic=""):
+        """
+
+        Args:
+            ord_status(fxdayu.models.data.OrderStatusData):
+            priority:
+            timestamp:
+            topic:
+
+        Returns:
+
+        """
         if timestamp is None:
             timestamp = datetime.now()
         super(OrderStatusEvent, self).__init__(EVENTS.ORD_STATUS, priority, timestamp, topic)
         self.data = ord_status
+
+
+class LogEvent(Event):
+    __slots__ = ["data"]
+
+    def __init__(self, log, priority=0, topic=""):
+        """
+
+        Args:
+            log(fxdayu.models.LogData):
+            priority:
+            topic:
+
+        Returns:
+            None
+        """
+
+        super(LogEvent, self).__init__(EVENTS.LOG, priority, parse(log.logTime), topic)
+        self.data = log
+
+
+class ErrorEvent(Event):
+    __slots__ = ["data"]
+
+    def __init__(self, error, priority=0, topic=""):
+        """
+
+        Args:
+            error(fxdayu.models.ErrorData):
+            priority:
+            topic:
+
+        Returns:
+            None
+        """
+        super(ErrorEvent, self).__init__(EVENTS.ERROR, priority, parse(error.errorTime), topic)
+        self.data = error
+
+
+class InitEvent(Event):
+    def __init__(self, priority=-1, timestamp=None):
+        if timestamp is None:
+            timestamp = datetime.now()
+        super(InitEvent, self).__init__(EVENTS.INIT, priority, timestamp)
