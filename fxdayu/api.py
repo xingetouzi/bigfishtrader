@@ -3,7 +3,7 @@ from fxdayu.modules.order.style import MarketOrder, LimitOrder, StopLimitOrder, 
 
 __all__ = ["sid", "symbol", "symbols", "order", "order_target", "order_percent",
            "order_target_percent", "order_target_value", "order_value",
-           "time_schedule", "time_rules"]
+           "time_schedule", "time_rules", "set_commission", "set_slippage"]
 
 
 # Security 相关
@@ -247,5 +247,28 @@ def time_rules(**kwargs):
         return True
 
     return function
+
+
+def set_commission(per_value=0, per_share=0, min_cost=0, function=None):
+    """
+    设置交易所(模拟)保证金
+
+    :param per_value:
+    :param per_share:
+    :param min_cost:
+    :return:
+    """
+    pass
+
+
+def set_slippage(pct=0, function=None):
+    """
+    设置成交(模拟)时价格滑点
+
+    :param pct:
+    :param function:
+    :return:
+    """
+    pass
 
 

@@ -8,6 +8,7 @@ from fxdayu.event import EVENTS, ExecutionEvent, OrderStatusEvent
 from fxdayu.models.data import ExecutionData
 from fxdayu.router.base import AbstractRouter
 from fxdayu.context import ContextMixin
+from fxdayu.utils.api_support import api_method
 
 
 class BACKTESTDEALMODE(Enum):
@@ -241,3 +242,23 @@ class DummyExchange(AbstractRouter, ContextMixin):
 
     def link_context(self):
         self.environment.set_private("make_execution", self._make_execution)
+        self.environment['set_commission'] = self.set_commission
+        self.environment['set_slippage'] = self.set_slippage
+
+    @api_method
+    def set_commission(self, per_value=0, per_share=0, min_cost=0, function=None):
+        if function is None:
+            def commission(order, price):
+                return max(order.orderQty*(price*per_value+per_share), min_cost)
+
+            setattr(self, 'calculate_commission', commission)
+        else:
+            setattr(self, 'calculate_commission', function)
+
+    @api_method
+    def set_slippage(self, pct=0, function=None):
+        if function is None:
+            setattr(self, 'calculate_slippage',
+                    lambda order, price: price*pct if order.orderQty > 0 else -price*pct)
+        else:
+            setattr(self, 'calculate_slippage', function)
