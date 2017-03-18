@@ -229,7 +229,7 @@ class MultiPanelData(AbstractDataSupport):
     @staticmethod
     def search_axis(axis, time):
         index = axis.searchsorted(time)
-        if len(axis) < index and axis[index] <= time:
+        if axis[index] <= time:
             return index
         else:
             return index - 1

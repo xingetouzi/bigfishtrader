@@ -182,7 +182,7 @@ class Trader(object):
             save:
         """
         if not self.initialized:
-            raise Exception("Models not initialized, please call initialize()")
+            self.initialize()
 
         context, data, engine = self.context, self.modules["data"], self.engine
         strategy = self.environment.public.copy()
