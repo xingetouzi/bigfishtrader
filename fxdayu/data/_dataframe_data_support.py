@@ -211,6 +211,54 @@ class MultiPanelData(AbstractDataSupport):
             else:
                 self._panels.pop(frequency)
 
+    @staticmethod
+    def _find(panel, item, major, minor):
+        if item is not None:
+            if isinstance(item, (str, unicode)):
+                frame = panel[item]
+                return frame[minor].iloc[major]
+            else:
+                panel = panel[item]
+                return panel[:, major, minor]
+        else:
+            if len(panel.items) == 1:
+                return panel[panel.items[0]][minor].iloc[major]
+            else:
+                return panel[:, major, minor]
+
+    @staticmethod
+    def search_axis(axis, time):
+        index = axis.searchsorted(time)
+        if len(axis) < index and axis[index] <= time:
+            return index
+        else:
+            return index - 1
+
+    def major_slice(self, axis, now, start, end, length):
+        last = self.search_axis(axis, now)
+
+        if end:
+            end = self.search_axis(axis, end)
+            if end > last:
+                end = last
+        else:
+            end = last
+
+        if start:
+            start = axis.searchsorted(pd.to_datetime(start))
+            if length:
+                if start + length <= end+1:
+                    return slice(start, start+length)
+                else:
+                    return slice(start, end+1)
+            else:
+                return slice(start, end+1)
+        elif length:
+            end += 1
+            return slice(end-length if end > length else 0, end)
+        else:
+            return slice(0, end+1)
+
     def current(self, tickers, fields=None):
         if fields is None:
             fields = slice(None)
@@ -220,15 +268,15 @@ class MultiPanelData(AbstractDataSupport):
         if index >= len(panel.major_axis):
             index = -1
 
-        if isinstance(tickers, list):
+        if isinstance(tickers, (str, unicode)):
+            frame = panel[tickers]
+            return frame[fields].iloc[index]
+        else:
             for ticker in tickers:
                 if ticker not in panel.items:
                     raise KeyError('%s not in items' % ticker)
             panel = panel[tickers]
             return panel.iloc[:, index].T[fields]
-        else:
-            frame = panel[tickers]
-            return frame[fields].iloc[index]
 
     def history(
             self, tickers, frequency, fields=None,
@@ -236,77 +284,9 @@ class MultiPanelData(AbstractDataSupport):
     ):
         if fields is None:
             fields = slice(None)
-        if isinstance(tickers, str):
-            tickers = [tickers]
         panel = self._panels[frequency]
-        if start:
-            start = pd.to_datetime(start)
-            begin = panel.major_axis.searchsorted(start)
-            if length:
-                if len(tickers) == 1:
-                    return panel[tickers[0]][fields].iloc[begin:begin+length]
-                else:
-                    return panel[tickers][:, begin:begin+length, fields]
-
-            else:
-                end = pd.to_datetime(end) if end else pd.to_datetime(self.context.current_time)
-                stop = panel.major_axis.searchsorted(end)
-
-                if stop < len(panel.major_axis):
-                    if panel.major_axis[stop] <= end:
-                        stop += 1
-                else:
-                    stop = None
-
-                if len(tickers) == 1:
-                    frame = panel[tickers[0]]
-                    return frame.iloc[begin:stop][fields]
-                else:
-                    panel = panel[tickers]
-                    return panel[:, begin:stop, fields]
-        if end:
-            end = pd.to_datetime(end)
-            stop = panel.major_axis.searchsorted(end)
-
-            if stop < len(panel.major_axis):
-                if panel.major_axis[stop] <= end:
-                        stop += 1
-            else:
-                stop = None
-
-            if length:
-                if len(tickers) == 1:
-                    return panel[tickers[0]][fields].iloc[stop-length:stop]
-                else:
-                    return panel[tickers][:, stop-length:stop, fields]
-            elif start:
-                start = pd.to_datetime(start)
-                begin = panel.major_axis.searchsorted(start)
-                if len(tickers) == 1:
-                    frame = panel[tickers[0]]
-                    return frame.iloc[begin:stop][fields]
-                else:
-                    panel = panel[tickers]
-                    return panel[:, begin:stop, fields]
-            else:
-                if len(tickers) == 1:
-                    return panel[tickers[0]][fields].iloc[:stop]
-                else:
-                    return panel[tickers][:, :stop, fields]
-        else:
-            end = pd.to_datetime(self.context.current_time)
-            stop = panel.major_axis.searchsorted(end)
-            begin = stop - length if length and (stop >= length) else None
-            if stop < len(panel.major_axis):
-                if panel.major_axis[stop] <= end and frequency == self._frequency:
-                        stop += 1
-                        begin = begin + 1 if begin else None
-            else:
-                stop = None
-            if len(tickers) == 1:
-                return panel[tickers[0]][fields].iloc[begin:stop]
-            else:
-                return panel[tickers][:, begin:stop, fields]
+        index_slice = self.major_slice(panel.major_axis, self.current_time, start, end, length)
+        return self._find(panel, tickers, index_slice, fields)
 
     @property
     def frequency(self):

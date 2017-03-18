@@ -224,7 +224,7 @@ class MultiDataSupport(AbstractDataSupport):
             for ticker in tickers:
                 f.remove(ticker)
 
-    def current(self, assets, fields=None, **kwargs):
+    def current(self, assets=None, fields=None, **kwargs):
         """
         获取最新数据
 
@@ -232,6 +232,10 @@ class MultiDataSupport(AbstractDataSupport):
         :param fields: str or list, [close, open, high, low, volume]
         :return: float, series or DataFrame
         """
+
+        if assets is None:
+            assets = self._panel_data._panels[self._panel_data.frequency].items
+
         try:
             return self._panel_data.current(assets, fields)
         except KeyError:
@@ -250,7 +254,7 @@ class MultiDataSupport(AbstractDataSupport):
                 )
 
     def history(
-            self, assets, frequency, fields=None,
+            self, assets=None, frequency=None, fields=None,
             start=None, end=None, length=None
     ):
         """
@@ -267,7 +271,13 @@ class MultiDataSupport(AbstractDataSupport):
         if end and end > self._panel_data.context.current_time:
             end = self._panel_data.context.current_time
 
+        if frequency is None:
+            frequency = self._panel_data.frequency
+
         try:
+            if assets is None:
+                assets = self._panel_data._panels[frequency].items
+
             data = self._panel_data.history(
                 assets, frequency, fields,
                 start, end, length
@@ -279,6 +289,9 @@ class MultiDataSupport(AbstractDataSupport):
             return data
 
         except KeyError:
+            if assets is None:
+                assets = self._panel_data._panels[self._panel_data.frequency].items
+
             if not end:
                 end = self.current_time
 
@@ -298,7 +311,7 @@ class MultiDataSupport(AbstractDataSupport):
             else:
                 return True
         elif isinstance(frame, pd.Panel):
-            if len(frame.major) != length:
+            if len(frame.major_axis) != length:
                 return False
             else:
                 return True
@@ -451,10 +464,12 @@ if __name__ == "__main__":
         "db": "Oanda",
     }
 
-    data = MultiDataSupport(**setting)
+    data = MultiDataSupport(None, **setting)
     data.set_bar_map('Data', close='Close', high='High', low='Low', open='Open', datetime='Date', volume='Volume')
 
     data.init(["EUR_USD", "GBP_USD"], "D", datetime(2014, 1, 1), datetime(2015, 1, 1), ticker_type='Oanda')
+    print data.current()
+    print("\n")
     print data.current('EUR_USD')
     print("\n")
     print(data.current("EUR_USD", "open"))
@@ -465,6 +480,7 @@ if __name__ == "__main__":
     print("\n")
     print(data.current(["EUR_USD", "GBP_USD"], ["open", "close"]))
     print("\n<test history>:")
+    print(data.history(fields='open', length=4))
     print(data.history("EUR_USD", "D", "open", length=4))
     print("\n")
     print(data.history("EUR_USD", "D", ["open", "close"], length=4))
