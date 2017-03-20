@@ -7,7 +7,6 @@ import pandas as pd
 from pandas import ExcelWriter
 
 from fxdayu.context import Context, ContextMixin
-from fxdayu.data.support import MultiDataSupport
 from fxdayu.engine import Engine
 from fxdayu.event import EVENTS
 from fxdayu.engine.handler import HandlerCompose
@@ -20,6 +19,7 @@ from fxdayu.router import DummyExchange
 from fxdayu.utils.api_support import EnvironmentContext
 from fxdayu.performance import OrderAnalysis
 from fxdayu.modules.timer.simulation import TimeSimulation
+from fxdayu.data.data_support import DataSupport
 
 
 OUTPUT_COLUMN_MAP = {
@@ -93,12 +93,12 @@ class Trader(object):
         self.settings = OrderedDict([
             ("data", Component(
                 "data",
-                MultiDataSupport,
+                DataSupport,
                 (),
                 {
                     "context": self.context,
-                    "event_queue": self.engine,
-                    "port": 27017
+                    # "event_queue": self.engine,
+                    # "port": 27017
                 }
             )),
             ("timer", Component(

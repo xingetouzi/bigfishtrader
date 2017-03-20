@@ -3,7 +3,8 @@ from fxdayu.modules.order.style import MarketOrder, LimitOrder, StopLimitOrder, 
 
 __all__ = ["sid", "symbol", "symbols", "order", "order_target", "order_percent",
            "order_target_percent", "order_target_value", "order_value",
-           "time_schedule", "time_rules", "set_commission", "set_slippage"]
+           "time_schedule", "time_rules", "set_commission", "set_slippage",
+           "file_path"]
 
 
 # Security 相关
@@ -271,4 +272,8 @@ def set_slippage(pct=0, function=None):
     """
     pass
 
+
+def file_path(name):
+    import os
+    return os.path.abspath(name)
 

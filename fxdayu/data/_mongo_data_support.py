@@ -7,10 +7,10 @@ import pandas as pd
 from dictproxyhack import dictproxy
 
 from fxdayu.event import TimeEvent, ExitEvent
-from fxdayu.data.mongo_support import connect
 from fxdayu.data.base import AbstractDataSupport
 from fxdayu.data.cache import MemoryCacheProxy
 from fxdayu.data.support import PanelDataSupport, MultiPanelData
+
 
 _BAR_FIELDS_MAP = OrderedDict([
     ("datetime", "datetime"),
@@ -25,7 +25,7 @@ _BAR_FIELDS_MAP = OrderedDict([
 class MongoDataSupport(AbstractDataSupport):
     def __init__(self, engine, db="admin", **info):
         super(MongoDataSupport, self).__init__(engine)
-        self._client = connect(**info)
+        self._client = self.connect(**info)
         self._db = db
         self._tickers = {}
         self._start = None
@@ -136,7 +136,7 @@ class MultiDataSupport(AbstractDataSupport):
     def __init__(self, engine, context=None, event_queue=None, **info):
         super(MultiDataSupport, self).__init__(engine)
         self._db = info.pop('db', None)
-        self._client = connect(**info)
+        self._client = self.connect(**info)
         self._panel_data = MultiPanelData(engine, context)
         self._initialized = False
         self.tickers = {}
@@ -297,11 +297,11 @@ class MultiDataSupport(AbstractDataSupport):
 
             if isinstance(assets, str):
                 return self.history_db(assets, frequency, fields, start, end, length)
-            elif isinstance(assets, list):
+            else:
                 frames = {}
                 for ticker in assets:
                     frames[ticker] = self.history_db(ticker, frequency, fields, start, end, length)
-                return pd.Panel.from_dict(frames)
+                return pd.Panel(frames)
 
     @staticmethod
     def match_length(frame, length):
