@@ -82,11 +82,13 @@ class Trader(object):
         self.environment = Environment()
         self.environment_context = EnvironmentContext(self.environment)
         self.performance = OrderAnalysis()
+        self.modules = {'context': self.context,
+                        'engine': self.engine,
+                        'environment': self.environment}
         if settings:
             self.settings = settings
         else:
             self._init_settings()
-        self.modules = {}
         self.initialized = False
 
     def _init_settings(self):
@@ -148,7 +150,11 @@ class Trader(object):
     def _register_models(self):
         for name, module in self.modules.items():
             if hasattr(module, "register"):
-                module.register()
+                try:
+                    module.register()
+                except TypeError:
+                    if isinstance(module, (Engine, Environment, Context)):
+                        pass
 
     def initialize(self):
         """
@@ -166,6 +172,27 @@ class Trader(object):
         self.context.link(**self.modules)
         self.initialized = True
         return self
+
+    def run(self, symbols, frequency, start=None, end=None, ticker_type=None, params={}, save=False):
+        if not self.initialized:
+            self.initialize()
+
+        context, data, engine = self.context, self.modules["data"], self.engine
+
+        for name, param in params.items():
+            for key, value in param.items():
+                setattr(self.modules[name], key, value)
+
+        data.init(symbols, frequency, start, end, ticker_type)
+
+        engine.set_context(self.environment_context)
+        self.modules['timer'].put_time()
+        engine.start()
+        engine.join()
+        engine.stop()
+        self.perform()
+
+        return self.modules['portfolio']
 
     def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False):
         """

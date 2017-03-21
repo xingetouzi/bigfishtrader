@@ -29,11 +29,11 @@ class MarketData(object):
         return datetime.now()
 
     def init(self, symbols, frequency, start=None, end=None, db=None):
-        panel = self._read_db(symbols, frequency, ['open', 'high', 'low', 'close', 'volume'], start, end, None, db)
-        if isinstance(panel, pd.Panel):
-            self._panels[frequency] = panel
-        elif isinstance(panel, pd.DataFrame):
-            self._panels[frequency] = pd.Panel({symbols: panel})
+        result = self._read_db(symbols, frequency, ['open', 'high', 'low', 'close', 'volume'], start, end, None, db)
+        if isinstance(result, pd.Panel):
+            self._panels[frequency] = result
+        elif isinstance(result, pd.DataFrame):
+            self._panels[frequency] = pd.Panel.from_dict({symbols[0]: result})
         self.frequency = frequency
         self._db = db if db else self.client.db
         self.initialized = True
@@ -108,7 +108,7 @@ class MarketData(object):
             )
 
         if len(result) == 1:
-            return result[symbols[0]].rename_axis(trans_map, axis='column')
+            return result[symbols[0]].rename_axis(trans_map, axis=1)
         elif len(result) > 1:
             return pd.Panel(result).rename_axis(trans_map, axis='minor_axis')
 

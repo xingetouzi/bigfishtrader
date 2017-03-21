@@ -42,3 +42,44 @@ class Selector(object):
         :return:
         """
         pass
+
+
+class Executor(object):
+    def __init__(self, data_client=None):
+        """
+
+        :param data_client: 操作数据库的对象(用于数据持久化)
+        :return:
+        """
+        self.client = data_client
+
+    def execute(self, context, data, environment):
+        """
+        执行选股结果，与引擎对接
+
+        :param context: fxdayu.Context object
+        :param data: fxdayu.data.DataSupport object
+        :param environment: fxdayu.Environment object
+        :return:
+        """
+        raise NotImplementedError("Should implement function execute()")
+
+    def start(self, context, data, environment):
+        """
+
+        :param context:
+        :param data:
+        :param environment:
+        :return:
+        """
+        pass
+
+    def end(self, context, data, environment):
+        """
+
+        :param context:
+        :param data:
+        :param environment:
+        :return:
+        """
+        pass
