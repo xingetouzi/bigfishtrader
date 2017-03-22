@@ -81,6 +81,8 @@ class MarketData(object):
             result = self._read_db(symbol, frequency, fields, start, end, length, db if db else self._db)
             if isinstance(result, pd.Panel) and len(result.minor_axis) == 1:
                 return result.iloc[:, :, 0]
+            else:
+                return result
 
     def _read_panel(self, symbol, frequency, fields, start, end, length):
         panel = self._panels[frequency]
@@ -108,7 +110,11 @@ class MarketData(object):
             )
 
         if len(result) == 1:
-            return result[symbols[0]].rename_axis(trans_map, axis=1)
+            frame = result[symbols[0]]
+            if len(frame.columns) > 1:
+                return frame.rename_axis(trans_map, axis=1)
+            else:
+                return frame[frame.columns[0]]
         elif len(result) > 1:
             return pd.Panel(result).rename_axis(trans_map, axis='minor_axis')
 
@@ -116,18 +122,21 @@ class MarketData(object):
 
     @staticmethod
     def match(result, items, length):
-        if isinstance(result, pd.DataFrame):
-            if len(result) == length:
-                return True
-            else:
-                return False
-        elif isinstance(result, pd.Panel):
-            if (len(items) == len(result.items)) and (len(result.major_axis) == length):
-                return True
+        if length:
+            if isinstance(result, (pd.DataFrame, pd.Series)):
+                if len(result) == length:
+                    return True
+                else:
+                    return False
+            elif isinstance(result, pd.Panel):
+                if (len(items) == len(result.items)) and (len(result.major_axis) == length):
+                    return True
+                else:
+                    return False
             else:
                 return False
         else:
-            return False
+            return True
 
     @staticmethod
     def _find(panel, item, major, minor):
@@ -204,3 +213,9 @@ class DataSupport(HandlerCompose, MarketData):
     @property
     def time(self):
         return self.context.current_time
+
+
+if __name__ == '__main__':
+    ds = MarketData()
+    ds.init(['000001'], 'D', start=datetime(2016, 1, 1), db='HS')
+    print ds.history('000001', fields='close')

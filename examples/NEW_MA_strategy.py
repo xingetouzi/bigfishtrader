@@ -14,7 +14,7 @@ def initialize(context, data):
     #     topic='.',
     #     priority=0
     # )
-    context.set_commission(0.0007, 0.0007, min_cost=5)
+    set_commission(0.0007, 0.0007, min_cost=5)
 
 
 def handle_data(context, data):

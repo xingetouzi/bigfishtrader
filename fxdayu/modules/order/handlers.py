@@ -243,7 +243,7 @@ class OrderStatusHandler(AbstractOrderHandler):
 
     def _value2shares(self, security, value):
         # TODO 完成实时的current和history遍写
-        point = self.data.current(security.symbol, ["close"])
+        point = self.data.current(security.symbol).close
         point_value = security.point_value if hasattr(security, "point_value") else 1
         return int(value / point / point_value)
 

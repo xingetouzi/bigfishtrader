@@ -99,8 +99,6 @@ class Trader(object):
                 (),
                 {
                     "context": self.context,
-                    # "event_queue": self.engine,
-                    # "port": 27017
                 }
             )),
             ("timer", Component(
@@ -152,9 +150,9 @@ class Trader(object):
             if hasattr(module, "register"):
                 try:
                     module.register()
-                except TypeError:
-                    if isinstance(module, (Engine, Environment, Context)):
-                        pass
+                except TypeError as te:
+                    if not isinstance(module, (Engine, Environment, Context)):
+                        raise te
 
     def initialize(self):
         """
@@ -213,10 +211,12 @@ class Trader(object):
 
         context, data, engine = self.context, self.modules["data"], self.engine
         strategy = self.environment.public.copy()
+
+        execfile(filename, strategy, strategy)
         if params:
             for key, value in params.items():
-                strategy["key"] = value
-        execfile(filename, strategy, strategy)
+                strategy[key] = value
+
         data.init(symbols, frequency, start, end, ticker_type)
         context.tickers = symbols
 
@@ -304,8 +304,7 @@ class Trader(object):
 
 class Optimizer(object):
     def __init__(self, settings=None):
-        if settings:
-            self.settings = {}
+        self.settings = settings if settings else None
 
     def __getitem__(self, item):
         return self.settings[item]

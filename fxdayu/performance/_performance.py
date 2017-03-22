@@ -412,8 +412,12 @@ class OrderAnalysis(WindowFactorPerformance):
     @lru_cache()
     def order_details(self):
         self._orders["报单编号"] = self._orders["报单编号"].astype(int)
+        self._orders["手续费"] = self._orders.get("手续费", default=0)
+        self._orders["整点价值"] = self._orders.get("整点价值", default=1)
+        self._orders["杠杆"] = self._orders.get("杠杆", default=1)
         df = self._orders[["报单编号", "合约", "买卖", "开平", "报单状态", "报单价格", "报单数", "未成交数",
-                           "成交数",  "报单时间", "最后成交时间", "成交均价", "手续费"]]
+                           "成交数", "报单时间", "最后成交时间", "成交均价", "手续费", "整点价值", "杠杆", "交易所"]]
+
         return df
 
     @property
@@ -461,13 +465,15 @@ class OrderAnalysis(WindowFactorPerformance):
                 _, order = _
                 if mode == "avg":
                     if last_volume * side2sign(order["买卖"]) >= 0:
-                        market_value += order["成交数"] * order["成交均价"]
+                        market_value += order["成交数"] * order["成交均价"] * order["整点价值"]
                         profits.append(np.nan)
                     else:
-                        market_value -= order["成交数"] * position_avx_price  # 按持仓均价平仓
-                        profits.append((position_avx_price - order["成交均价"]) * order["成交数"] * side2sign(order["买卖"]))
+                        market_value -= order["成交数"] * position_avx_price * order["整点价值"]  # 按持仓均价平仓
+                        profit = order["整点价值"] * order["成交数"] * side2sign(order["买卖"]) * (
+                            position_avx_price - order["成交均价"])
+                        profits.append(profit)
                     last_volume = volume
-                    position_avx_price = market_value / volume if volume else 0
+                    position_avx_price = market_value / abs(volume) / order["整点价值"] if volume else 0
                     market_values.append(market_value)
                     position_avx_prices.append(position_avx_price)
                 elif mode == "fifo":
@@ -479,14 +485,12 @@ class OrderAnalysis(WindowFactorPerformance):
             temp["持仓均价"] = position_avx_prices
             temp["盈利"] = profits
             # cover commission to every pair of trade
-            commission_sum = orders.groupby["持仓编号"].sum()
-            commission_num = orders.groupby["持仓编号"].count()
-            print(commission_sum)
-            print(commission_num)
+            commission_sum = orders.groupby(temp["持仓编号"])["手续费"].sum()
+            commission_num = temp.groupby("持仓编号")["盈利"].count()
             commission_cover = commission_sum / commission_num
             temp["盈利"] -= temp["持仓编号"].map(lambda x: commission_cover[x])
             # cumsum profit
-            temp["累积盈利"] = temp["盈利"].sum()
+            temp["累积盈利"] = temp["盈利"].fillna(0).cumsum()
             addition.append(temp)
         position = pd.concat([df, pd.concat(addition, axis=0)],
                              axis=1)  # concat addition position info of all tickers with order info
@@ -600,7 +604,8 @@ class OrderAnalysis(WindowFactorPerformance):
         dct[u"平均每笔亏损"] = dct[u"总亏损"] / dct[u"总亏损笔数"]
         dct[u"平均连续盈利次数"] = dct[u"总盈利次数"] / dct[u"总盈利段数"]
         dct[u"平均连续亏损次数"] = dct[u"总亏损次数"] / dct[u"总亏损段数"]
-        dct[u"平均持仓时间"] = dct[u"总持仓时间"] / dct[u"总交易次数"]
+        dct[u"平均持仓时间"] = (dct[u"总持仓时间"] / dct[u"总交易次数"]).astype(str)
+        dct[u"总持仓时间"] = dct[u"总持仓时间"].astype(str)
         dct[u"胜率"] = dct[u"总盈利次数"] / dct[u"总交易次数"]
         orders = self.order_details
         start = orders["最后成交时间"].iloc[0]
