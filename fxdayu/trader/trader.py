@@ -96,10 +96,8 @@ class Trader(object):
             ("data", Component(
                 "data",
                 DataSupport,
-                (),
-                {
-                    "context": self.context,
-                }
+                (self.context,),
+                {}
             )),
             ("timer", Component(
                 "timer",

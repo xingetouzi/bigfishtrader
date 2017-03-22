@@ -143,9 +143,9 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         close = self.data.current(security.symbol).close
         traded_qty = position.volume - position.frozenVolume
         if close != np.nan:
-            return traded_qty * (close - position.avgPrice)
+            return traded_qty * (close - position.avgPrice) + abs(traded_qty) * position.avgPrice
         else:
-            return 0
+            return abs(traded_qty) * position.avgPrice
 
     def on_init_start(self, event, kwargs=None):
         self.environment.gateway.qryPosition()
@@ -269,14 +269,13 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
             if traded_qty * last_qty >= 0:  # 加仓
                 position.avgPrice = (position.avgPrice * traded_qty + execution.lastPx * last_qty) / \
                                     (traded_qty + last_qty)
-                self._cash -= last_qty * execution.lastPx
+                self._cash -= execution.lastPx * abs(last_qty)
             else:
                 if abs(traded_qty) < abs(last_qty):  # 反向
                     position.avgPrice = execution.lastPx if last_qty != traded_qty else 0
-                    self._cash -= last_qty * abs(last_qty - traded_qty)  # 减掉新开仓现金
+                    self._cash -= execution.lastPx * abs(last_qty - traded_qty)  # 减掉新开仓现金
                     # 其他情况 avxPrice 不变
-                delta = execution.lastPx if traded_qty > 0 else - execution.lastPx
-                self._cash += delta * min(abs(last_qty), abs(traded_qty))
+                self._cash += execution.lastPx * min(abs(last_qty), abs(traded_qty))
             position.frozenVolume -= last_qty
             if position.volume == 0 and position.frozenVolume == 0:
                 self._strategy_positions.pop(sid)
@@ -319,7 +318,7 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
 
     @property
     def positions_value(self):
-        return self._cash + sum([abs(p.volume - p.tradedVolume) * p.avgPrice for p in self.positions.values()])
+        return sum([abs(p.volume - p.tradedVolume) * p.avgPrice for p in self.positions.values()])
 
     @property
     def returns(self):
