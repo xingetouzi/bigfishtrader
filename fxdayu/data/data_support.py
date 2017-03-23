@@ -2,7 +2,7 @@ from fxdayu.data.handler import MongoHandler
 from fxdayu.engine.handler import HandlerCompose
 from datetime import datetime, timedelta
 import pandas as pd
-from collections import Iterable
+from collections import Iterable, defaultdict
 
 
 OANDA_MAPPER = {'open': 'openMid',
@@ -204,18 +204,6 @@ class MarketData(object):
             return False
 
 
-class DataSupport(HandlerCompose, MarketData):
-
-    def __init__(self, engine, context, client=None, host='localhost', port=27017, users={}, db=None, **kwargs):
-        super(DataSupport, self).__init__(engine)
-        MarketData.__init__(self, client, host, port, users, db, **kwargs)
-        self.context = context
-
-    @property
-    def time(self):
-        return self.context.current_time
-
-
 SAMPLE_MAP = {'open': 'first',
               'high': 'max',
               'low': 'min',
@@ -240,19 +228,28 @@ class MarketDataFreq(MarketData):
                         else x.replace(hour=x.hour+1, minute=30) if x.minute > 30 else x.replace(minute=30)}
 
     def init(self, symbols, frequency, start=None, end=None, db=None):
+        self._db = defaultdict(lambda: db)
         if isinstance(symbols, str):
             self._panels[symbols] = self._read_db(symbols, frequency,
                                                   ['open', 'high', 'low', 'close', 'volume'],
                                                   start, end, None, db)
+            self._db[symbols] = db
+        elif isinstance(symbols, dict):
+            for db_, symbol in symbols.items():
+                for s in symbol:
+                    self._panels[s] = self._read_db(s, frequency,
+                                                    ['open', 'high', 'low', 'close', 'volume'],
+                                                    start, end, None, db_)
+                    self._db[s] = db_
 
         elif isinstance(symbols, Iterable):
             for symbol in symbols:
                 self._panels[symbol] = self._read_db(symbol, frequency,
                                                      ['open', 'high', 'low', 'close', 'volume'],
                                                      start, end, None, db)
+                self._db[symbol] = db
         self.frequency = frequency
         self.initialized = True
-        self._db = db
 
     def _read_db(self, symbol, frequency, fields, start, end, length, db):
         if fields is None:
@@ -347,9 +344,9 @@ class MarketDataFreq(MarketData):
             return frame.iloc[time_slice][fields]
         except KeyError:
             if isinstance(fields, str):
-                result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db)[fields]
+                result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db[symbol])[fields]
             else:
-                result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db)
+                result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db[symbol])
 
             return result if length != 1 else result.iloc[0]
 
@@ -368,28 +365,6 @@ class MarketDataFreq(MarketData):
                                                   'close': 'last',
                                                   'open': 'first',
                                                   'volume': 'sum'})
-
-    def hour_rs(self, symbol, frequency, fields, start, end, length):
-        pass
-
-    @staticmethod
-    def week_rs(frame, frequency):
-        def grouper(x):
-            return x.replace(hour=15, minute=0, second=0) + timedelta(5-x.isoweekday())
-
-        return frame.groupby(grouper).agg({'high': 'max',
-                                           'low': 'min',
-                                           'close': 'last',
-                                           'open': 'first',
-                                           'volume': 'sum'})
-
-    @staticmethod
-    def regular_rs(frame, frequency):
-        return frame.resample(frequency).agg({'high': 'max',
-                                              'low': 'min',
-                                              'close': 'last',
-                                              'open': 'first',
-                                              'volume': 'sum'})
 
     @staticmethod
     def f_period(frequency):
@@ -416,7 +391,7 @@ class MarketDataFreq(MarketData):
             return self.time in self._panels[symbol].index
         except KeyError:
             try:
-                data = self.client.read('.'.join((symbol, self.frequency)), self._db, end=self.time, length=1)
+                data = self.client.read('.'.join((symbol, self.frequency)), self._db[symbol], end=self.time, length=1)
                 if data.index[0] == self.time:
                     return True
             except KeyError:
@@ -425,8 +400,19 @@ class MarketDataFreq(MarketData):
             return False
 
 
+class DataSupport(HandlerCompose, MarketDataFreq):
+
+    def __init__(self, engine, context, client=None, host='localhost', port=27017, users={}, db=None, **kwargs):
+        super(DataSupport, self).__init__(engine)
+        MarketDataFreq.__init__(self, client, host, port, users, db, **kwargs)
+        self.context = context
+
+    @property
+    def time(self):
+        return self.context.current_time
+
 if __name__ == '__main__':
     ds = MarketDataFreq(db='HS')
-    ds.init(['000001', '000009'], 'D', start=datetime(2016, 1, 1), db='HS')
+    ds.init({'HS': ['000001', '000009']}, 'D', start=datetime(2016, 1, 1), db='HS')
     ds.sample_factor['W'] = 5
-    print ds.history('000001', 'W', length=4)
+    print ds.history('000001', end=datetime(2016, 1, 5), length=10)
