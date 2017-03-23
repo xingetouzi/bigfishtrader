@@ -1,7 +1,8 @@
 from fxdayu.data.handler import MongoHandler
 from fxdayu.engine.handler import HandlerCompose
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas as pd
+from collections import Iterable
 
 
 OANDA_MAPPER = {'open': 'openMid',
@@ -215,7 +216,217 @@ class DataSupport(HandlerCompose, MarketData):
         return self.context.current_time
 
 
+SAMPLE_MAP = {'open': 'first',
+              'high': 'max',
+              'low': 'min',
+              'close': 'last',
+              'volume': 'sum'}
+
+
+def function(x):
+    # print list(reversed(x.values))
+    return x.values
+
+
+class MarketDataFreq(MarketData):
+
+    fields = list(SAMPLE_MAP.keys())
+
+    def __init__(self, client=None, host='localhost', port=27017, users={}, db=None, **kwargs):
+        super(MarketDataFreq, self).__init__(client, host, port, users, db, **kwargs)
+        self.sample_factor = {'min': 1, 'H': 60, 'D': 240, 'W': 240*5, 'M': 240*5*31}
+        self.grouper = {'W': lambda x: x.replace(hour=15, minute=0, second=0) + timedelta(5-x.isoweekday()),
+                        'H': lambda x: (x.replace(hour=x.hour+1, minute=0) if x.minute != 0 else x) if x.hour > 12
+                        else x.replace(hour=x.hour+1, minute=30) if x.minute > 30 else x.replace(minute=30)}
+
+    def init(self, symbols, frequency, start=None, end=None, db=None):
+        if isinstance(symbols, str):
+            self._panels[symbols] = self._read_db(symbols, frequency,
+                                                  ['open', 'high', 'low', 'close', 'volume'],
+                                                  start, end, None, db)
+
+        elif isinstance(symbols, Iterable):
+            for symbol in symbols:
+                self._panels[symbol] = self._read_db(symbol, frequency,
+                                                     ['open', 'high', 'low', 'close', 'volume'],
+                                                     start, end, None, db)
+        self.frequency = frequency
+        self.initialized = True
+        self._db = db
+
+    def _read_db(self, symbol, frequency, fields, start, end, length, db):
+        if fields is None:
+            fields = ['datetime', 'open', 'high', 'low', 'close', 'volume']
+        elif isinstance(fields, str):
+            fields = ['datetime', fields]
+        elif 'datetime' not in fields:
+            fields.append('datetime')
+
+        mapper = self.mapper.get(db, {})
+        trans_map = {item[1]: item[0] for item in mapper.items()}
+
+        result = self.client.read(
+            '.'.join((symbol, frequency)),
+            db, 'datetime', start, end, length,
+            projection=fields
+        ).rename_axis(trans_map, axis=1)
+
+        return result
+
+    def current(self, symbol=None):
+        return self.history(symbol, length=1)
+
+    def history(self, symbol=None, frequency=None, fields=None, start=None, end=None, length=None, db=None):
+        if symbol is None:
+            symbol = self._panels.keys()
+
+        if fields is None:
+            fields = self.fields
+
+        if frequency is None or (frequency == self.frequency):
+            if isinstance(symbol, str):
+                return self._find_panel(symbol, fields, start, end, length)
+            else:
+                return self._dimension({s: self._find_panel(s, fields, start, end, length) for s in symbol},
+                                       length, fields)
+        else:
+            n, w = self.f_period(frequency)
+            grouper = self.grouper.get(w, None)
+            if isinstance(symbol, str):
+                return self.resample(symbol, frequency, fields, start, end, length, n, w, grouper)
+            else:
+                return self._dimension(
+                    {s: self.resample(s, frequency, fields, start, end, length, n, w, grouper) for s in symbol},
+                    length, fields
+                )
+
+    @staticmethod
+    def _dimension(dct, length, fields):
+        if length == 1:
+            if isinstance(fields, str):
+                return pd.Series(dct)
+            else:
+                return pd.DataFrame(dct)
+        elif isinstance(fields, str):
+            return pd.DataFrame(dct)
+        else:
+            return pd.Panel(dct)
+
+    def major_slice(self, axis, now, start, end, length):
+        last = self.search_axis(axis, now)
+
+        if end:
+            end = self.search_axis(axis, end)
+            if end > last:
+                end = last
+        else:
+            end = last
+
+        if length:
+            if length == 1:
+                return end
+            elif start:
+                if start + length <= end+1:
+                    return slice(start, start+length)
+                else:
+                    return slice(start, end+1)
+            else:
+                end += 1
+                if end < length:
+                    raise KeyError()
+                return slice(end-length, end)
+        elif start:
+            return slice(start, end+1)
+        else:
+            return slice(0, end+1)
+
+    def _find_panel(self, symbol, fields, start, end, length):
+        try:
+            frame = self._panels[symbol]
+            time_slice = self.major_slice(frame.index, self.time, start, end, length)
+            return frame.iloc[time_slice][fields]
+        except KeyError:
+            if isinstance(fields, str):
+                result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db)[fields]
+            else:
+                result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db)
+
+            return result if length != 1 else result.iloc[0]
+
+    def resample(self, symbol, frequency, fields, start, end, length, n, w, grouper):
+        frame = self._find_panel(symbol, fields, start, end, length*n*self.sample_factor[w] if length else None)
+
+        if grouper is not None:
+            return frame.groupby(grouper).agg({'high': 'max',
+                                               'low': 'min',
+                                               'close': 'last',
+                                               'open': 'first',
+                                               'volume': 'sum'})
+        else:
+            return frame.resample(frequency).agg({'high': 'max',
+                                                  'low': 'min',
+                                                  'close': 'last',
+                                                  'open': 'first',
+                                                  'volume': 'sum'})
+
+    def hour_rs(self, symbol, frequency, fields, start, end, length):
+        pass
+
+    @staticmethod
+    def week_rs(frame, frequency):
+        def grouper(x):
+            return x.replace(hour=15, minute=0, second=0) + timedelta(5-x.isoweekday())
+
+        return frame.groupby(grouper).agg({'high': 'max',
+                                           'low': 'min',
+                                           'close': 'last',
+                                           'open': 'first',
+                                           'volume': 'sum'})
+
+    @staticmethod
+    def regular_rs(frame, frequency):
+        return frame.resample(frequency).agg({'high': 'max',
+                                              'low': 'min',
+                                              'close': 'last',
+                                              'open': 'first',
+                                              'volume': 'sum'})
+
+    @staticmethod
+    def f_period(frequency):
+        n = ''
+        w = ''
+        for f in frequency:
+            if f.isdigit():
+                n += f
+            else:
+                w += f
+
+        return (int(n) if len(n) else 1), w
+
+    @property
+    def all_time(self):
+        all_ = []
+        for item in self._panels.items():
+            all_.extend(filter(lambda x: x not in all_, item[1].index))
+
+        return sorted(all_)
+
+    def can_trade(self, symbol):
+        try:
+            return self.time in self._panels[symbol].index
+        except KeyError:
+            try:
+                data = self.client.read('.'.join((symbol, self.frequency)), self._db, end=self.time, length=1)
+                if data.index[0] == self.time:
+                    return True
+            except KeyError:
+                return False
+
+            return False
+
+
 if __name__ == '__main__':
-    ds = MarketData()
-    ds.init(['000001'], 'D', start=datetime(2016, 1, 1), db='HS')
-    print ds.history('000001', fields='close')
+    ds = MarketDataFreq(db='HS')
+    ds.init(['000001', '000009'], 'D', start=datetime(2016, 1, 1), db='HS')
+    ds.sample_factor['W'] = 5
+    print ds.history('000001', 'W', length=4)
