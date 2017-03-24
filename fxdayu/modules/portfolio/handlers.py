@@ -305,6 +305,10 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         return self._capital_used
 
     @property
+    def starting_cash(self):
+        return self._starting_cash
+
+    @property
     def cash(self):
         return self._cash
 
@@ -318,7 +322,7 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
 
     @property
     def positions_value(self):
-        return sum([abs(p.volume - p.tradedVolume) * p.avgPrice for p in self.positions.values()])
+        return sum([abs(p.volume - p.frozenVolume) * p.avgPrice for p in self.positions.values()])
 
     @property
     def returns(self):
