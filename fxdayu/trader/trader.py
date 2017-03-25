@@ -181,6 +181,9 @@ class Trader(object):
 
         data.init(symbols, frequency, start, end, ticker_type)
 
+        context.account = Environment()
+        context.account.id = "BACKTEST"
+
         engine.set_context(self.environment_context)
         self.modules['timer'].put_time()
         engine.start()
@@ -190,7 +193,7 @@ class Trader(object):
 
         return self.modules['portfolio']
 
-    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False):
+    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params={}, save=False):
         """
         运行一个策略, 完成后返回一个账户对象
 

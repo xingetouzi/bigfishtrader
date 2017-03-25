@@ -1,3 +1,3 @@
-from _dummy_exchange import DummyExchange
+from _dummy_exchange import DummyExchange, BACKTESTDEALMODE
 
-__all__ = ["DummyExchange"]
+__all__ = ["DummyExchange", "BACKTESTDEALMODE"]

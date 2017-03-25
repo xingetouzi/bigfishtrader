@@ -1,15 +1,50 @@
 # encoding:utf-8
 
 
+def time_rules(**kwargs):
+    """
+    定时任务的时间条件
+
+    :param kwargs:
+    :return:
+    """
+
+    def function(time):
+        for key, value in kwargs.items():
+            v = getattr(time, key)
+            if not callable(v):
+                if v != value:
+                    return False
+            else:
+                if v() != value:
+                    return False
+
+        return True
+
+    return function
+
+
 class Selector(object):
 
-    def __init__(self, data_client=None):
+    def __init__(self, rule=None, data_client=None, priority=0):
         """
 
         :param data_client: 操作数据库的对象(用于数据持久化)
         :return:
         """
         self.client = data_client
+        self.name = None
+        self.priority = priority
+        if isinstance(rule, dict):
+            self.rule = time_rules(**rule)
+        else:
+            self.rule = rule
+
+    def __lt__(self, other):
+        return self.priority < other.priority
+
+    def __gt__(self, other):
+        return self.priority > other.priority
 
     def execute(self, context, data, **others):
         """
@@ -45,13 +80,26 @@ class Selector(object):
 
 
 class Executor(object):
-    def __init__(self, data_client=None):
+    def __init__(self, rule=None, data_client=None, priority=0):
         """
 
         :param data_client: 操作数据库的对象(用于数据持久化)
         :return:
         """
         self.client = data_client
+        self.name = None
+        self.priority = priority
+        if isinstance(rule, dict):
+            self.rule = time_rules(**rule)
+        else:
+            self.rule = rule
+
+    def __lt__(self, other):
+        return self.priority < other.priority
+
+    def __gt__(self, other):
+        return self.priority > other.priority
+
 
     def execute(self, context, data, environment):
         """
