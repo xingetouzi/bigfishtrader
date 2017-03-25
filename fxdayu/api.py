@@ -27,7 +27,7 @@ def symbol(s):
     接受一个字符串来查找一个Security（证券品种）对象。
 
     Args:
-        s(str): 表示Security代码的字符串。
+        s(str | fxdayu.models.data.Security): 表示Security代码的字符串。
 
     Returns:
         fxdayu.models.data.Security: 对应的证券品种对象。若找不到品种，返回None。

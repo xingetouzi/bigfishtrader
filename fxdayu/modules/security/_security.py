@@ -23,6 +23,7 @@ class SecurityPool(ContextMixin):
     def __init__(self, context, environment, data):
         ContextMixin.__init__(self, context, environment, None)
         self.columns = self.DF.reset_index().columns
+        self.count = 0
 
     @classmethod
     def _to_security(cls, series):
@@ -32,10 +33,19 @@ class SecurityPool(ContextMixin):
         c.sid = series.name
         return c
 
-    @staticmethod
-    def _miss_security():
+    def _miss_security(self, s):
         # TODO warning
-        pass
+        s = str(s)
+        self.count += 1
+        security = Security()
+        security.localSymbol = s
+        security.sid = - self.count
+        security.gateway = "UNKNOWN"
+        security.currency = "UNKNOWN"
+        security.exchange = "UNKNOWN"
+        security.secType = "UNKNOWN"
+        security.symbol = s
+        return security
 
     @api_method
     def sid(self, s):
@@ -51,7 +61,7 @@ class SecurityPool(ContextMixin):
         if s in self.DICT_SID:
             return self.DICT_SID[s]
         else:
-            self._miss_security()
+            return self._miss_security(s)
 
     @api_method
     def symbol(self, s):
@@ -67,7 +77,7 @@ class SecurityPool(ContextMixin):
         if s in self.DICT_STR:
             return self.DICT_STR[s]
         else:
-            self._miss_security()
+            return self._miss_security(s)
 
     @api_method
     def symbols(self, *s):
@@ -88,7 +98,7 @@ class SecurityPool(ContextMixin):
             elif isinstance(item, int):
                 return [self.sid(s) for s in s]
         else:
-            self._miss_security()
+            return []
 
     def link_context(self):
         self.environment["sid"] = self.sid
