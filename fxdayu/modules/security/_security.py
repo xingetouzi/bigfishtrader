@@ -112,7 +112,8 @@ class SecurityPool(ContextMixin):
 if __name__ == "__main__":
     security = SecurityPool(object(), {}, None).symbol("000003")
     print(security.to_dict())
-    security = SecurityPool(object(), {}, None).symbol("000002")
+    security = SecurityPool(object(), {}, None).symbol("000003")
+    print(security.to_dict())
     for security in SecurityPool.DICT_SID.values():
         if len(security.symbol) != 6 or len(security.localSymbol) != 6:
             print(security.to_dict())
