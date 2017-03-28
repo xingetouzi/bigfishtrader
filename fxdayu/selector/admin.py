@@ -17,7 +17,7 @@ class SelectorAdmin(object):
 
     def on_time(self, time, context, data):
         for rule, selectors in self.selectors.items():
-            if rule(time):
+            if rule.match(time):
                 selectors[0].start(context, data)
                 for selector in selectors:
                     selector.execute(context, data)
@@ -30,7 +30,7 @@ class ExecutorAdmin(object):
 
     def on_time(self, time, context, data, environment):
         for rule, executors in self.executors.items():
-            if rule(time):
+            if rule.match(time):
                 executors[0].start(context, data, environment)
                 for executor in executors:
                     executor.execute(context, data, environment)

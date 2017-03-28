@@ -11,6 +11,22 @@ OANDA_MAPPER = {'open': 'openMid',
                 'close': 'closeMid'}
 
 
+RESAMPLE_MAP = {'high': 'max',
+                'low': 'min',
+                'close': 'last',
+                'open': 'first',
+                'volume': 'sum'}
+
+
+def mapper(fields):
+    if isinstance(fields, str):
+        return RESAMPLE_MAP[fields]
+    elif isinstance(fields, (list, tuple)):
+        return {field: RESAMPLE_MAP[field] for field in fields}
+    else:
+        return RESAMPLE_MAP
+
+
 class TimeEdge():
     def __init__(self, edge):
         self.edge = edge
@@ -228,28 +244,13 @@ class MarketData(object):
             return False
 
 
-SAMPLE_MAP = {'open': 'first',
-              'high': 'max',
-              'low': 'min',
-              'close': 'last',
-              'volume': 'sum'}
-
-
-def function(x):
-    # print list(reversed(x.values))
-    return x.values
-
-
 class MarketDataFreq(MarketData):
 
-    fields = list(SAMPLE_MAP.keys())
+    fields = list(RESAMPLE_MAP.keys())
 
     def __init__(self, client=None, host='localhost', port=27017, users={}, db=None, **kwargs):
         super(MarketDataFreq, self).__init__(client, host, port, users, db, **kwargs)
         self.sample_factor = {'min': 1, 'H': 60, 'D': 240, 'W': 240*5, 'M': 240*5*31}
-        # self.grouper = {'W': lambda x: x.replace(hour=15, minute=0, second=0) + timedelta(5-x.isoweekday()),
-        #                 'H': lambda x: (x.replace(hour=x.hour+1, minute=0) if x.minute != 0 else x) if x.hour > 12
-        #                 else x.replace(hour=x.hour+1, minute=30) if x.minute > 30 else x.replace(minute=30)}
         self.grouper = {
             'W': TimeEdge(lambda x: x.replace(hour=0, minute=0)-timedelta(days=x.weekday())),
             'H': TimeEdge(lambda x: x.replace(minute=30, hour=x.hour if x.minute > 30 else x.hour-1) if x.hour < 12
@@ -319,11 +320,14 @@ class MarketDataFreq(MarketData):
         else:
             n, w = self.f_period(frequency)
             grouper = self.grouper.get(w, None)
+            agg = mapper(fields)
             if isinstance(symbol, str):
-                return self.resample(symbol, frequency, fields, start, end, length, n, w, grouper)
+                return self.resample(symbol, frequency, fields, start, end, length, n, w, grouper, agg)
             else:
                 return self._dimension(
-                    {s: self.resample(s, frequency, fields, start, end, length, n, w, grouper) for s in symbol},
+                    {s: self.resample(
+                        s, frequency, fields, start, end, length, n, w, grouper, agg
+                    ) for s in symbol},
                     length, fields
                 )
 
@@ -378,26 +382,17 @@ class MarketDataFreq(MarketData):
             else:
                 result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db[symbol])
 
-            return result if length != 1 else result.iloc[0]
+            if length != -1:
+                return result
+            else:
+                return result.iloc[0] if len(result) else result
 
-    def resample(self, symbol, frequency, fields, start, end, length, n, w, grouper):
+    def resample(self, symbol, frequency, fields, start, end, length, n, w, grouper, agg):
         frame = self._find_candle(symbol, fields, start, end, length*n*self.sample_factor[w] if length else None)
         if grouper is not None:
-            return frame.groupby(grouper).agg(
-                {'high': 'max',
-                 'low': 'min',
-                 'close': 'last',
-                 'open': 'first',
-                 'volume': 'sum'}
-            )
+            return frame.groupby(grouper).agg(agg)
         else:
-            return frame.resample(frequency, label='right', closed='right').agg(
-                {'high': 'max',
-                 'low': 'min',
-                 'close': 'last',
-                 'open': 'first',
-                 'volume': 'sum'}
-            ).dropna()
+            return frame.resample(frequency, label='right', closed='right').agg(agg).dropna()
 
     @staticmethod
     def f_period(frequency):
@@ -444,3 +439,8 @@ class DataSupport(HandlerCompose, MarketDataFreq):
     def time(self):
         return self.context.current_time
 
+
+if __name__ == '__main__':
+    mdf = MarketDataFreq(db='CN')
+    mdf.init({'CN': ['000001']}, '1min', datetime(2016, 12, 1))
+    print mdf.history('000001', frequency='D', fields='close', length=10)

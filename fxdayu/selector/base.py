@@ -1,16 +1,22 @@
 # encoding:utf-8
 
 
-def time_rules(**kwargs):
-    """
-    定时任务的时间条件
+class TimeRule(object):
+    def __init__(self, tag=None, **rules):
+        self.rules = rules
+        self.tag = tag
 
-    :param kwargs:
-    :return:
-    """
+    def __hash__(self):
+        return hash(self.tag)
 
-    def function(time):
-        for key, value in kwargs.items():
+    def __eq__(self, other):
+        if isinstance(other, TimeRule):
+            return self.tag == other.tag
+        else:
+            return False
+
+    def match(self, time):
+        for key, value in self.rules.items():
             v = getattr(time, key)
             if not callable(v):
                 if v != value:
@@ -18,13 +24,12 @@ def time_rules(**kwargs):
             else:
                 if v() != value:
                     return False
-
         return True
-
-    return function
 
 
 class Selector(object):
+
+    __name__ = 'selector'
 
     def __init__(self, rule=None, data_client=None, priority=0):
         """
@@ -35,16 +40,16 @@ class Selector(object):
         self.client = data_client
         self.name = None
         self.priority = priority
-        if isinstance(rule, dict):
-            self.rule = time_rules(**rule)
-        else:
-            self.rule = rule
+        self.rule = rule if rule else TimeRule()
 
     def __lt__(self, other):
         return self.priority < other.priority
 
     def __gt__(self, other):
         return self.priority > other.priority
+
+    def __str__(self):
+        return self.__name__
 
     def execute(self, context, data, **others):
         """
@@ -80,6 +85,9 @@ class Selector(object):
 
 
 class Executor(object):
+
+    __name__ = 'executor'
+
     def __init__(self, rule=None, data_client=None, priority=0):
         """
 
@@ -89,10 +97,7 @@ class Executor(object):
         self.client = data_client
         self.name = None
         self.priority = priority
-        if isinstance(rule, dict):
-            self.rule = time_rules(**rule)
-        else:
-            self.rule = rule
+        self.rule = rule if rule else TimeRule()
 
     def __lt__(self, other):
         return self.priority < other.priority
@@ -100,6 +105,8 @@ class Executor(object):
     def __gt__(self, other):
         return self.priority > other.priority
 
+    def __str__(self):
+        return self.__name__
 
     def execute(self, context, data, environment):
         """

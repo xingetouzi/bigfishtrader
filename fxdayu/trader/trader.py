@@ -313,6 +313,35 @@ class Optimizer(object):
     def __setitem__(self, item, value):
         self.settings[item] = value
 
+    def run(self, symbols, frequency, start=None, end=None, ticker_type=None,
+            sort=u"夏普比率", ascending=False, save=False, **params):
+        result = []
+
+        dct = {}
+        for model, param in params.items():
+            dct.update({'.'.join((model, key)): value for key, value in param.items()})
+
+        for param in self.exhaustion(**dct):
+            pa = self.split(param)
+            trader = Trader(self.settings)
+            trader.run(symbols, frequency, start, end, ticker_type, pa, save)
+            op_dict = trader.output("strategy_summary", "risk_indicator")
+            print(param, "accomplish")
+            for p in op_dict.values():
+                param.update(p)
+            result.append(param)
+
+        result = pd.DataFrame(result).sort_values(by=sort, ascending=ascending)
+        return result
+
+    @staticmethod
+    def split(param):
+        dct = {}
+        for key, value in param.items():
+            m, p = key.split('.')
+            dct.setdefault(m, {})[p] = value
+        return dct
+
     def optimization(self, filename, symbols, frequency,
                      start=None, end=None, ticker_type=None,
                      sort=u"夏普比率", ascending=False, save=False,
@@ -361,4 +390,5 @@ class Optimizer(object):
 
 
 if __name__ == "__main__":
-    pass
+    opt = Optimizer()
+    opt.run('', '', data={'a': range(10), 'b': range(8)}, context={'c': range(5)})

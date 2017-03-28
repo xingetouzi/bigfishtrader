@@ -1,21 +1,48 @@
-from fxdayu.trader.trader import Trader, Component
+from fxdayu.trader.trader import Trader, Component, Optimizer
+from fxdayu.trader.packages import DEVELOP_MODE
 from datetime import datetime
-from fxdayu.selector.base import Selector, Executor
+from fxdayu.selector.base import Selector, Executor, TimeRule
 from fxdayu.router import BACKTESTDEALMODE
-from fxdayu.selector.admin import SelectorAdmin
 from fxdayu.selector.handler import SelectorHandler
 from fxdayu.data.data_support import MarketDataFreq
 import pandas as pd
 
 
+class Timer(object):
+    def __init__(self):
+        self._log = [datetime.now()]
+        self._count = 0
+
+    def log(self, time):
+        self._log.append(time)
+
+    def count(self, x):
+        self._count += x
+
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            return self._log[item.stop if item.stop else -1] - self._log[item.start if item.start else 0]
+        else:
+            return self._log[item]
+
+
+timer = Timer()
+
+
 class NameSelector(Selector):
+
+    def __init__(self):
+        super(NameSelector, self).__init__(TimeRule(5, isoweekday=5))
 
     def start(self, context, data, **others):
         pool = []
+        candle = {}
         for symbol in data._panels.keys():
             if data.can_trade(symbol):
                 pool.append(symbol)
+                candle[symbol] = data.history(symbol, fields='close', length=10)
         context.pool = pool
+        context.candle = candle
 
     def end(self, context, data, **others):
         context.dct.setdefault('history', []).append({'datetime': context.current_time,
@@ -32,7 +59,7 @@ class Upper(NameSelector):
     def execute(self, context, data, **others):
         pool = []
         for s in context.pool:
-            close = data.history(s, fields='close', length=10)
+            close = context.candle[s]
             high, low = close.max(), close.min()
             if (high-low)/(high+low)*2 < 0.1:
                 pool.append(s)
@@ -46,7 +73,7 @@ class Lower(NameSelector):
     def execute(self, context, data, **others):
         pool = []
         for s in context.pool:
-            close = data.history(s, fields='close', length=10)
+            close = context.candle[s]
             if close[-1]/close[0] > 1.05:
                 pool.append(s)
 
@@ -55,67 +82,44 @@ class Lower(NameSelector):
 
 class Rebalance(Executor):
 
+    __name__ = 'Rebalance'
+
+    def __init__(self):
+        super(Rebalance, self).__init__(TimeRule(5, isoweekday=5))
+
     def execute(self, context, data, environment):
-        print context.current_time
         for s in context.portfolio.positions:
             if s not in context.pool:
-                environment.order_target_percent(environment.symbol(s), 0)
+                environment.order_target_percent(environment.sid(s), 0)
 
         if len(context.pool):
             pct = 1.0/len(context.pool)
         else:
             return
 
-        for s in context.pool:
+        for s in context.pool[:10]:
             environment.order_target_percent(environment.symbol(s), pct)
+        print context.pool
 
 
 if __name__ == '__main__':
-    rule = lambda t: t.isoweekday() == 5
-    selectors = [Upper(rule, priority=0), Lower(rule, priority=1)]
-    executors = [Rebalance(rule)]
-    trader = Trader()
-    trader['router'].kwargs['deal_model'] = BACKTESTDEALMODE.THIS_BAR_CLOSE
-    trader.settings['selector'] = Component('selector', SelectorHandler, (), {})
-    mdf = trader.initialize().modules['data']
-    codes = [str(code[:-2]) for code in mdf.client.client['HS'].collection_names()]
+    selectors = [[Upper()], [Lower()]]
+    executors = [Rebalance()]
+    # trader = Trader(DEVELOP_MODE)
+    # trader['router'].kwargs['deal_model'] = BACKTESTDEALMODE.THIS_BAR_CLOSE
+    # trader.settings['selector'] = Component('selector', SelectorHandler, (), {})
+    # mdf = trader.initialize().modules['data']
+    # codes = [str(code[:6]) for code in mdf.client.client['HS'].collection_names()]
+    #
+    # trader.run(codes, 'D', datetime(2016, 11, 1), ticker_type='HS',
+    #            params={'selector': {'selectors': selectors, 'executors': executors}})
+    #
+    # print trader.performance.order_details
 
-    trader.run(codes, 'D', datetime(2016, 1, 1), ticker_type='HS',
-               params={'selector': {'selectors': selectors, 'executors': executors}})
+    opt = Optimizer(DEVELOP_MODE)
+    opt['router'].kwargs['deal_model'] = BACKTESTDEALMODE.THIS_BAR_CLOSE
+    opt.settings['selector'] = Component('selector', SelectorHandler, (), {})
+    codes = [str(code[:6]) for code in MarketDataFreq(db='HS').client.db.collection_names()]
 
-    print trader.performance.order_details
-    # print pd.DataFrame(trader.context.dct['history']).set_index('datetime')
-
-#
-# time = datetime(2016, 1, 2)
-#
-#
-# class Context(object):
-#
-#     dct = {}
-#     current_time = time
-#
-#
-# class MDF(MarketDataFreq):
-#
-#     @property
-#     def time(self):
-#         global context
-#         return context.current_time
-#
-#
-# if __name__ == '__main__':
-#     rule = lambda t: t.isoweekday() == 5
-#     selectors = [Upper(rule, priority=0), Lower(rule, priority=1)]
-#     admin = SelectorAdmin(Upper(rule, priority=0), Lower(rule, priority=1))
-#     mdf = MDF(db='HS')
-#     context = Context()
-#     codes = [str(code[:-2]) for code in mdf.client.db.collection_names()]
-#     mdf.init(codes, 'D', datetime(2016, 1, 1), db='HS')
-#     for t in mdf.all_time:
-#         context.current_time = t
-#         admin.on_time(t, context, mdf)
-#
-#     print pd.DataFrame(context.dct['history']).set_index('datetime')
-
-
+    print opt.run(codes, 'D', datetime(2016, 11, 1), ticker_type='HS',
+                  selector={'selectors': selectors, 'executors': [executors]})
