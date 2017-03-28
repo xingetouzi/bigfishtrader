@@ -262,8 +262,8 @@ class MarketDataFreq(MarketData):
         def initialize(_symbol, _db):
             result = self._read_db(_symbol, frequency, ['open', 'high', 'low', 'close', 'volume'], start, end, None, db)
             if len(result):
-                self._panels[s] = result
-                self._db[s] = _db
+                self._panels[_symbol] = result
+                self._db[_symbol] = _db
 
         if isinstance(symbols, str):
             initialize(symbols, db)
