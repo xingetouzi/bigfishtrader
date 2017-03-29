@@ -11,27 +11,30 @@ def sort_selector(selectors):
     return dct
 
 
-class SelectorAdmin(object):
+class Admin(object):
     def __init__(self, *selectors):
         self.selectors = sort_selector(selectors)
 
     def on_time(self, time, context, data):
+        pass
+
+
+class IntersectionAdmin(Admin):
+    def on_time(self, time, context, data):
         for rule, selectors in self.selectors.items():
             if rule.match(time):
-                selectors[0].start(context, data)
+                pool = data.can_trade()
                 for selector in selectors:
-                    selector.execute(context, data)
-                selectors[-1].end(context, data)
+                    pool = selector.execute(pool, data)
+                context.pool = pool
 
 
-class ExecutorAdmin(object):
-    def __init__(self, *executors):
-        self.executors = sort_selector(executors)
-
-    def on_time(self, time, context, data, environment):
-        for rule, executors in self.executors.items():
+class UnionAdmin(Admin):
+    def on_time(self, time, context, data):
+        for rule, selectors in self.selectors.items():
             if rule.match(time):
-                executors[0].start(context, data, environment)
-                for executor in executors:
-                    executor.execute(context, data, environment)
-                executors[-1].end(context, data, environment)
+                pool = data.can_trade()
+                result = []
+                for selector in selectors:
+                    result = filter(lambda x: x not in result, selector.execute(pool))
+                context.pool = result

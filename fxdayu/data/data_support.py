@@ -414,18 +414,26 @@ class MarketDataFreq(MarketData):
 
         return sorted(all_)
 
-    def can_trade(self, symbol):
-        try:
-            return self.time in self._panels[symbol].index
-        except KeyError:
+    def can_trade(self, symbol=None):
+        if symbol:
             try:
-                data = self.client.read('.'.join((symbol, self.frequency)), self._db[symbol], end=self.time, length=1)
-                if data.index[0] == self.time:
-                    return True
+                return self.time in self._panels[symbol].index
             except KeyError:
-                return False
+                try:
+                    data = self.client.read('.'.join((symbol, self.frequency)), self._db[symbol], end=self.time, length=1)
+                    if data.index[0] == self.time:
+                        return True
+                except KeyError:
+                    return False
 
-            return False
+                return False
+        else:
+            trades = []
+            for s, frame in self._panels.items():
+                if self.time in frame.index:
+                    trades.append(s)
+            return trades
+
 
 
 class DataSupport(HandlerCompose, MarketDataFreq):

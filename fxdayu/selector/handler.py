@@ -1,18 +1,17 @@
 from fxdayu.context import ContextMixin
 from fxdayu.engine.handler import HandlerCompose, Handler
-from fxdayu.selector.admin import SelectorAdmin, ExecutorAdmin
 from fxdayu.event import EVENTS
 
 
 class SelectorHandler(HandlerCompose, ContextMixin):
-    def __init__(self, engine, context, environment, data):
+    def __init__(self, engine, context, environment, data, selector_admin, executor_admin):
         super(SelectorHandler, self).__init__(engine)
         ContextMixin.__init__(self, context, environment, data)
         self._handlers['on_time'] = Handler(self.initialize, EVENTS.TIME, 'bar.open')
         self.selectors = []
         self.executors = []
-        self.sa = None
-        self.ea = None
+        self.sa = selector_admin
+        self.ea = executor_admin
         self.initialized = False
 
     def link_context(self):
@@ -21,9 +20,9 @@ class SelectorHandler(HandlerCompose, ContextMixin):
     def initialize(self, event, kwargs=None):
         if not self.initialized:
             if self.sa is None:
-                self.sa = SelectorAdmin(*self.selectors)
+                self.sa = self.sa(*self.selectors)
             if self.ea is None:
-                self.ea = ExecutorAdmin(*self.executors)
+                self.ea = self.ea(*self.executors)
             self.initialized = True
 
         self._handlers['on_time'].unregister(self.engine)
@@ -31,4 +30,14 @@ class SelectorHandler(HandlerCompose, ContextMixin):
 
     def on_time(self, event, kwargs=None):
         self.sa.on_time(event.time, self.context, self.data)
-        self.ea.on_time(event.time, self.context, self.data, self.environment)
+        self.ea.on_time(self.context, self.data, self.environment)
+        self.send_order()
+
+    def send_order(self):
+        for code in self.context.portfolio.positions:
+            if code not in self.context.selector_pool:
+                self.environment['order_target'](code, 0)
+
+        for code, pct in self.context.executor_pool.items():
+            self.environment['order_target_percent'](code, pct)
+
