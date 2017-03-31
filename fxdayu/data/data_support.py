@@ -246,8 +246,6 @@ class MarketData(object):
 
 class MarketDataFreq(MarketData):
 
-    fields = list(RESAMPLE_MAP.keys())
-
     def __init__(self, client=None, host='localhost', port=27017, users={}, db=None, **kwargs):
         super(MarketDataFreq, self).__init__(client, host, port, users, db, **kwargs)
         self.sample_factor = {'min': 1, 'H': 60, 'D': 240, 'W': 240*5, 'M': 240*5*31}
@@ -256,6 +254,7 @@ class MarketDataFreq(MarketData):
             'H': TimeEdge(lambda x: x.replace(minute=30, hour=x.hour if x.minute > 30 else x.hour-1) if x.hour < 12
                           else x.replace(minute=0, hour=x.hour if x.minute != 0 else x.hour-1))
         }
+        self.fields = list(RESAMPLE_MAP.keys())
 
     def init(self, symbols, frequency, start=None, end=None, db=None):
         self._db = defaultdict(lambda: db)
@@ -285,6 +284,7 @@ class MarketDataFreq(MarketData):
         elif isinstance(fields, str):
             fields = ['datetime', fields]
         elif 'datetime' not in fields:
+            fields = list(fields)
             fields.append('datetime')
 
         mapper = self.mapper.get(db, {})
