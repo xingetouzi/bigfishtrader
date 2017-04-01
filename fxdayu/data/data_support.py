@@ -364,7 +364,7 @@ class MarketDataFreq(MarketData):
             else:
                 end += 1
                 if end < length:
-                    raise KeyError()
+                    raise KeyError("data required out of range")
                 return slice(end-length, end)
         elif start:
             return slice(start, end+1)
@@ -377,6 +377,8 @@ class MarketDataFreq(MarketData):
             time_slice = self.major_slice(frame.index, self.time, start, end, length)
             return frame.iloc[time_slice][fields]
         except KeyError:
+            if not end or end > self.time:
+                end = self.time
             if isinstance(fields, str):
                 result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db[symbol])[fields]
             else:
@@ -450,5 +452,5 @@ class DataSupport(HandlerCompose, MarketDataFreq):
 
 if __name__ == '__main__':
     mdf = MarketDataFreq(db='CN')
-    mdf.init({'CN': ['000001']}, '1min', datetime(2016, 12, 1))
-    print mdf.history('000001', frequency='D', fields='close', length=10)
+    mdf.init({'HS': ['000001']}, 'D', datetime(2016, 1, 1))
+    print mdf.history('000001', frequency='D', fields='close', length=5)
