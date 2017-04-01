@@ -2,9 +2,9 @@
 from fxdayu.modules.order.style import MarketOrder, LimitOrder, StopLimitOrder, StopOrder
 
 __all__ = ["sid", "symbol", "symbols", "order", "order_target", "order_percent",
-           "order_target_percent", "order_target_value", "order_value",
+           "order_target_percent", "order_target_value", "order_value", "get_open_orders",
            "time_schedule", "time_rules", "set_commission", "set_slippage",
-           "file_path"]
+           "file_path", "MarketOrder", "LimitOrder", "StopLimitOrder", "StopOrder"]
 
 
 # Security 相关
