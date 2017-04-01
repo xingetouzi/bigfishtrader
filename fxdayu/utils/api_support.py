@@ -34,3 +34,17 @@ def api_method(f):
     if f.__name__ not in fxdayu.api.__all__:
         fxdayu.api.__all__.append(f.__name__)
     return f
+
+
+def callback_method(name):
+    def callback(f):
+        def wrapper(*args, **kwargs):
+            environment = get_environment_instance()
+
+            try:
+                environment[name](*args, **kwargs)
+            except KeyError:
+                pass
+
+        return wrapper
+    return callback

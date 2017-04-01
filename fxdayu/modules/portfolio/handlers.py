@@ -12,6 +12,7 @@ from fxdayu.engine.handler import HandlerCompose, Handler
 from fxdayu.event import EVENTS, ExecutionEvent
 from fxdayu.models.data import PositionData, ExecutionData
 from fxdayu.context import ContextMixin, InitializeMixin
+from fxdayu.utils.api_support import api_method, callback_method
 
 STAGE = {
     ORDERSTATUS.UNKNOWN.value: 0,
@@ -251,11 +252,13 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
             None
         """
         execution = event.data
+        self.transaction(execution, self.context, self.data)
         order = self.environment.get_order_status(execution.gClOrdID)
-        sid = self.environment.symbol(execution.symbol).sid
-        if sid not in self._strategy_positions:
-            self._strategy_positions[sid] = self._empty_position(sid, execution)
-        position = self._strategy_positions[sid]
+        # sid = self.environment.symbol(execution.symbol).sid
+        symbol = execution.symbol
+        if symbol not in self._strategy_positions:
+            self._strategy_positions[symbol] = self._empty_position(symbol, execution)
+        position = self._strategy_positions[symbol]
         sign_o = 1 if order.side == DIRECTION.LONG.value else -1
         if order.ordStatus == ORDERSTATUS.GENERATE.value:
             # # new order execution in first time, and execution arrive before order status
@@ -278,7 +281,7 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
                 self._cash += execution.lastPx * min(abs(last_qty), abs(traded_qty))
             position.frozenVolume -= last_qty
             if position.volume == 0 and position.frozenVolume == 0:
-                self._strategy_positions.pop(sid)
+                self._strategy_positions.pop(symbol)
         elif self._execution_mode == self.EXECUTION_MODE.FIFO.value:
             # TODO 先开先平的结算
             pass
@@ -345,3 +348,8 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
 
     def link_context(self):
         self.context.portfolio = self
+
+    @staticmethod
+    @callback_method('transaction')
+    def transaction(self, execution, context, data):
+        pass
