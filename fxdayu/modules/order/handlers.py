@@ -66,9 +66,9 @@ class OrderStatusHandler(AbstractOrderHandler):
         order = event.data
         if order.clOrdID:
             self._orders[order.gClOrdID] = order
-            if order.gSymbol not in self._open_orders:
-                self._open_orders[order.gSymbol] = []
-            self._open_orders[order.gSymbol].append(order)
+            if order.symbol not in self._open_orders:
+                self._open_orders[order.symbol] = []
+            self._open_orders[order.symbol].append(order)
             status = OrderStatusData()
             status.exchange = order.exchange
             status.symbol = order.symbol
@@ -119,7 +119,7 @@ class OrderStatusHandler(AbstractOrderHandler):
         if status_new.ordStatus == ORDERSTATUS.ALLTRADED.value or status_new.ordStatus == ORDERSTATUS.CANCELLED.value:
             order = self._orders[status_new.gClOrdID]
             try:
-                self._open_orders[order.gSymbol].remove(order)
+                self._open_orders[order.symbol].remove(order)
             except ValueError:
                 pass
 
@@ -130,13 +130,13 @@ class OrderStatusHandler(AbstractOrderHandler):
     @api_method
     def get_open_orders(self, security):
         if isinstance(security, Security):
-            security = security.sid
+            security = security.localSymbol
         if security is None:
             return copy.deepcopy(self._open_orders)
         elif security in self._open_orders:
             return copy.deepcopy(self._open_orders[security])
         else:
-            return {}
+            return []
 
     def _make_order_req(self, security, amount, style):
         return self._adapter.parse(security, amount, style)
@@ -174,7 +174,7 @@ class OrderStatusHandler(AbstractOrderHandler):
         return self._get_base_data(self._executions, method=method)
 
     @api_method
-    def order(self, security, amount, limit_price=None, stop_price=None, style=None):
+    def order(self, security, amount, style=None, limit_price=None, stop_price=None):
         """
         发送所指定手数amount的给定证券security的订单。从所使用的style参数推断订单类型。
         如果仅传入security和amount参数，则将订单视为为市价订单。
@@ -187,7 +187,8 @@ class OrderStatusHandler(AbstractOrderHandler):
                 style = StopOrder(stop_price, exchange)
                 style = LimitOrder(limit_price, exchange)
                 style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
-
+            stop_price: deprecated, 向后兼容
+            limit_price: deprecated, 向后兼容
         Returns:
             fxdayu.models.data.OrderReq: 订单对象。
         """

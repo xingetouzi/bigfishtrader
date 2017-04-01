@@ -21,7 +21,6 @@ from fxdayu.performance import OrderAnalysis
 from fxdayu.modules.timer.simulation import TimeSimulation
 from fxdayu.data.data_support import DataSupport
 
-
 OUTPUT_COLUMN_MAP = {
     "equity": OrderedDict([("datetime", "时间"), ("equity", "净值")]),
     "execution": OrderedDict([("clOrderID", "报单编号"),
@@ -39,7 +38,7 @@ OUTPUT_COLUMN_MAP = {
                           ("ordStatus", "报单状态"),
                           ("price", "报单价格"),
                           ("orderTime", "报单时间")
-                        ])
+                          ])
 }
 
 ROUND_MAP = {u"五年平均年收益": 2,
@@ -225,8 +224,11 @@ class Trader(object):
         context.account = Environment()
         context.account.id = "BACKTEST"
 
+        handle_data = strategy.get("handle_data", None)
+
         def on_time(event, kwargs=None):
-            strategy["handle_data"](context, data)
+            if handle_data:
+                handle_data(context, data)
 
         self.engine.register(on_time, EVENTS.TIME, topic="bar.close", priority=100)
 
