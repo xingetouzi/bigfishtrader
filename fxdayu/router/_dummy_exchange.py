@@ -1,6 +1,9 @@
 # encoding: utf-8
-from enum import Enum
+
+from collections import OrderedDict
 import copy
+
+from enum import Enum
 
 from fxdayu.const import ORDERTYPE, ACTION, ORDERSTATUS
 from fxdayu.engine.handler import Handler
@@ -37,7 +40,7 @@ class DummyExchange(AbstractRouter, ContextMixin):
         self.ticker_info = ticker_information
         self.exchange_name = exchange_name
         self.deal_mode = deal_model
-        self._orders = {}
+        self._orders = OrderedDict()
         self._handlers = {
             "on_order": Handler(self.on_order, EVENTS.ORDER, topic="", priority=0),
             "on_time": Handler(self.on_time, EVENTS.TIME, topic="bar.open", priority=200),
@@ -163,12 +166,16 @@ class DummyExchange(AbstractRouter, ContextMixin):
             return self._limit_open(order, bar)
         elif order.action == ACTION.CLOSE.value:
             return self._stop_open(order, bar)
+        elif order.action == ACTION.NONE.value:
+            return self._limit_open(order, bar)
 
     def _execute_stop(self, order, bar):
         if order.action == ACTION.OPEN.value:
             return self._stop_open(order, bar)
         elif order.action == ACTION.CLOSE.value:
             return self._limit_open(order, bar)
+        elif order.action == ACTION.NONE.value:
+            return self._stop_open(order, bar)
 
     def _limit_open(self, order, bar):
         """
@@ -210,7 +217,7 @@ class DummyExchange(AbstractRouter, ContextMixin):
             self.engine.put(event)
 
     def on_time(self, event, kwargs=None):
-        for _id, order in self._orders.items():
+        for order in self._orders.values():
             self._put(self.handle_order[order.ordType](order, self.data.current(order.symbol)))
 
     def on_order(self, event, kwargs=None):
