@@ -27,11 +27,12 @@ class DataHandler(object):
 
 class MongoHandler(DataHandler):
 
-    def __init__(self, host='localhost', port=27017, users={}, db=None, **kwargs):
+    def __init__(self, host='localhost', port=27017, users=None, db=None, **kwargs):
         self.client = pymongo.MongoClient(host, port, **kwargs)
         self.db = self.client[db] if db else None
-        for db in users:
-            self.client[db].authenticate(users[db]['id'], users[db]['password'])
+        if isinstance(users, dict):
+            for db in users:
+                self.client[db].authenticate(users[db]['id'], users[db]['password'])
 
     def _locate(self, collection, db=None):
         if isinstance(collection, database.Collection):

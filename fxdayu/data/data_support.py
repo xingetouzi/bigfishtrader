@@ -53,7 +53,7 @@ class TimeEdge():
 
 class MarketData(object):
 
-    def __init__(self, client=None, host='localhost', port=27017, users={}, db=None, **kwargs):
+    def __init__(self, client=None, host='localhost', port=27017, users=None, db=None, **kwargs):
         self.client = client if client else MongoHandler(host, port, users, db, **kwargs)
         self.read = self.client.read
         self.write = self.client.write
@@ -246,7 +246,7 @@ class MarketData(object):
 
 class MarketDataFreq(MarketData):
 
-    def __init__(self, client=None, host='localhost', port=27017, users={}, db=None, **kwargs):
+    def __init__(self, client=None, host='localhost', port=27017, users=None, db=None, **kwargs):
         super(MarketDataFreq, self).__init__(client, host, port, users, db, **kwargs)
         self.sample_factor = {'min': 1, 'H': 60, 'D': 240, 'W': 240*5, 'M': 240*5*31}
         self.grouper = {
@@ -440,7 +440,7 @@ class MarketDataFreq(MarketData):
 
 class DataSupport(HandlerCompose, MarketDataFreq):
 
-    def __init__(self, engine, context, client=None, host='localhost', port=27017, users={}, db=None, **kwargs):
+    def __init__(self, engine, context, client=None, host='localhost', port=27017, users=None, db=None, **kwargs):
         super(DataSupport, self).__init__(engine)
         MarketDataFreq.__init__(self, client, host, port, users, db, **kwargs)
         self.context = context
