@@ -5,7 +5,7 @@ __all__ = ["sid", "symbol", "symbols", "order", "order_target", "order_percent",
            "order_target_percent", "order_target_value", "order_value", "get_open_orders",
            "time_schedule", "time_rules", "set_commission", "set_slippage", "callback",
            "file_path", "get_open_orders", "LimitOrder", "MarketOrder", "StopLimitOrder", "StopOrder",
-           "transaction"]
+           "transaction", "all_table"]
 
 
 # Security 相关
@@ -288,3 +288,9 @@ def file_path(name):
     import os
     return os.path.abspath(name)
 
+
+def all_table(db, **kwargs):
+    from fxdayu.data.handler import MongoHandler
+
+    mh = MongoHandler(db=db, **kwargs)
+    return mh.table_names()
