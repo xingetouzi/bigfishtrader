@@ -8,44 +8,13 @@ from fxdayu.const import ORDERSTATUS
 from fxdayu.context import ContextMixin
 from fxdayu.engine.handler import HandlerCompose, Handler
 from fxdayu.event import EVENTS, OrderEvent
-from fxdayu.models.data import OrderStatusData, Security, OrderReq
+from fxdayu.models.data import Security
+from fxdayu.models.order import OrderStatusData, OrderReq
 from fxdayu.modules.order.style import *
 from fxdayu.utils.api_support import api_method
 
 
-class AbstractOrderHandler(HandlerCompose, ContextMixin):
-    def __init__(self, engine, context, environment, data):
-        """
-
-        Args:
-            engine(fxdayu.engine.Engine): event engine
-            context:
-            environment(fxdayu.environment.Environment):
-
-        Returns:
-
-        """
-        super(AbstractOrderHandler, self).__init__(engine)
-        ContextMixin.__init__(self, context, environment, data)
-        #  Order.clOrderID should be confirmed before this handler be called in working stream
-        self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-100)
-        self._handlers["on_execution"] = Handler(self.on_execution, EVENTS.EXECUTION, topic=".", priority=-100)
-        self._handlers["on_order_status"] = Handler(self.on_order_status, EVENTS.ORD_STATUS, topic=".", priority=-100)
-
-    def on_order(self, order, kwargs=None):
-        raise NotImplementedError
-
-    def on_order_status(self, status, kwargs=None):
-        raise NotImplementedError
-
-    def on_execution(self, execution, kwargs=None):
-        raise NotImplementedError
-
-    def link_context(self):
-        raise NotImplementedError
-
-
-class OrderStatusHandler(AbstractOrderHandler):
+class OrderStatusHandler(HandlerCompose, ContextMixin):
     def __init__(self, engine, context, environment, data):
         super(OrderStatusHandler, self).__init__(engine, context, environment, data)
         self._adapter = OrderReqAdapter(context, environment)
@@ -53,6 +22,9 @@ class OrderStatusHandler(AbstractOrderHandler):
         self._open_orders = {}
         self._executions = {}
         self._order_status = {}
+        self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-100)
+        self._handlers["on_execution"] = Handler(self.on_execution, EVENTS.EXECUTION, topic=".", priority=-100)
+        self._handlers["on_order_status"] = Handler(self.on_order_status, EVENTS.ORD_STATUS, topic=".", priority=-100)
 
     def on_order(self, event, kwargs=None):
         """
@@ -151,7 +123,7 @@ class OrderStatusHandler(AbstractOrderHandler):
             order:
 
         Returns:
-            fxdayu.models.data.OrderStatusData
+            fxdayu.models.order.OrderStatusData
         """
         return self._order_status.get(order, None)
 
@@ -190,7 +162,7 @@ class OrderStatusHandler(AbstractOrderHandler):
             stop_price: deprecated, 向后兼容
             limit_price: deprecated, 向后兼容
         Returns:
-            fxdayu.models.data.OrderReq: 订单对象。
+            fxdayu.models.order.OrderReq: 订单对象。
         """
         if not style:
             if limit_price and stop_price:
@@ -223,7 +195,7 @@ class OrderStatusHandler(AbstractOrderHandler):
                 style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
         Returns:
-            fxdayu.models.data.OrderReq: 订单对象。
+            fxdayu.models.order.OrderReq: 订单对象。
         """
         if not isinstance(security, Security):
             security = self.environment.symbol(security)
@@ -270,7 +242,7 @@ class OrderStatusHandler(AbstractOrderHandler):
             如果000002的价格是每股15元，这将购买6手(600股)，小数部分手数将被截断（不考虑滑点和交易成本）。
 
         Returns:
-            fxdayu.models.data.OrderReq: 订单对象。
+            fxdayu.models.order.OrderReq: 订单对象。
         """
 
         if not isinstance(security, Security):
@@ -296,7 +268,7 @@ class OrderStatusHandler(AbstractOrderHandler):
                 style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
         Returns:
-            fxdayu.models.data.OrderReq: 订单对象。
+            fxdayu.models.order.OrderReq: 订单对象。
         """
         if not isinstance(security, Security):
             security = self.environment.symbol(security)
@@ -324,7 +296,7 @@ class OrderStatusHandler(AbstractOrderHandler):
             如果000002是15元/股，投资组合价值是100000元，这将购买33手（不考虑滑点和交易成本）。
 
         Returns:
-            fxdayu.models.data.OrderReq: 订单对象。
+            fxdayu.models.order.OrderReq: 订单对象。
         """
         if not isinstance(security, Security):
             security = self.environment.symbol(security)
@@ -349,7 +321,7 @@ class OrderStatusHandler(AbstractOrderHandler):
                 style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
         Returns:
-            fxdayu.models.data.OrderReq: 订单对象。
+            fxdayu.models.order.OrderReq: 订单对象。
         """
         if not isinstance(security, Security):
             security = self.environment.symbol(security)

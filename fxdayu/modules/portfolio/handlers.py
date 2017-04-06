@@ -114,7 +114,7 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
 
         Args:
             sid:
-            data(fxdayu.models.data.OrderStatusData | fxdayu.models.data.ExecutionData):
+            data(fxdayu.models.order.OrderStatusData | fxdayu.models.data.ExecutionData):
 
         Returns:
 

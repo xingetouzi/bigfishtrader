@@ -287,7 +287,7 @@ class OrderStatusEvent(Event):
         """
 
         Args:
-            ord_status(fxdayu.models.data.OrderStatusData):
+            ord_status(fxdayu.models.order.OrderStatusData):
             priority:
             timestamp:
             topic:

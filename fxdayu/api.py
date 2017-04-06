@@ -65,7 +65,7 @@ def order(security, amount, style=None):
             style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
     Returns:
-        fxdayu.models.data.OrderReq: 订单对象。
+        fxdayu.models.order.OrderReq: 订单对象。
     """
     pass
 
@@ -87,7 +87,7 @@ def order_value(security, value, style=None):
         如果000002的价格是每股15元，这将购买6手(600股)，小数部分手数将被截断（不考虑滑点和交易成本）。
 
     Returns:
-        fxdayu.models.data.OrderReq: 订单对象。
+        fxdayu.models.order.OrderReq: 订单对象。
     """
     pass
 
@@ -110,7 +110,7 @@ def order_percent(security, percent, style=None):
         如果000002是15元/股，投资组合价值是100000元，这将购买33手（不考虑滑点和交易成本）。
 
     Returns:
-        fxdayu.models.data.OrderReq: 订单对象。
+        fxdayu.models.order.OrderReq: 订单对象。
     """
     pass
 
@@ -131,7 +131,7 @@ def order_target(security, amount, style=None):
             style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
     Returns:
-        fxdayu.models.data.OrderReq: 订单对象。
+        fxdayu.models.order.OrderReq: 订单对象。
     """
     pass
 
@@ -151,7 +151,7 @@ def order_target_value(security, value, style=None):
             style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
     Returns:
-        fxdayu.models.data.OrderReq: 订单对象。
+        fxdayu.models.order.OrderReq: 订单对象。
     """
     pass
 
@@ -171,7 +171,7 @@ def order_target_percent(security, percent, style=None):
             style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
     Returns:
-        fxdayu.models.data.OrderReq: 订单对象。
+        fxdayu.models.order.OrderReq: 订单对象。
     """
     pass
 
@@ -208,7 +208,7 @@ def cancel_order(order):
     尝试取消指定的订单。取消将以异步的方式进行。
 
     Args:
-        order(str | fxdayu.models.data.OrderReq): 可以是字符串类型的order_id或是order对象本身。
+        order(str | fxdayu.models.order.OrderReq): 可以是字符串类型的order_id或是order对象本身。
 
     Returns:
         None

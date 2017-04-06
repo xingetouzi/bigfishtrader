@@ -1,4 +1,5 @@
-from fxdayu.models.data import OrderReq, Security
+from fxdayu.models.data import Security
+from fxdayu.models.order import OrderReq
 from fxdayu.const import DIRECTION, ORDERTYPE, ACTION
 from fxdayu.context import ContextMixin
 
