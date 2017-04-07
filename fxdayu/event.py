@@ -22,17 +22,14 @@ class EVENTS(Enum):
     STOP = 5
     CANCEL = 6
     TIME = 7
-    MODIFY = 8
-    CONFIRM = 9
-    CONFIG = 10
-    RECALL = 11
-    POSITION = 12
-    ACCOUNT = 13
-    ORD_STATUS = 14
-    LOG = 15
-    ERROR = 16
-    INIT = 17
-    SCHEDULE = 18
+    CONFIG = 8
+    POSITION = 9
+    ACCOUNT = 10
+    ORD_STATUS = 11
+    LOG = 12
+    ERROR = 13
+    INIT = 14
+    SCHEDULE = 15
     EXIT = 999
 
 
@@ -128,41 +125,29 @@ class OrderEvent(Event):
         super(OrderEvent, self).__init__(EVENTS.ORDER, 0, timestamp, topic)
         self.data = order
 
-    def match(self, **conditions):
-        for key, value in conditions.items():
-            if getattr(self, key, None) != value:
-                return False
-
-        return True
-
-    def to_fill(self, timestamp, price, commission=0, lever=1, deposit_rate=1,
-                position_id=None, external_id=None, topic=''):
-        order = self.data
-        fill = ExecutionData()
-        fill.time = timestamp
-        fill.symbol = order.symbol
-        fill.action = order.action
-        fill.orderQty = order.orderQty
-        fill.lastPx = price
-        fill.commission = commission
-        fill.lever = lever
-        fill.deposit_rate = deposit_rate
-        fill.clOrderID = order.clOrdID
-        fill.position_id = position_id if position_id else order.clOrdID
-        fill.orderID = external_id
-        return ExecutionEvent(fill, timestamp=fill.time, topic=topic)
-
 
 class CancelEvent(Event):
     """
     CancelEvent is created by a strategy when it wants to cancel an limit or stop order
     and it will be handled by Simulation or Trade section
     """
-    __slots__ = ["conditions"]
+    __slots__ = ["data"]
 
-    def __init__(self, topic='', **conditions):
-        super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, datetime.now(), topic)
-        self.conditions = conditions
+    def __init__(self, data, timestamp=None, topic=''):
+        """
+
+        Args:
+            data(fxdayu.models.order.CancelReq):
+            timestamp:
+            topic:
+
+        Returns:
+
+        """
+        if timestamp is None:
+            timestamp = datetime.now()
+        super(CancelEvent, self).__init__(EVENTS.CANCEL, 0, timestamp, topic)
+        self.data = data
 
 
 class ExecutionEvent(Event):
@@ -201,25 +186,9 @@ class TimeEvent(Event):
 
 class ScheduleEvent(Event):
     __slots__ = []
+
     def __init__(self, timestamp, topic=""):
         super(ScheduleEvent, self).__init__(EVENTS.SCHEDULE, 1, timestamp, topic)
-
-
-class ModifyEvent(Event):
-    __slots__ = ["modify", "order_id"]
-
-    def __init__(self, timestamp, order_id, topic='', **modify):
-        super(ModifyEvent, self).__init__(EVENTS.MODIFY, 0, timestamp, topic)
-        self.order_id = order_id
-        self.modify = modify
-
-
-class ConfirmEvent(Event):
-    __slots__ = ["info"]
-
-    def __init__(self, timestamp, topic='', **info):
-        super(ConfirmEvent, self).__init__(EVENTS.CONFIRM, 0, timestamp, topic)
-        self.info = info
 
 
 class ConfigEvent(Event):
@@ -228,15 +197,6 @@ class ConfigEvent(Event):
     def __init__(self, timestamp, topic='', **config):
         super(ConfigEvent, self).__init__(EVENTS.CONFIG, -1, timestamp, topic)
         self.config = config
-
-
-class RecallEvent(Event):
-    __slots__ = ['order', 'lock']
-
-    def __init__(self, timestamp, order, lock=True, topic=''):
-        super(RecallEvent, self).__init__(EVENTS.RECALL, 0, timestamp, topic)
-        self.order = order
-        self.lock = lock
 
 
 class ExitEvent(Event):

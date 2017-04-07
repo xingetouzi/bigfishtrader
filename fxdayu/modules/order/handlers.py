@@ -1,30 +1,41 @@
 # encoding: utf-8
 
 import copy
+from collections import OrderedDict
 
 import pandas as pd
 
-from fxdayu.const import ORDERSTATUS
+from fxdayu.const import OrderStatus
 from fxdayu.context import ContextMixin
 from fxdayu.engine.handler import HandlerCompose, Handler
-from fxdayu.event import EVENTS, OrderEvent
+from fxdayu.event import EVENTS, OrderEvent, CancelEvent
 from fxdayu.models.data import Security
-from fxdayu.models.order import OrderStatusData, OrderReq
+from fxdayu.models.order import OrderStatusData, OrderReq, CancelReq
+from fxdayu.models.proxy import OrderProxy, OrderSenderMixin
 from fxdayu.modules.order.style import *
 from fxdayu.utils.api_support import api_method
 
 
-class OrderStatusHandler(HandlerCompose, ContextMixin):
+class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
     def __init__(self, engine, context, environment, data):
-        super(OrderStatusHandler, self).__init__(engine, context, environment, data)
+        super(OrderStatusHandler, self).__init__(engine)
+        ContextMixin.__init__(self, context, environment, data)
+        OrderSenderMixin.__init__(self)
         self._adapter = OrderReqAdapter(context, environment)
         self._orders = {}
         self._open_orders = {}
-        self._executions = {}
         self._order_status = {}
+        self._order_proxies = {}
+        self._executions = {}
+        self._client_ord_id = 0
         self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-100)
         self._handlers["on_execution"] = Handler(self.on_execution, EVENTS.EXECUTION, topic=".", priority=-100)
         self._handlers["on_order_status"] = Handler(self.on_order_status, EVENTS.ORD_STATUS, topic=".", priority=-100)
+
+    @property
+    def next_ord_id(self):
+        self._client_ord_id += 1
+        return self._client_ord_id
 
     def on_order(self, event, kwargs=None):
         """
@@ -38,9 +49,6 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
         order = event.data
         if order.clOrdID:
             self._orders[order.gClOrdID] = order
-            if order.symbol not in self._open_orders:
-                self._open_orders[order.symbol] = []
-            self._open_orders[order.symbol].append(order)
             status = OrderStatusData()
             status.exchange = order.exchange
             status.symbol = order.symbol
@@ -50,11 +58,16 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
             status.price = order.price
             status.orderQty = order.orderQty
             status.leavesQty = order.orderQty
-            status.ordStatus = ORDERSTATUS.GENERATE.value
+            status.ordStatus = OrderStatus.GENERATE.value
             status.gateway = order.gateway
             status.account = order.account
             status.orderTime = self.context.current_time
             self._order_status[status.gClOrdID] = status
+            order_proxy = OrderProxy(order, status, self)
+            self._order_proxies[order.gClOrdID] = order_proxy
+            if order.symbol not in self._open_orders:
+                self._open_orders[order.symbol] = OrderedDict()
+            self._open_orders[order.symbol][order.gClOrdID] = order_proxy
         else:
             pass  # TODO warning Order send failed
 
@@ -88,33 +101,11 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
         status_old.leavesQty = status_new.leavesQty
         status_old.orderTime = status_new.orderTime
         status_old.cancelTime = status_new.cancelTime
-        if status_new.ordStatus == ORDERSTATUS.ALLTRADED.value or status_new.ordStatus == ORDERSTATUS.CANCELLED.value:
-            order = self._orders[status_new.gClOrdID]
+        if status_new.ordStatus == OrderStatus.ALLTRADED.value or status_new.ordStatus == OrderStatus.CANCELLED.value:
             try:
-                self._open_orders[order.symbol].remove(order)
-            except ValueError:
+                self._open_orders[status_new.symbol].pop(status_new.gClOrdID, None)
+            except KeyError:
                 pass
-
-    @api_method
-    def get_order(self, order):
-        return copy.copy(self._orders[order])
-
-    @api_method
-    def get_open_orders(self, security):
-        if isinstance(security, Security):
-            security = security.localSymbol
-        if security is None:
-            return copy.deepcopy(self._open_orders)
-        elif security in self._open_orders:
-            return copy.deepcopy(self._open_orders[security])
-        else:
-            return []
-
-    def _make_order_req(self, security, amount, style):
-        return self._adapter.parse(security, amount, style)
-
-    def _miss_security(self):
-        pass  # TODO warning
 
     def get_order_status(self, order):
         """
@@ -126,6 +117,35 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
             fxdayu.models.order.OrderStatusData
         """
         return self._order_status.get(order, None)
+
+    @api_method
+    def get_order(self, order_id):
+        return self._order_proxies.get(order_id, None)
+
+    @api_method
+    def get_open_orders(self, security):
+        if isinstance(security, Security):
+            security = security.localSymbol
+        if security is None:
+            return self._open_orders
+        elif security in self._open_orders:
+            return self._open_orders[security]
+        else:
+            return OrderedDict()
+
+    def _make_order_req(self, security, amount, style):
+        order = self._adapter.parse(security, amount, style)
+        if order:
+            order.clOrdID = str(self.next_ord_id)
+            return order
+
+    def _miss_security(self):
+        pass  # TODO warning
+
+    @api_method
+    def send_order(self, order):
+        event = OrderEvent(order)
+        self.engine.put(event)
 
     def _get_base_data(self, dct, index="time", method="df"):
         if method == "df":
@@ -154,7 +174,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
         Args:
             security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
             amount(int): 交易手数，整数。正值意味着买入，负值意味着卖出。
-            style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+            style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
                 style = MarketOrder(exchange)
                 style = StopOrder(stop_price, exchange)
                 style = LimitOrder(limit_price, exchange)
@@ -173,11 +193,10 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
                 style = StopOrder(stop_price)
             else:
                 style = MarketOrder()
-        order = self._adapter.parse(security, amount, style)
+        order = self._make_order_req(security, amount, style)
         if order:
-            event = OrderEvent(order)
-            self.engine.put(event)
-            return order
+            self.send_order(order)
+            return order.gClOrdID
         else:
             self._miss_security()
 
@@ -188,7 +207,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
         Args:
             security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
             amount(int): 目标手数，整数。正值意味多头头寸，负值意味着空头头寸。（股票中若传入负值将报错）
-            style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+            style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
                 style = MarketOrder(exchange)
                 style = StopOrder(stop_price, exchange)
                 style = LimitOrder(limit_price, exchange)
@@ -232,7 +251,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
         Args:
             security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
             value(float): 证券的价值，据此计算交易手数，并截断为整数手。正值意味着买入，负值意味着卖出。
-            style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+            style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
                 style = MarketOrder(exchange)
                 style = StopOrder(stop_price, exchange)
                 style = LimitOrder(limit_price, exchange)
@@ -261,7 +280,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
         Args:
             security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
             value(float): 目标头寸价值，据此计算目标头寸手数，并截断为整数手。正值意味多头头寸，负值意味着空头头寸。
-            style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+            style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
                 style = MarketOrder(exchange)
                 style = StopOrder(stop_price, exchange)
                 style = LimitOrder(limit_price, exchange)
@@ -285,7 +304,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
         Args:
             security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
             percent(float): 百分比。正值意味着买入，负值意味着卖出。
-            style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+            style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
                 style = MarketOrder(exchange)
                 style = StopOrder(stop_price, exchange)
                 style = LimitOrder(limit_price, exchange)
@@ -314,7 +333,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
         Args:
             security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
             percent(float): 目标头寸价值占当前账户净值百分比数。正值意味多头头寸，负值意味着空头头寸。
-            style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+            style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
                 style = MarketOrder(exchange)
                 style = StopOrder(stop_price, exchange)
                 style = LimitOrder(limit_price, exchange)
@@ -333,9 +352,11 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
     @api_method
     def cancel_order(self, order):
         if isinstance(order, OrderReq):
-            order = order.clOrdID
+            data = CancelReq(order.clOrdID)
         else:
-            return
+            data = CancelReq(order)
+        event = CancelEvent(data)
+        self.engine.put(event)
 
     def link_context(self):
         # find order
@@ -349,8 +370,8 @@ class OrderStatusHandler(HandlerCompose, ContextMixin):
         self.environment["order_target_value"] = self.order_target_value
         self.environment["order_percent"] = self.order_percent
         self.environment["order_target_percent"] = self.order_target_percent
-        self.environment["get_order_status"] = self.get_order_status
         self.environment["cancel_order"] = self.cancel_order
+        self.environment["get_order_status"] = self.get_order_status
 
         # style
         self.environment["MarketOrder"] = MarketOrder

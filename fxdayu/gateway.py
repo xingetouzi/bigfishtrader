@@ -4,7 +4,7 @@ from fxdayu.engine.handler import HandlerCompose, Handler
 from fxdayu.event import *
 from fxdayu.adapter import VtAdapter
 from fxdayu.context import InitializeMixin
-from fxdayu.const import GATEWAY
+from fxdayu.const import GatewayType
 
 
 class Gateway(HandlerCompose, InitializeMixin):

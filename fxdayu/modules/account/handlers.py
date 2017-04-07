@@ -3,7 +3,7 @@
 from collections import OrderedDict
 
 from fxdayu.engine.handler import HandlerCompose, Handler
-from fxdayu.const import GATEWAY
+from fxdayu.const import GatewayType
 from fxdayu.event import EVENTS
 from fxdayu.context import ContextMixin
 
@@ -158,7 +158,7 @@ class AccountHandler(HandlerCompose, ContextMixin):
         ContextMixin.__init__(self, context, environment, data)
         self._account = None
         self._handlers = {
-            "on_account_ib": Handler(self.on_account_ib, EVENTS.ACCOUNT, topic=GATEWAY.IB.value, priority=0)
+            "on_account_ib": Handler(self.on_account_ib, EVENTS.ACCOUNT, topic=GatewayType.IB.value, priority=0)
         }
 
     def on_account_ib(self, event, kwargs=None):

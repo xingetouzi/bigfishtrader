@@ -1,24 +1,24 @@
 from fxdayu.models.data import Security
 from fxdayu.models.order import OrderReq
-from fxdayu.const import DIRECTION, ORDERTYPE, ACTION
+from fxdayu.const import Direction, OrderType, OrderAction
 from fxdayu.context import ContextMixin
 
-__all__ = ["OrderReqAdapter", "OrderType", "MarketOrder", "LimitOrder", "StopOrder",
+__all__ = ["OrderReqAdapter", "OrderStyle", "MarketOrder", "LimitOrder", "StopOrder",
            "StopLimitOrder"]
 
 
-class OrderType(object):
+class OrderStyle(object):
     __slots__ = []
 
 
-class MarketOrder(OrderType):
+class MarketOrder(OrderStyle):
     __slots__ = ["exchange"]
 
     def __init__(self, exchange=None):
         self.exchange = exchange
 
 
-class LimitOrder(OrderType):
+class LimitOrder(OrderStyle):
     __slots__ = ["exchange", "limit_price"]
 
     def __init__(self, price, exchange=None):
@@ -26,7 +26,7 @@ class LimitOrder(OrderType):
         self.exchange = exchange
 
 
-class StopOrder(OrderType):
+class StopOrder(OrderStyle):
     __slots__ = ["exchange", "stop_price"]
 
     def __init__(self, price, exchange=None):
@@ -34,7 +34,7 @@ class StopOrder(OrderType):
         self.exchange = exchange
 
 
-class StopLimitOrder(OrderType):
+class StopLimitOrder(OrderStyle):
     __slots__ = ["exchange", "limit_price", "stop_price"]
 
     def __init__(self, limit_price, stop_price, exchange=None):
@@ -45,10 +45,10 @@ class StopLimitOrder(OrderType):
 
 class OrderReqAdapter(ContextMixin):
     STYLE_ORDER_MAP = {
-        MarketOrder: ORDERTYPE.MARKET.value,
-        LimitOrder: ORDERTYPE.LIMIT.value,
-        StopOrder: ORDERTYPE.STOP.value,
-        StopLimitOrder: ORDERTYPE.LIMIT.value,
+        MarketOrder: OrderType.MARKET.value,
+        LimitOrder: OrderType.LIMIT.value,
+        StopOrder: OrderType.STOP.value,
+        StopLimitOrder: OrderType.LIMIT.value,
     }
 
     def __init__(self, context, environment):
@@ -73,17 +73,17 @@ class OrderReqAdapter(ContextMixin):
             order_req = OrderReq()
             if style is None:
                 style = MarketOrder(exchange=None)
-            if isinstance(style, OrderType):
+            if isinstance(style, OrderStyle):
                 order_req.security = s
                 order_req.symbol = s.localSymbol  # order
                 order_req.orderQty = int(abs(amount))
                 if amount > 0:
-                    order_req.side = DIRECTION.LONG.value  # IB
+                    order_req.side = Direction.LONG.value  # IB
                 else:
-                    order_req.side = DIRECTION.SHORT.value
+                    order_req.side = Direction.SHORT.value
                 order_req.account = self.context.account.id
                 order_req.ordType = self.STYLE_ORDER_MAP[type(style)]
-                order_req.action = ACTION.NONE.value
+                order_req.action = OrderAction.NONE.value
                 if isinstance(style, LimitOrder) or isinstance(style, StopLimitOrder):
                     order_req.price = style.limit_price
                 if isinstance(style, StopOrder) or isinstance(style, StopLimitOrder):
@@ -92,6 +92,9 @@ class OrderReqAdapter(ContextMixin):
                     order_req.exchange = style.exchange
                 else:
                     order_req.exchange = s.exchange
+                # GATEWAY AND ACCOUNT
+                order_req.account = "BACKTEST"
+                order_req.gateway = "BACKTEST"
                 return order_req
             else:
                 pass

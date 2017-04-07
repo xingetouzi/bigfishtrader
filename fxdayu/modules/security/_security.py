@@ -47,7 +47,7 @@ class SecurityPool(ContextMixin):
         security.secType = "UNKNOWN"
         security.symbol = s
         cls.DICT_SID[security.sid] = security
-        cls.DICT_STR[security.symbol] = security
+        cls.DICT_STR[security.localSymbol] = security
         return security
 
     @api_method
@@ -64,7 +64,7 @@ class SecurityPool(ContextMixin):
         if s in self.DICT_SID:
             return self.DICT_SID[s]
         else:
-            return self._miss_security(s)
+            return None
 
     @api_method
     def symbol(self, s):

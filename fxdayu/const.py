@@ -9,7 +9,7 @@ EMPTY_INT = 0
 EMPTY_FLOAT = 0.0
 
 
-class ORDERTYPE(Enum):
+class OrderType(Enum):
     MARKET = "市价"
     LIMIT = "限价"
     STOP = "止损"
@@ -17,8 +17,9 @@ class ORDERTYPE(Enum):
     FOK = "FOK"
 
 
-class ORDERSTATUS(Enum):
+class OrderStatus(Enum):
     GENERATE = "已生成"
+    TRIGGERED = "已触发"
     NOTTRADED = "未成交"
     PARTTRADED = "部分成交"
     ALLTRADED = "全部成交"
@@ -26,7 +27,7 @@ class ORDERSTATUS(Enum):
     UNKNOWN = "未知"
 
 
-class DIRECTION(Enum):
+class Direction(Enum):
     NONE = "无方向"
     LONG = "多"
     SHORT = "空"
@@ -34,18 +35,18 @@ class DIRECTION(Enum):
     NET = "净"
 
 
-class SIDE(Enum):
+class OrderSide(Enum):
     BUY = "买"
     SELL = "卖"
 
 
-class ACTION(Enum):
+class OrderAction(Enum):
     NONE = "无开平"
     OPEN = "开仓"
     CLOSE = "平仓"
     UNKNOWN = "未知"
 
 
-class GATEWAY(Enum):
+class GatewayType(Enum):
     CTP = "CTP"
     IB = "IB"

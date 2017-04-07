@@ -23,22 +23,25 @@ from fxdayu.data.data_support import DataSupport
 
 OUTPUT_COLUMN_MAP = {
     "equity": OrderedDict([("datetime", "时间"), ("equity", "净值")]),
-    "execution": OrderedDict([("clOrderID", "报单编号"),
-                              ("symbol", "合约"),
-                              ("side", "买卖"),
-                              ("action", "开平"),
-                              ("leavesQty", "未成交数"),
-                              ("lastQty", "成交数"),
-                              ("time", "最后成交时间"),
-                              ("lastPx", "成交均价"),
-                              ("commission", "手续费"),
-                              ("exchange", "交易所")]),
-    "order": OrderedDict([("clOrdID", "报单编号"),
-                          ("orderQty", "报单数"),
-                          ("ordStatus", "报单状态"),
-                          ("price", "报单价格"),
-                          ("orderTime", "报单时间")
-                          ])
+    "execution": OrderedDict([
+        ("clOrderID", "报单编号"),
+        ("time", "最后成交时间"),
+        ("lastPx", "成交均价"),
+        ("commission", "手续费"),
+    ]),
+    "order": OrderedDict([
+        ("clOrdID", "报单编号"),
+        ("symbol", "合约"),
+        ("side", "买卖"),
+        ("action", "开平"),
+        ("orderQty", "报单数"),
+        ("ordStatus", "报单状态"),
+        ("price", "报单价格"),
+        ("leavesQty", "未成交数"),
+        ("cumQty", "成交数"),
+        ("orderTime", "报单时间"),
+        ("exchange", "交易所")
+    ])
 }
 
 ROUND_MAP = {u"五年平均年收益": 2,

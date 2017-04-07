@@ -15,11 +15,11 @@ from fxdayu.context import ContextMixin, InitializeMixin
 from fxdayu.utils.api_support import api_method, callback_method
 
 STAGE = {
-    ORDERSTATUS.UNKNOWN.value: 0,
-    ORDERSTATUS.GENERATE.value: 1,
-    ORDERSTATUS.NOTTRADED.value: 2,
-    ORDERSTATUS.ALLTRADED.value: 3,
-    ORDERSTATUS.CANCELLED.value: 4,
+    OrderStatus.UNKNOWN.value: 0,
+    OrderStatus.GENERATE.value: 1,
+    OrderStatus.NOTTRADED.value: 2,
+    OrderStatus.ALLTRADED.value: 3,
+    OrderStatus.CANCELLED.value: 4,
 }
 
 
@@ -103,10 +103,10 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         Returns:
             None
         """
-        if position.side == DIRECTION.SHORT.value:
+        if position.side == Direction.SHORT.value:
             position.volume = - position.volume
             position.frozenVolume = - position.frozenVolume
-        position.side = DIRECTION.NET.value
+        position.side = Direction.NET.value
 
     @staticmethod
     def _empty_position(sid, data):
@@ -122,8 +122,8 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         position = PositionData()
         position.account = data.account
         position.symbol = data.symbol
-        position.sid = sid
-        position.side = DIRECTION.NET.value  # 保存下来的position都使用net模式
+        position.sid = data.symbol
+        position.side = Direction.NET.value  # 保存下来的position都使用net模式
         position.exchange = data.exchange
         position.gateway = data.gateway
         position.volume = 0
@@ -140,7 +140,7 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         Returns:
 
         """
-        security = self.environment.sid(position.sid)
+        security = self.environment.symbol(position.symbol)
         close = self.data.current(security.symbol).close
         traded_qty = position.volume - position.frozenVolume
         if close != np.nan:
@@ -216,8 +216,8 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         sid = security.sid
         if STAGE[old.ordStatus] > STAGE[new.ordStatus]:  # error stage of order
             return  # TODO test order status == unknown
-        sign = 1 if new.side == DIRECTION.LONG.value else -1
-        if old.ordStatus == ORDERSTATUS.GENERATE.value:  # new order execution in first time
+        sign = 1 if new.side == Direction.LONG.value else -1
+        if old.ordStatus == OrderStatus.GENERATE.value:  # new order execution in first time
             if sid not in self._strategy_positions:  # create new position
                 self._strategy_positions[sid] = self._empty_position(sid, new)
             position = self._strategy_positions[sid]
@@ -259,15 +259,15 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
         if symbol not in self._strategy_positions:
             self._strategy_positions[symbol] = self._empty_position(symbol, execution)
         position = self._strategy_positions[symbol]
-        sign_o = 1 if order.side == DIRECTION.LONG.value else -1
-        if order.ordStatus == ORDERSTATUS.GENERATE.value:
+        sign_o = 1 if order.side == Direction.LONG.value else -1
+        if order.ordStatus == OrderStatus.GENERATE.value:
             # # new order execution in first time, and execution arrive before order status
             position.volume += order.orderQty * sign_o
             position.frozenVolume += order.leavesQty * sign_o
-            order.ordStatus = ORDERSTATUS.NOTTRADED.value
+            order.ordStatus = OrderStatus.NOTTRADED.value
         if self._execution_mode == self.EXECUTION_MODE.AVG.value:
             traded_qty = position.volume - position.frozenVolume
-            last_qty = execution.lastQty * (1 if execution.side == DIRECTION.LONG.value else -1)
+            last_qty = execution.lastQty * (1 if execution.side == Direction.LONG.value else -1)
 
             if traded_qty * last_qty >= 0:  # 加仓
                 position.avgPrice = (position.avgPrice * traded_qty + execution.lastPx * last_qty) / \

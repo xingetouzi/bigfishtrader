@@ -58,7 +58,7 @@ def order(security, amount, style=None):
     Args:
         security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
         amount(int): 交易手数，整数。正值意味着买入，负值意味着卖出。
-        style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+        style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
             style = MarketOrder(exchange)
             style = StopOrder(stop_price, exchange)
             style = LimitOrder(limit_price, exchange)
@@ -77,7 +77,7 @@ def order_value(security, value, style=None):
     Args:
         security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
         value(float): 证券的价值，据此计算交易手数，并截断为整数手。正值意味着买入，负值意味着卖出。
-        style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+        style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
             style = MarketOrder(exchange)
             style = StopOrder(stop_price, exchange)
             style = LimitOrder(limit_price, exchange)
@@ -99,7 +99,7 @@ def order_percent(security, percent, style=None):
     Args:
         security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
         percent(float): 百分比。正值意味着买入，负值意味着卖出。
-        style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+        style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
             style = MarketOrder(exchange)
             style = StopOrder(stop_price, exchange)
             style = LimitOrder(limit_price, exchange)
@@ -124,7 +124,7 @@ def order_target(security, amount, style=None):
     Args:
         security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
         amount(int): 目标手数，整数。正值意味多头头寸，负值意味着空头头寸。（股票中若传入负值将报错）
-        style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+        style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
             style = MarketOrder(exchange)
             style = StopOrder(stop_price, exchange)
             style = LimitOrder(limit_price, exchange)
@@ -144,7 +144,7 @@ def order_target_value(security, value, style=None):
     Args:
         security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
         value(float): 目标头寸价值，据此计算目标头寸手数，并截断为整数手。正值意味多头头寸，负值意味着空头头寸。
-        style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+        style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
             style = MarketOrder(exchange)
             style = StopOrder(stop_price, exchange)
             style = LimitOrder(limit_price, exchange)
@@ -164,7 +164,7 @@ def order_target_percent(security, percent, style=None):
     Args:
         security(str | fxdayu.models.data.Security): 证券，可以是证券代码或者Security对象。
         percent(float): 目标头寸价值占当前账户净值百分比数。正值意味多头头寸，负值意味着空头头寸。
-        style(fxdayu.modules.order.style.OrderType): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
+        style(fxdayu.modules.order.style.OrderStyle): (可选)指定订单样式，默认值为市价订单。可用的订单样式有：
             style = MarketOrder(exchange)
             style = StopOrder(stop_price, exchange)
             style = LimitOrder(limit_price, exchange)

@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pytz
 
-from fxdayu.const import DIRECTION, ACTION, SIDE
+from fxdayu.const import Direction, OrderAction, OrderSide
 
 __all__ = ["Performance", "WindowFactorPerformance", "OrderAnalysis"]
 
@@ -435,18 +435,18 @@ class OrderAnalysis(WindowFactorPerformance):
         """
 
         def side2sign(x):
-            return (x == SIDE.BUY.value) * 2 - 1
+            return (x == OrderSide.BUY.value) * 2 - 1
 
         def side2direction(x):
-            if x == SIDE.BUY.value:
-                return DIRECTION.LONG.value
-            elif x == SIDE.SELL.value:
-                return DIRECTION.SHORT.value
+            if x == OrderSide.BUY.value:
+                return Direction.LONG.value
+            elif x == OrderSide.SELL.value:
+                return Direction.SHORT.value
             else:
-                return DIRECTION.NONE.value
+                return Direction.NONE.value
 
         def sign2direction(x):
-            return DIRECTION.LONG.value if x >= 0 else DIRECTION.SHORT.value
+            return Direction.LONG.value if x >= 0 else Direction.SHORT.value
 
         df = self.order_details.copy()
         addition = []
@@ -546,8 +546,8 @@ class OrderAnalysis(WindowFactorPerformance):
             total["direction"] = group_by_id["持仓方向"].first()  # 持仓方向
             total["volume"] = group_by_id["持仓数量"].agg(lambda s: abs(s).max())
             total["delta_time"] = group_by_id["最后成交时间"].last() - group_by_id["最后成交时间"].first()
-            long_ = total[total["direction"] == DIRECTION.LONG.value]
-            short = total[total["direction"] == DIRECTION.SHORT.value]
+            long_ = total[total["direction"] == Direction.LONG.value]
+            short = total[total["direction"] == Direction.SHORT.value]
             temp = [total, long_, short]
             win = [t["profit"] >= 0 for t in temp]
             loss = [t["profit"] < 0 for t in temp]
