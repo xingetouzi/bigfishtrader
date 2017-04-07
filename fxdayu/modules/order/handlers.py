@@ -182,7 +182,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
             stop_price: deprecated, 向后兼容
             limit_price: deprecated, 向后兼容
         Returns:
-            fxdayu.models.order.OrderReq: 订单对象。
+            str: 订单ID
         """
         if not style:
             if limit_price and stop_price:
@@ -214,7 +214,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
                 style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
         Returns:
-            fxdayu.models.order.OrderReq: 订单对象。
+            str: 订单ID
         """
         if not isinstance(security, Security):
             security = self.environment.symbol(security)
@@ -261,7 +261,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
             如果000002的价格是每股15元，这将购买6手(600股)，小数部分手数将被截断（不考虑滑点和交易成本）。
 
         Returns:
-            fxdayu.models.order.OrderReq: 订单对象。
+            str: 订单ID
         """
 
         if not isinstance(security, Security):
@@ -287,7 +287,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
                 style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
         Returns:
-            fxdayu.models.order.OrderReq: 订单对象。
+            str: 订单ID
         """
         if not isinstance(security, Security):
             security = self.environment.symbol(security)
@@ -315,7 +315,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
             如果000002是15元/股，投资组合价值是100000元，这将购买33手（不考虑滑点和交易成本）。
 
         Returns:
-            fxdayu.models.order.OrderReq: 订单对象。
+            str: 订单ID
         """
         if not isinstance(security, Security):
             security = self.environment.symbol(security)
@@ -340,7 +340,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
                 style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
         Returns:
-            fxdayu.models.order.OrderReq: 订单对象。
+            str: 订单ID
         """
         if not isinstance(security, Security):
             security = self.environment.symbol(security)

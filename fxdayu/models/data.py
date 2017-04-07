@@ -203,8 +203,5 @@ class Security(BaseData):
         self.strike = EMPTY_FLOAT
         self.multiplier = EMPTY_INT
 
-    def __hash__(self):
-        return int(self.localSymbol)
-
     def __eq__(self, other):
         return self.sid and self.sid == other.sid

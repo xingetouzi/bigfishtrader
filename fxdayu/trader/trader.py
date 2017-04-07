@@ -26,6 +26,7 @@ OUTPUT_COLUMN_MAP = {
     "execution": OrderedDict([
         ("clOrderID", "报单编号"),
         ("time", "最后成交时间"),
+        ("lastQty", "成交数"),
         ("lastPx", "成交均价"),
         ("commission", "手续费"),
     ]),
@@ -38,7 +39,6 @@ OUTPUT_COLUMN_MAP = {
         ("ordStatus", "报单状态"),
         ("price", "报单价格"),
         ("leavesQty", "未成交数"),
-        ("cumQty", "成交数"),
         ("orderTime", "报单时间"),
         ("exchange", "交易所")
     ])
@@ -271,13 +271,27 @@ class Trader(object):
             return data_frame.rename_axis(OUTPUT_COLUMN_MAP[key], axis=1) \
                 .reindex(columns=OUTPUT_COLUMN_MAP[key].values())
 
+        def cal_avg_price(x):
+            return (x["成交数"] * x["成交均价"]).sum() / x["成交数"].sum()
+
         eqt = pd.DataFrame(self.modules["portfolio"].info)
         eqt = pd.Series(eqt["equity"].values, index=eqt["datetime"])
         execs = self.modules["order_book_handler"].get_executions(method="df")
         orders = self.modules["order_book_handler"].get_status(method="df")
         execs = reorganize(execs, "execution")
         orders = reorganize(orders, "order")
-        trades = pd.merge(orders, execs, how="left", left_on=["报单编号"], right_on=["报单编号"])
+        execs_group = execs.groupby("报单编号")
+        temp = pd.DataFrame()
+        temp["成交均价"] = execs_group[["成交数", "成交均价"]].apply(cal_avg_price)
+        temp["成交数"] = execs_group["成交数"].sum()
+        temp["手续费"] = execs_group["手续费"].sum()
+        temp["最后成交时间"] = execs_group["最后成交时间"].last()
+        temp.reset_index(inplace=True)
+        temp = pd.merge(orders[["报单编号"]], temp, how="left", left_on=["报单编号"], right_on=["报单编号"])
+        temp["成交均价"] = temp["成交均价"].fillna(0)
+        temp["成交数"] = temp["成交数"].fillna(0).astype(int)
+        temp["手续费"] = temp["手续费"].fillna(0)
+        trades = pd.merge(orders, temp, how="left", left_on=["报单编号"], right_on=["报单编号"])
         self.performance.set_equity(eqt)
         self.performance.set_orders(trades)
         return self.performance

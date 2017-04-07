@@ -65,7 +65,7 @@ def order(security, amount, style=None):
             style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
     Returns:
-        fxdayu.models.order.OrderReq: 订单对象。
+        str: 订单ID
     """
     pass
 
@@ -87,7 +87,7 @@ def order_value(security, value, style=None):
         如果000002的价格是每股15元，这将购买6手(600股)，小数部分手数将被截断（不考虑滑点和交易成本）。
 
     Returns:
-        fxdayu.models.order.OrderReq: 订单对象。
+        str: 订单ID
     """
     pass
 
@@ -110,7 +110,7 @@ def order_percent(security, percent, style=None):
         如果000002是15元/股，投资组合价值是100000元，这将购买33手（不考虑滑点和交易成本）。
 
     Returns:
-        fxdayu.models.order.OrderReq: 订单对象。
+        str: 订单ID
     """
     pass
 
@@ -131,7 +131,7 @@ def order_target(security, amount, style=None):
             style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
     Returns:
-        fxdayu.models.order.OrderReq: 订单对象。
+        str: 订单ID
     """
     pass
 
@@ -151,7 +151,7 @@ def order_target_value(security, value, style=None):
             style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
     Returns:
-        fxdayu.models.order.OrderReq: 订单对象。
+        str: 订单ID
     """
     pass
 
@@ -171,21 +171,21 @@ def order_target_percent(security, percent, style=None):
             style = StopLimitOrder(limit_price=price1, stop_price=price2, exchange)
 
     Returns:
-        fxdayu.models.order.OrderReq: 订单对象。
+        str: 订单ID
     """
     pass
 
 
 def get_open_orders(security=None):
     """
-    如果security为None, 返回所有活跃状态（未完全成交且仍有效）的订单. 如果指定了sid, 返回该品种的处于活跃状态的订单
+    如果security为None, 返回所有活跃状态（未完全成交且仍有效）的订单. 如果指定了security, 返回该品种的处于活跃状态的订单
 
     Args:
-        security(int): 整数，证券的sid。
+        security(str|fxdayu.models.data.Security): Security对象或证券代码
 
     Returns:
-        如果security为None, 返回一个字典，以sid为key，value为对应security的订单列表, 订单按下单时间顺序排列.
-        如果指定了security,返回一个列表，为对应security的订单列表，订单按下单时间顺序排列。
+        如果指定了security,返回一个有序字典，键为订单ID，值为Order对象，订单按下单时间顺序排列。
+        如果security为None, 返回一个以证券代码为键，值为对应品种的未完成订单有序字典。
     """
     pass
 
@@ -208,7 +208,7 @@ def cancel_order(order):
     尝试取消指定的订单。取消将以异步的方式进行。
 
     Args:
-        order(str | fxdayu.models.order.OrderReq): 可以是字符串类型的order_id或是order对象本身。
+        order(str | fxdayu.models.proxy.OrderProxy): 可以是字符串类型的order_id或是order对象本身。
 
     Returns:
         None

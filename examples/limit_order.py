@@ -12,7 +12,9 @@ def handle_data(context, data):
     if context.empty:
         context.order = order('000001', 100, style=LimitOrder(data.current('000001').close * 0.99))
         # context.empty = 0
+        print("Order:%s" % context.order)
         opens = get_open_orders(context.symbol)
+        print(opens)
         for o in opens.values():
             o.cancel()
 
