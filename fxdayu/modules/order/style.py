@@ -1,3 +1,5 @@
+# encoding: utf-8
+
 from fxdayu.models.data import Security
 from fxdayu.models.order import OrderReq
 from fxdayu.const import Direction, OrderType, OrderAction
@@ -84,10 +86,11 @@ class OrderReqAdapter(ContextMixin):
                 order_req.account = self.context.account.id
                 order_req.ordType = self.STYLE_ORDER_MAP[type(style)]
                 order_req.action = OrderAction.NONE.value
+                # TODO 暂时不支持stop_limit单,因为价格都放在price中考虑了。
                 if isinstance(style, LimitOrder) or isinstance(style, StopLimitOrder):
                     order_req.price = style.limit_price
                 if isinstance(style, StopOrder) or isinstance(style, StopLimitOrder):
-                    order_req.stopPx = style.stop_price
+                    order_req.price = style.stop_price
                 if style.exchange:
                     order_req.exchange = style.exchange
                 else:

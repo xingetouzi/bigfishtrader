@@ -1,5 +1,5 @@
 # encoding: utf-8
-
+from functools import total_ordering
 from datetime import datetime
 
 import numpy as np
@@ -97,6 +97,7 @@ class AccountData(BaseData):
         return ".".join([self.gateway, self.accountID])
 
 
+@total_ordering
 class PositionData(BaseData):
     """
 
@@ -118,17 +119,29 @@ class PositionData(BaseData):
         self.avgPrice = EMPTY_FLOAT
         self.marketValue = EMPTY_FLOAT
 
+    def __eq__(self, other):
+        if isinstance(other, int):
+            return self.volume - self.frozenVolume == other
+        else:
+            return super(PositionData, self).__eq__(other)
+
+    def __lt__(self, other):
+        if isinstance(other, int):
+            return self.volume - self.frozenVolume < other
+        else:
+            return super(PositionData, self).__eq__(other)
+
 
 class ExecutionData(BaseData):
     __slots__ = ["time", "symbol", "action", "side", "leavesQty", "lastQty", "lastPx", "profit", "commission", "lever",
-                 "deposit_rate", "clOrderID", "clientID", "orderID", "position_id", "fill_type",
+                 "deposit_rate", "clOrdID", "clientID", "orderID", "position_id", "fill_type",
                  "execID", "account", "exchange", "cumQty", "avgPx", "gateway"]
 
     def __init__(self):
         self.time = datetime.now()
         self.symbol = EMPTY_STRING
         self.gateway = EMPTY_STRING
-        self.clOrderID = EMPTY_STRING
+        self.clOrdID = EMPTY_STRING
         self.clientID = EMPTY_STRING
         self.orderID = EMPTY_STRING
         self.execID = EMPTY_STRING
@@ -161,7 +174,7 @@ class ExecutionData(BaseData):
 
     @property
     def gClOrdID(self):
-        return ".".join([self.gateway, self.account, self.clOrderID])
+        return ".".join([self.gateway, self.account, self.clOrdID])
 
 
 class LogData(BaseData):

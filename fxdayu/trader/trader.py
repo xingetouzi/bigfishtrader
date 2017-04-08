@@ -24,7 +24,7 @@ from fxdayu.data.data_support import DataSupport
 OUTPUT_COLUMN_MAP = {
     "equity": OrderedDict([("datetime", "时间"), ("equity", "净值")]),
     "execution": OrderedDict([
-        ("clOrderID", "报单编号"),
+        ("clOrdID", "报单编号"),
         ("time", "最后成交时间"),
         ("lastQty", "成交数"),
         ("lastPx", "成交均价"),
@@ -171,15 +171,16 @@ class Trader(object):
         self.initialized = True
         return self
 
-    def run(self, symbols, frequency, start=None, end=None, ticker_type=None, params={}, save=False):
+    def run(self, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False):
         if not self.initialized:
             self.initialize()
 
         context, data, engine = self.context, self.modules["data"], self.engine
 
-        for name, param in params.items():
-            for key, value in param.items():
-                setattr(self.modules[name], key, value)
+        if params:
+            for name, param in params.items():
+                for key, value in param.items():
+                    setattr(self.modules[name], key, value)
 
         data.init(symbols, frequency, start, end, ticker_type)
 
@@ -195,7 +196,7 @@ class Trader(object):
 
         return self.modules['portfolio']
 
-    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params={}, save=False):
+    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False):
         """
         运行一个策略, 完成后返回一个账户对象
 
@@ -292,6 +293,8 @@ class Trader(object):
         temp["成交数"] = temp["成交数"].fillna(0).astype(int)
         temp["手续费"] = temp["手续费"].fillna(0)
         trades = pd.merge(orders, temp, how="left", left_on=["报单编号"], right_on=["报单编号"])
+        trades["报单编号"] = trades["报单编号"].astype(int)
+        trades.sort_values("报单编号", inplace=True)
         self.performance.set_equity(eqt)
         self.performance.set_orders(trades)
         return self.performance

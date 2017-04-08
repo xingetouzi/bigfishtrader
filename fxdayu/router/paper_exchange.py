@@ -146,7 +146,7 @@ class PaperExchange(AbstractRouter, ContextMixin):
         execution.action = order.action
         execution.lastPx = price + self.calculate_slippage(order, price)
         execution.commission = self.calculate_commission(order, price)
-        execution.clOrderID = order.clOrdID
+        execution.clOrdID = order.clOrdID
         execution.execID = order.clOrdID
         execution.account = order.account
         execution.exchange = order.exchange

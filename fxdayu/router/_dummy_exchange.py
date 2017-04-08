@@ -122,7 +122,7 @@ class DummyExchange(AbstractRouter, ContextMixin):
         execution.action = order.action
         execution.lastPx = price + self.calculate_slippage(order, price)
         execution.commission = self.calculate_commission(order, price)
-        execution.clOrderID = order.clOrdID
+        execution.clOrdID = order.clOrdID
         execution.execID = order.clOrdID
         execution.account = order.account
         execution.exchange = order.exchange
@@ -140,8 +140,8 @@ class DummyExchange(AbstractRouter, ContextMixin):
         cancel = event.data
         order_id = cancel.orderID
         cl_ord_id = order_id.split(".")[-1]
-        self._orders.pop(cl_ord_id, None)
-        self.put(self._make_status(order_id, canceled=True))
+        if self._orders.pop(cl_ord_id, None):
+            self.put(self._make_status(order_id, canceled=True))
 
     def _execute_market(self, order, bar):
         return self._make_execution(order, bar.open, bar.name)

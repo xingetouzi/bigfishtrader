@@ -24,8 +24,8 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
         self._adapter = OrderReqAdapter(context, environment)
         self._orders = {}
         self._open_orders = {}
-        self._order_status = {}
         self._order_proxies = {}
+        self._order_status = {}
         self._executions = {}
         self._client_ord_id = 0
         self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-100)
@@ -163,7 +163,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
         return self._get_base_data(self._orders, index="transactTime", method=method)
 
     def get_executions(self, method="df"):
-        return self._get_base_data(self._executions, method=method)
+        return self._get_base_data(self._executions, index="time", method=method)
 
     @api_method
     def order(self, security, amount, style=None, limit_price=None, stop_price=None):
@@ -220,7 +220,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
             security = self.environment.symbol(security)
         amount = int(amount)
         if security:
-            position = self.context.portfolio.positions.get(security.sid)
+            position = self.context.portfolio.positions.get(security.symbol)
             if position:
                 volume = position.volume
             else:
