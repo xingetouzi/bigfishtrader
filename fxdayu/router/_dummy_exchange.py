@@ -5,7 +5,7 @@ import copy
 
 from enum import Enum
 
-from fxdayu.const import OrderType, OrderAction, OrderStatus
+from fxdayu.const import OrderType, OrderAction, OrderStatus, Direction
 from fxdayu.engine.handler import Handler
 from fxdayu.event import EVENTS, ExecutionEvent, OrderStatusEvent
 from fxdayu.models.data import ExecutionData
@@ -130,7 +130,6 @@ class DummyExchange(AbstractRouter, ContextMixin):
         execution.position_id = order.clOrdID
         for k, v in self.ticker_info.get(order.symbol, {}):
             setattr(execution, k, v)
-        self._orders.pop(order.clOrdID, None)
         event = ExecutionEvent(execution, timestamp=timestamp, topic=order.symbol)
         return event
 
@@ -183,12 +182,12 @@ class DummyExchange(AbstractRouter, ContextMixin):
         Returns:
             None
         """
-
-        if order.orderQty > 0 and bar.low < order.price:
-            price = order.price if bar.open >= order.price else bar.open
+        side = Direction(order.side)
+        if side == Direction.LONG and bar.low < order.price:
+            price = order.price if bar.open > order.price else bar.open
             return self._make_execution(order, price, bar.name)
-        elif order.orderQty < 0 and bar.high > order.price:
-            price = order.price if bar.open <= order.price else bar.open
+        elif side == Direction.SHORT and bar.high > order.price:
+            price = order.price if bar.open < order.price else bar.open
             return self._make_execution(order, price, bar.name)
 
     def _stop_open(self, order, bar):
@@ -200,10 +199,11 @@ class DummyExchange(AbstractRouter, ContextMixin):
         Returns:
             None
         """
-        if order.orderQty > 0 and bar.high > order.price:
+        side = Direction(order.side)
+        if side == Direction.LONG and bar.high > order.price:
             price = order.price if bar.open <= order.price else bar.open
             return self._make_execution(order, price, bar.name)
-        elif order.orderQty < 0 and bar.low < order.price:
+        elif side == Direction.SHORT and bar.low < order.price:
             price = order.price if bar.open >= order.price else bar.open
             return self._make_execution(order, price, bar.name)
 
@@ -212,8 +212,13 @@ class DummyExchange(AbstractRouter, ContextMixin):
             self.engine.put(event)
 
     def on_time(self, event, kwargs=None):
+        executed = []
         for order in self._orders.values():
-            self._put(self.handle_order[order.ordType](order, self.data.current(order.symbol)))
+            event = self.handle_order[order.ordType](order, self.data.current(order.symbol))
+            if event:   executed.append(order.clOrdID)
+            self._put(event)
+        for order in executed:
+            self._orders.pop(order, None)
 
     def on_order(self, event, kwargs=None):
         """

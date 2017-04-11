@@ -3,8 +3,12 @@ class Environment(object):
         self._public = set()
         self._d = {}
 
+
     def __getattr__(self, item):
-        return self._d[item]
+        if item in self._d:
+            return self._d[item]
+        else:
+            raise AttributeError(item)
 
     def __delitem__(self, key):
         del self._d[key]

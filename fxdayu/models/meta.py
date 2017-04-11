@@ -54,9 +54,9 @@ if __name__ == "__main__":
 
 
     # print timeit.timeit("copy.copy(test).test", "from __main__ import TestData\nimport copy\ntest=TestData()")
-    print timeit.timeit("test.test",
-                        "from __main__ import LazyBaseData, TestData\ntest = TestData()\ntest = LazyBaseData(test)")
-    print timeit.timeit("test.test",
+    print(timeit.timeit("test.test",
+                        "from __main__ import LazyBaseData, TestData\ntest = TestData()\ntest = LazyBaseData(test)"))
+    print(timeit.timeit("test.test",
                         "from __main__ import PropertyTestData, TestData\n"
-                        "test = TestData()\ntest = PropertyTestData(test)")
-    print timeit.timeit("test.test", "from __main__ import LazyBaseData, TestData\ntest = TestData()\n")
+                        "test = TestData()\ntest = PropertyTestData(test)"))
+    print(timeit.timeit("test.test", "from __main__ import LazyBaseData, TestData\ntest = TestData()\n"))

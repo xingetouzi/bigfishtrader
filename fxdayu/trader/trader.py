@@ -153,6 +153,10 @@ class Trader(object):
                 except TypeError as te:
                     if not isinstance(module, (Engine, Environment, Context)):
                         raise te
+                except KeyError as ke:
+                    print(module)
+                    if not isinstance(module, (Engine, Environment, Context)):
+                        raise ke
 
     def initialize(self):
         """
@@ -196,7 +200,7 @@ class Trader(object):
 
         return self.modules['portfolio']
 
-    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False):
+    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False, raw_code=False):
         """
         运行一个策略, 完成后返回一个账户对象
 
@@ -216,7 +220,12 @@ class Trader(object):
         context, data, engine = self.context, self.modules["data"], self.engine
         strategy = self.environment.public.copy()
 
-        execfile(filename, strategy, strategy)
+        if raw_code:
+            exec(filename, strategy, strategy)
+        else:
+            with open(filename) as f:
+                exec(f.read(), strategy, strategy)
+
         if params:
             for key, value in params.items():
                 strategy[key] = value

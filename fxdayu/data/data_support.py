@@ -453,4 +453,4 @@ class DataSupport(HandlerCompose, MarketDataFreq):
 if __name__ == '__main__':
     mdf = MarketDataFreq(db='CN')
     mdf.init({'HS': ['000001']}, 'D', datetime(2016, 1, 1))
-    print mdf.history('000001', frequency='D', fields='close', length=5)
+    print(mdf.history('000001', frequency='D', fields='close', length=5))
