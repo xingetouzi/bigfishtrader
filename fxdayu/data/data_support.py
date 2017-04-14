@@ -244,10 +244,18 @@ class MarketData(object):
             return False
 
 
-class MarketDataFreq(MarketData):
+class MarketDataFreq(object):
 
     def __init__(self, client=None, host='localhost', port=27017, users=None, db=None, **kwargs):
-        super(MarketDataFreq, self).__init__(client, host, port, users, db, **kwargs)
+        self.client = client if client else MongoHandler(host, port, users, db, **kwargs)
+        self.read = self.client.read
+        self.write = self.client.write
+        self.inplace = self.client.inplace
+        self.initialized = False
+        self.frequency = None
+        self._panels = {}
+        self.mapper = {}
+        self._db = self.client.db
         self.sample_factor = {'min': 1, 'H': 60, 'D': 240, 'W': 240*5, 'M': 240*5*31}
         self.grouper = {
             'W': TimeEdge(lambda x: x.replace(hour=0, minute=0)-timedelta(days=x.weekday())),
@@ -255,6 +263,10 @@ class MarketDataFreq(MarketData):
                           else x.replace(minute=0, hour=x.hour if x.minute != 0 else x.hour-1))
         }
         self.fields = list(RESAMPLE_MAP.keys())
+
+    @property
+    def time(self):
+        return datetime.now()
 
     def init(self, symbols, frequency, start=None, end=None, db=None):
         self._db = defaultdict(lambda: db)
@@ -342,6 +354,17 @@ class MarketDataFreq(MarketData):
             return pd.DataFrame(dct)
         else:
             return pd.Panel(dct)
+
+    @staticmethod
+    def search_axis(axis, time):
+        index = axis.searchsorted(time)
+        if index < len(axis):
+            if axis[index] <= time:
+                return index
+            else:
+                return index - 1
+        else:
+            return len(axis) - 1
 
     def major_slice(self, axis, now, start, end, length):
         last = self.search_axis(axis, now)
@@ -437,7 +460,6 @@ class MarketDataFreq(MarketData):
             return trades
 
 
-
 class DataSupport(HandlerCompose, MarketDataFreq):
 
     def __init__(self, engine, context, client=None, host='localhost', port=27017, users=None, db=None, **kwargs):
@@ -453,4 +475,4 @@ class DataSupport(HandlerCompose, MarketDataFreq):
 if __name__ == '__main__':
     mdf = MarketDataFreq(db='CN')
     mdf.init({'HS': ['000001']}, 'D', datetime(2016, 1, 1))
-    print(mdf.history('000001', frequency='D', fields='close', length=5))
+    print(mdf.history('000001', length=5))
