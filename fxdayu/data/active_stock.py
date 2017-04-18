@@ -1,8 +1,34 @@
 from fxdayu.data.handler import MongoHandler, RedisHandler
-from fxdayu.data.base import AbstractDataSupport
+from fxdayu.engine.handler import HandlerCompose
+from threading import Thread
 from fxdayu.data.resampler import Resampler
 from datetime import datetime, date, time
 import pandas as pd
+
+
+def reshape(data):
+    if isinstance(data, pd.DataFrame):
+        if len(data) == 1:
+            return data.iloc[0]
+        elif len(data.columns):
+            return data.iloc[:, 0]
+        else:
+            return data
+    elif isinstance(data, pd.Panel):
+        if len(data.major_axis) == 1:
+            return data.iloc[:, 0, :]
+        elif len(data.minor_axis) == 1:
+            return data.iloc[:, :, 0]
+        else:
+            return data
+    else:
+        return data
+
+
+def shaper(function):
+    def shaped(*args, **kwargs):
+        return reshape(function(*args, **kwargs))
+    return shaped
 
 
 class ActiveStockData(object):
@@ -32,6 +58,7 @@ class ActiveStockData(object):
         self.reader = {self.BOTH: self._read_both,
                        self.EXTERNAL: self._read_external,
                        self.CACHE: self._read_cache}
+        self._listen = None
 
     def _read_both(self, symbol, fields, start, end, length):
         cache = self._read_cache(symbol, fields, start, end, length)
@@ -129,9 +156,23 @@ class ActiveStockData(object):
         else:
             return self.range(start, datetime.now(), length)
 
+    def subscribe(self, *args, **kwargs):
+        self.cache.subscribe(*args, **kwargs)
+
+    def listen(self, function):
+        self._listen = Thread(target=self.cache.listen, args=(function,))
+        self._listen.start()
+
+
+class ActiveDataSupport(HandlerCompose, ActiveStockData):
+    def __init__(self, engine, *args, **kwargs):
+        super(ActiveDataSupport, self).__init__(engine)
+        ActiveStockData.__init__(self, **kwargs)
+
+
 
 if __name__ == '__main__':
     mh = MongoHandler('192.168.0.103', 30000, db='TradeStock')
 
     asd = ActiveStockData(external=mh)
-    print asd.history('sh600000', frequency='H', length=20)
+    print asd.history('sh600000', frequency='30min', length=20)

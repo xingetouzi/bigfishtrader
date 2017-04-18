@@ -175,6 +175,18 @@ class Trader(object):
         self.initialized = True
         return self
 
+    def activate(self):
+        context, data, engine = self.context, self.modules["data"], self.engine
+        context.account = Environment()
+        context.account.id = "BACKTEST"
+
+        engine.set_context(self.environment_context)
+        engine.start()
+        engine.join()
+        engine.stop()
+        self.perform()
+        self.initialized = False
+
     def run(self, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False):
         if not self.initialized:
             self.initialize()
@@ -187,16 +199,9 @@ class Trader(object):
                     setattr(self.modules[name], key, value)
 
         data.init(symbols, frequency, start, end, ticker_type)
-
-        context.account = Environment()
-        context.account.id = "BACKTEST"
-
-        engine.set_context(self.environment_context)
         self.modules['timer'].put_time()
-        engine.start()
-        engine.join()
-        engine.stop()
-        self.perform()
+
+        self.activate()
 
         return self.modules['portfolio']
 
@@ -217,7 +222,7 @@ class Trader(object):
         if not self.initialized:
             self.initialize()
 
-        context, data, engine = self.context, self.modules["data"], self.engine
+        context, data = self.context, self.modules["data"]
         strategy = self.environment.public.copy()
 
         if raw_code:
@@ -231,11 +236,8 @@ class Trader(object):
                 strategy[key] = value
 
         data.init(symbols, frequency, start, end, ticker_type)
-        context.tickers = symbols
-
+        #
         # TODO XXX
-        context.account = Environment()
-        context.account.id = "BACKTEST"
 
         handle_data = strategy.get("handle_data", None)
 
@@ -249,18 +251,14 @@ class Trader(object):
             strategy["initialize"](context, data)
 
         self.modules['timer'].put_time()
-        engine.set_context(self.environment_context)
-        engine.start()
-        engine.join()
-        engine.stop()
-        self.perform()
+
+        self.activate()
         if save:
             name = os.path.basename(filename).split(".")[0]
             dt = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
             pa = "&".join(map(lambda item: item[0] + "_" + str(item[1]), params.items()))
             path = "%s&%s&%s.xls" % (name, dt, pa)
             self._save_origin(path)
-        self.initialized = False
 
         return self.modules["portfolio"]
 
@@ -418,8 +416,3 @@ class Optimizer(object):
         else:
             for value in values:
                 yield {key: value}
-
-
-if __name__ == "__main__":
-    opt = Optimizer()
-    opt.run('', '', data={'a': range(10), 'b': range(8)}, context={'c': range(5)})

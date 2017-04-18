@@ -212,6 +212,7 @@ class RedisHandler(DataHandler):
         } if transformer is None else transformer
 
         self.fields = self.transformer.keys()
+        self.pubsub = self.client.pubsub()
 
     def trans(self, key, sequence):
         try:
@@ -368,3 +369,10 @@ class RedisHandler(DataHandler):
         if fields is None:
             fields = self.fields
         return self.client.delete(*map(lambda x: self.join(name, x), fields))
+
+    def subscribe(self, *args, **kwargs):
+        self.pubsub.subscribe(*args, **kwargs)
+
+    def listen(self, function):
+        for data in self.pubsub.listen():
+            function(data['data'])

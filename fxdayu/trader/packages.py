@@ -1,7 +1,9 @@
 from fxdayu.trader.trader import Component
 from collections import OrderedDict
 from fxdayu.data.data_support import DataSupport
+from fxdayu.data.active_stock import ActiveDataSupport
 from fxdayu.modules.timer.simulation import TimeSimulation
+from fxdayu.modules.timer.real_timer import RealTimer
 from fxdayu.modules.portfolio.handlers import PortfolioHandler
 from fxdayu.modules.security import SecurityPool
 from fxdayu.router import DummyExchange
@@ -10,19 +12,6 @@ from fxdayu.modules.order.handlers import OrderStatusHandler
 from fxdayu.context import ContextMixin
 from fxdayu.engine.handler import HandlerCompose, Handler
 from fxdayu.event import EVENTS
-
-
-class Strategy(HandlerCompose, ContextMixin):
-    def __init__(self, engine, context, environment, data):
-        super(Strategy, self).__init__(engine)
-        ContextMixin.__init__(self, context, environment, data)
-        self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME)
-
-    def link_context(self):
-        pass
-
-    def on_time(self, event, kwargs=None):
-        print event.time
 
 
 DEVELOP_MODE = OrderedDict([
@@ -37,11 +26,15 @@ DEVELOP_MODE = OrderedDict([
 ])
 
 
+TRADING_MODE = OrderedDict([
+    ("data", Component("data", ActiveDataSupport, (),
+                       {'external': {'host': '192.168.0.103', 'port': 30000, 'db': 'TradeStock'}})),
+    ('timer', Component("timer", RealTimer, (), {}))
+])
+
+
 if __name__ == '__main__':
-    from fxdayu.trader import Trader
-    from datetime import datetime
+    from fxdayu.trader.trader import Trader
 
-    trader = Trader(DEVELOP_MODE)
-    trader.settings['strategy'] = Component('strategy', Strategy, (), {})
-
-    trader.run(['000001'], 'D', datetime(2016, 1, 1), ticker_type='HS')
+    trader = Trader(TRADING_MODE)
+    trader.initialize().activate()
