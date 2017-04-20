@@ -5,20 +5,16 @@ from fxdayu.context import ContextMixin, Context
 from fxdayu.environment import Environment
 from fxdayu.event import EVENTS, InitEvent
 from fxdayu.modules.account.handlers import AccountHandler
-from fxdayu.modules.order import OrderBookHandler
+from fxdayu.modules.order.handlers import OrderStatusHandler
 from fxdayu.modules.security import SecurityPool
-from fxdayu.position.handlers import PortfolioHandler
-from fxdayu.trader import Trader, Component
+from fxdayu.modules.portfolio.handlers import PortfolioHandler
+from fxdayu.trader.trader import Trader, Component
 from fxdayu.utils.api_support import EnvironmentContext
-from fxdayu.vt.ibGateway.ibGateway import IbGateway
+from fxdayu.vt.gateway import GATEWAY_DICT
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)
 
 last_time = time.time()
-
-
-class Context(object):
-    pass
 
 
 class RuntimeTrader(Trader):
@@ -32,16 +28,16 @@ class RuntimeTrader(Trader):
         """
         """
         for name, co in self.settings.items():
-            args = [self.models[para.name] if isinstance(para, Component.Lazy) else para for para in co.args]
-            kwargs = {key: self.models[para.name] if isinstance(para, Component.Lazy) else para for key, para in
+            args = [self.modules[para.name] if isinstance(para, Component.Lazy) else para for para in co.args]
+            kwargs = {key: self.modules[para.name] if isinstance(para, Component.Lazy) else para for key, para in
                       co.kwargs.items()}
             if issubclass(co.constructor, ContextMixin):
-                self.models[name] = co.constructor(self.context, self.environment, *args, **kwargs)
-                self.models[name].link_context()
+                self.modules[name] = co.constructor(self.context, self.environment, *args, **kwargs)
+                self.modules[name].link_context()
             else:
-                self.models[name] = co.constructor(*args, **kwargs)
-        self._register_models()
-        # self.context.link(**self.models)
+                self.modules[name] = co.constructor(*args, **kwargs)
+        self._register_modules()
+        # self.context.link(**self.modules)
         self.initialized = True
         return self
 
@@ -51,7 +47,7 @@ class RuntimeTrader(Trader):
             "security_pool", SecurityPool, (), {}
         )
         self.settings["router"] = Component(
-            "router", IbGateway, (Component.Lazy("engine"),), {}
+            "router", GATEWAY_DICT["IB"].gateway, (Component.Lazy("engine"),), {}
         )
         self.settings["account_handler"] = Component(
             "account_handler", AccountHandler, (), {}
@@ -69,13 +65,13 @@ class RuntimeTrader(Trader):
         kwargs["environment"] = self.environment
 
     def connect(self):
-        self.models["router"].connect()
+        self.modules["router"].connect()
 
     def _run(self, filename):
         if not self.initialized:
             raise Exception('Models not initialized, please call initialize()')
-        context, data, engine = self.context, self.models['data'], self.models['engine']
-        self.models["engine"].register(self.on_init, EVENTS.INIT, topic="", priority=1000)
+        context, data, engine = self.context, self.modules['data'], self.modules['engine']
+        self.modules["engine"].register(self.on_init, EVENTS.INIT, topic="", priority=1000)
         strategy = execfile(filename, self.environment.public)
 
         def on_time(event, kwargs=None):
@@ -130,20 +126,20 @@ class RuntimeTrader(Trader):
                     last_time = time.time()
                     print("BUY")
 
-        # self.models["engine"].register(on_time, EVENTS.TIME, topic='.', priority=100)
-        self.models["engine"].register(on_time, EVENTS.TICK, topic=".", priority=100)
-        self.models["engine"].register(on_log, EVENTS.LOG, topic="")
-        self.models["engine"].register(on_error, EVENTS.ERROR, topic="")
-        # self.models["engine"].register(on_position, EVENTS.POSITION, topic="")
-        # self.models["engine"].register(on_account, EVENTS.ACCOUNT, topic="")
-        # self.models["engine"].register(on_tick, EVENTS.TICK, topic="")
+        # self.modules["engine"].register(on_time, EVENTS.TIME, topic='.', priority=100)
+        self.modules["engine"].register(on_time, EVENTS.TICK, topic=".", priority=100)
+        self.modules["engine"].register(on_log, EVENTS.LOG, topic="")
+        self.modules["engine"].register(on_error, EVENTS.ERROR, topic="")
+        # self.modules["engine"].register(on_position, EVENTS.POSITION, topic="")
+        # self.modules["engine"].register(on_account, EVENTS.ACCOUNT, topic="")
+        # self.modules["engine"].register(on_tick, EVENTS.TICK, topic="")
         engine.start()
         self.connect()
         time.sleep(5)
-        self.models["event_queue"].put(InitEvent())
+        self.modules["event_queue"].put(InitEvent())
         time.sleep(5)
         self.environment.initialize(self.context, data)
-        self.models["router"].subscribe_contract(self.environment.symbol("EUR.USD"))
+        self.modules["router"].subscribe_contract(self.environment.symbol("EUR.USD"))
         engine.join()
 
     def run(self, filename):
@@ -151,7 +147,7 @@ class RuntimeTrader(Trader):
             self._run(filename)
 
     def stop(self):
-        self.models["engine"].stop()
+        self.modules["engine"].stop()
 
 
 if __name__ == "__main__":

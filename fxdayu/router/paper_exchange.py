@@ -1,8 +1,8 @@
 # encoding: utf-8
-
-from collections import OrderedDict
 import copy
+from collections import OrderedDict
 
+import numpy as np
 from enum import Enum
 
 from fxdayu.const import OrderType, OrderAction, OrderStatus, Direction
@@ -19,7 +19,7 @@ class BACKTESTDEALMODE(Enum):
     NEXT_BAR_OPEN = 1
 
 
-class PapperExchange(AbstractRouter, ContextMixin):
+class PaperExchange(AbstractRouter, ContextMixin):
     """
     DummyExchange if a simulation of a real exchange.
     It handles OrderEvent(ORDER,LIMIT,STOP) and
@@ -27,17 +27,18 @@ class PapperExchange(AbstractRouter, ContextMixin):
     """
 
     def __init__(self, engine, context, environment, data, exchange_name=None,
-                 deal_model=BACKTESTDEALMODE.NEXT_BAR_OPEN,
-                 **ticker_information):
+                 deal_model=BACKTESTDEALMODE.NEXT_BAR_OPEN):
         """
-        :param event_queue:
-        :param exchange_name:
-        :param ticker_information: ticker={'lever':10000,'deposit_rate':0.02}
-        :return:
+        Args:
+            engine:
+            context:
+            environment:
+            data:
+            exchange_name:
+            deal_model:
         """
-        super(PapperExchange, self).__init__(engine)
+        super(PaperExchange, self).__init__(engine)
         ContextMixin.__init__(self, context, environment, data)
-        self.ticker_info = ticker_information
         self.exchange_name = exchange_name
         self.deal_mode = deal_model
         self._orders = OrderedDict()
@@ -128,8 +129,6 @@ class PapperExchange(AbstractRouter, ContextMixin):
         execution.exchange = order.exchange
         execution.gateway = order.gateway
         execution.position_id = order.clOrdID
-        for k, v in self.ticker_info.get(order.symbol, {}):
-            setattr(execution, k, v)
         event = ExecutionEvent(execution, timestamp=timestamp, topic=order.symbol)
         return event
 
@@ -156,32 +155,6 @@ class PapperExchange(AbstractRouter, ContextMixin):
         Returns:
             None
         """
-        if order.action == OrderAction.OPEN.value:
-            return self._limit_open(order, bar)
-        elif order.action == OrderAction.CLOSE.value:
-            return self._stop_open(order, bar)
-        elif order.action == OrderAction.NONE.value:
-            return self._limit_open(order, bar)
-
-    def _execute_stop(self, order, bar):
-        if order.action == OrderAction.OPEN.value:
-            return self._stop_open(order, bar)
-        elif order.action == OrderAction.CLOSE.value:
-            return self._limit_open(order, bar)
-        elif order.action == OrderAction.NONE.value:
-            return self._stop_open(order, bar)
-
-    def _limit_open(self, order, bar):
-        """
-        deal with limit open order
-
-        Args:
-            order(fxdayu.models.OrderReq):
-            bar:
-
-        Returns:
-            None
-        """
         side = Direction(order.side)
         if side == Direction.LONG and bar.low < order.price:
             price = order.price if bar.open > order.price else bar.open
@@ -190,15 +163,7 @@ class PapperExchange(AbstractRouter, ContextMixin):
             price = order.price if bar.open < order.price else bar.open
             return self._make_execution(order, price, bar.name)
 
-    def _stop_open(self, order, bar):
-        """
-        Args:
-            order(fxdayu.models.OrderReq):
-            bar:
-
-        Returns:
-            None
-        """
+    def _execute_stop(self, order, bar):
         side = Direction(order.side)
         if side == Direction.LONG and bar.high > order.price:
             price = order.price if bar.open <= order.price else bar.open
@@ -207,16 +172,16 @@ class PapperExchange(AbstractRouter, ContextMixin):
             price = order.price if bar.open >= order.price else bar.open
             return self._make_execution(order, price, bar.name)
 
-    def _put(self, event):
-        if event:
-            self.engine.put(event)
+    def _put_execution(self, event):
+        self.engine.put(event)
 
     def on_time(self, event, kwargs=None):
         executed = []
         for order in self._orders.values():
             event = self.handle_order[order.ordType](order, self.data.current(order.symbol))
-            if event:   executed.append(order.clOrdID)
-            self._put(event)
+            if event:
+                executed.append(order.clOrdID)
+                self._put_execution(event)
         for order in executed:
             self._orders.pop(order, None)
 
