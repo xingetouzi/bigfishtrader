@@ -7,12 +7,11 @@ from datetime import datetime
 
 
 class RealTimer(ContextMixin, HandlerCompose):
-
     def __init__(self, engine, context, environment, data):
         super(RealTimer, self).__init__(context, environment, data)
         HandlerCompose.__init__(self, engine)
 
-        print self.data
+        print(self.data)
         self.data.subscribe('tick')
         self.data.listen(self.put_time)
 
@@ -21,7 +20,7 @@ class RealTimer(ContextMixin, HandlerCompose):
             time = datetime.strptime(time, "%Y-%m-%d %H:%M:%S.%f")
             self.engine.put(TimeEvent(time))
         except Exception as e:
-            print e
+            print(e)
 
     def link_context(self):
         pass

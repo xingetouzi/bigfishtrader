@@ -28,11 +28,11 @@ def reshape(data):
 def shaper(function):
     def shaped(*args, **kwargs):
         return reshape(function(*args, **kwargs))
+
     return shaped
 
 
 class ActiveStockData(object):
-
     BOTH = 0
     EXTERNAL = 1
     CACHE = 2
@@ -83,7 +83,7 @@ class ActiveStockData(object):
         if frequency:
             if length:
                 length = self.resampler.expand_length(length, frequency)
-                print length
+                print(length)
             if isinstance(symbols, str):
                 return self.resampler.resample(
                     self._history(symbols, fields, start, end, length),
@@ -113,10 +113,10 @@ class ActiveStockData(object):
         if reconsider:
             if len(data) < length:
                 if how == self.EXTERNAL:
-                    cache = self._read_cache(symbol, fields, start, end, length-len(data))
+                    cache = self._read_cache(symbol, fields, start, end, length - len(data))
                     return pd.concat([data, cache])
                 elif how == self.CACHE:
-                    external = self._read_external(symbol, fields, start, end, length-len(data))
+                    external = self._read_external(symbol, fields, start, end, length - len(data))
                     return pd.concat([external, data])
                 else:
                     return data
@@ -170,9 +170,8 @@ class ActiveDataSupport(HandlerCompose, ActiveStockData):
         ActiveStockData.__init__(self, **kwargs)
 
 
-
 if __name__ == '__main__':
     mh = MongoHandler('192.168.0.103', 30000, db='TradeStock')
 
     asd = ActiveStockData(external=mh)
-    print asd.history('sh600000', frequency='30min', length=20)
+    print(asd.history('sh600000', frequency='30min', length=20))

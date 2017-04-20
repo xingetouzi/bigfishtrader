@@ -1,17 +1,16 @@
 # encoding: utf-8
 from __future__ import division
+
 import math
 from collections import OrderedDict
-
 from functools import wraps, partial
 from weakref import WeakKeyDictionary
 
-from dateutil import rrule
 import numpy as np
 import pandas as pd
-import pytz
+from dateutil import rrule
 
-from fxdayu.const import Direction, OrderAction, OrderSide
+from fxdayu.const import Direction, OrderSide
 
 __all__ = ["Performance", "WindowFactorPerformance", "OrderAnalysis"]
 

@@ -1,0 +1,3 @@
+--index https://pypi.tuna.tsinghua.edu.cn/simple
+
+-e .

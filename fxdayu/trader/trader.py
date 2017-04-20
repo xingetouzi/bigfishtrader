@@ -44,16 +44,6 @@ OUTPUT_COLUMN_MAP = {
     ])
 }
 
-ROUND_MAP = {u"五年平均年收益": 2,
-             u"净利回撤比": 2,
-             u"夏普比率": 2,
-             u"平均月收益": 2,
-             u"年化收益标准差": 2,
-             u"最大回撤率": 2,
-             u"最大回撤比率": 2,
-             u"最大回撤金额": 2,
-             u"盈利因子": 2}
-
 
 class Component(object):
     __slots__ = ["name", "constructor", "args", "kwargs"]
@@ -205,7 +195,8 @@ class Trader(object):
 
         return self.modules['portfolio']
 
-    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False, raw_code=False):
+    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False,
+                  raw_code=False):
         """
         运行一个策略, 完成后返回一个账户对象
 
@@ -218,6 +209,7 @@ class Trader(object):
             ticker_type:
             params:
             save:
+            raw_code:
         """
         if not self.initialized:
             self.initialize()
@@ -330,89 +322,3 @@ class Trader(object):
 
         iter_save(self.output(*args))
         w.save()
-
-
-class Optimizer(object):
-    def __init__(self, settings=None):
-        self.settings = settings if settings else None
-
-    def __getitem__(self, item):
-        return self.settings[item]
-
-    def __setitem__(self, item, value):
-        self.settings[item] = value
-
-    def run(self, symbols, frequency, start=None, end=None, ticker_type=None,
-            sort=u"夏普比率", ascending=False, save=False, **params):
-        result = []
-
-        dct = {}
-        for model, param in params.items():
-            dct.update({'.'.join((model, key)): value for key, value in param.items()})
-
-        for param in self.exhaustion(**dct):
-            pa = self.split(param)
-            trader = Trader(self.settings)
-            trader.run(symbols, frequency, start, end, ticker_type, pa, save)
-            op_dict = trader.output("strategy_summary", "risk_indicator")
-            print(param, "accomplish")
-            for p in op_dict.values():
-                param.update(p)
-            result.append(param)
-
-        result = pd.DataFrame(result).sort_values(by=sort, ascending=ascending)
-        return result
-
-    @staticmethod
-    def split(param):
-        dct = {}
-        for key, value in param.items():
-            m, p = key.split('.')
-            dct.setdefault(m, {})[p] = value
-        return dct
-
-    def optimization(self, filename, symbols, frequency,
-                     start=None, end=None, ticker_type=None,
-                     sort=u"夏普比率", ascending=False, save=False,
-                     **params):
-        result = []
-
-        for param in self.exhaustion(**params):
-            trader = Trader(self.settings)
-            trader.back_test(
-                filename, symbols, frequency,
-                start, end, ticker_type, params=param, save=False
-            )
-            op_dict = trader.output("strategy_summary", "risk_indicator")
-            print(param, "accomplish")
-            for p in op_dict.values():
-                param.update(p)
-            result.append(param)
-
-        result = pd.DataFrame(result).sort_values(by=sort, ascending=ascending)
-        for key, value in ROUND_MAP.items():
-            result[key] = result[key].round(value)
-
-        if save:
-            name = os.path.basename(filename).split(".")[0]
-            dt = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-            result.to_excel("Optimization_%s&%s.xls" % (name, dt), encoding="utf-8")
-        print(result)
-        return result
-
-    def exhaustion(self, **kwargs):
-        """
-        generator, 穷举所有的参数组合
-
-        :param kwargs:
-        :return: dict
-        """
-        key, values = kwargs.popitem()
-        if len(kwargs):
-            for value in values:
-                for d in self.exhaustion(**kwargs):
-                    d[key] = value
-                    yield d
-        else:
-            for value in values:
-                yield {key: value}
