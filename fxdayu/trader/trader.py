@@ -205,7 +205,43 @@ class Trader(object):
 
         return self.modules['portfolio']
 
-    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False, raw_code=False):
+    def use_file(self, filename, raw_code=False, params=None):
+        context, data = self.context, self.modules["data"]
+        strategy = self.environment.public.copy()
+
+        if raw_code:
+            exec(filename, strategy, strategy)
+        else:
+            with open(filename) as f:
+                exec(f.read(), strategy, strategy)
+
+        if params:
+            for key, value in params.items():
+                strategy[key] = value
+
+        # TODO XXX
+        handle_data = strategy.get("handle_data", None)
+
+        def on_time(event, kwargs=None):
+            if handle_data:
+                handle_data(context, data)
+
+        self.engine.register(on_time, EVENTS.TIME, topic="bar.close", priority=100)
+
+        with self.environment_context:
+            strategy["initialize"](context, data)
+
+        return strategy
+
+    def real_trade(self, filename, **kwargs):
+        if not self.initialized:
+            self.initialize()
+
+        self.use_file(filename, **kwargs)
+        self.activate()
+
+    def back_test(self, filename, symbols, frequency,
+                  start=None, end=None, ticker_type=None, params=None, save=False, raw_code=False):
         """
         运行一个策略, 完成后返回一个账户对象
 
@@ -223,35 +259,9 @@ class Trader(object):
             self.initialize()
 
         context, data = self.context, self.modules["data"]
-        strategy = self.environment.public.copy()
-
-        if raw_code:
-            exec(filename, strategy, strategy)
-        else:
-            with open(filename) as f:
-                exec(f.read(), strategy, strategy)
-
-        if params:
-            for key, value in params.items():
-                strategy[key] = value
-
         data.init(symbols, frequency, start, end, ticker_type)
-        #
-        # TODO XXX
-
-        handle_data = strategy.get("handle_data", None)
-
-        def on_time(event, kwargs=None):
-            if handle_data:
-                handle_data(context, data)
-
-        self.engine.register(on_time, EVENTS.TIME, topic="bar.close", priority=100)
-
-        with self.environment_context:
-            strategy["initialize"](context, data)
-
+        self.use_file(filename, raw_code, params)
         self.modules['timer'].put_time()
-
         self.activate()
         if save:
             name = os.path.basename(filename).split(".")[0]

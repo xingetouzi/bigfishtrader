@@ -112,6 +112,8 @@ class IntersectionAdmin(SelectorAdmin):
                     pool = selector.execute(pool, context, data)
                 selectors[0].end(pool, context, data)
                 context.selector_pool = pool
+                return pool
+        return []
 
 
 class UnionAdmin(SelectorAdmin):
@@ -125,6 +127,8 @@ class UnionAdmin(SelectorAdmin):
                     result.extend(filter(lambda x: x not in result, selector.execute(pool, context, data)))
                 selectors[0].end(pool, context, data)
                 context.selector_pool = result
+                return result
+        return []
 
 
 def selector_wrapper(**k):
