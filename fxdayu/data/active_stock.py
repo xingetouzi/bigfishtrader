@@ -76,6 +76,7 @@ class ActiveStockData(object):
         else:
             return self.external.read(symbol, start=start, end=end, length=length, projection=fields)
 
+    @shaper
     def history(self, symbols, frequency=None, fields=None, start=None, end=None, length=None):
         if not fields:
             fields = self.FIELDS
@@ -83,7 +84,6 @@ class ActiveStockData(object):
         if frequency:
             if length:
                 length = self.resampler.expand_length(length, frequency)
-                print length
             if isinstance(symbols, str):
                 return self.resampler.resample(
                     self._history(symbols, fields, start, end, length),
@@ -103,7 +103,9 @@ class ActiveStockData(object):
             if isinstance(symbols, str):
                 return self._history(symbols, fields, start, end, length)
             elif isinstance(symbols, (list, tuple)):
-                return pd.Panel.from_dict({symbol: self._history(symbol) for symbol in symbols})
+                return pd.Panel.from_dict(
+                    {symbol: self._history(symbol, fields, start, end, length) for symbol in symbols}
+                )
             else:
                 return self._history(symbols, fields, start, end, length)
 
@@ -170,9 +172,8 @@ class ActiveDataSupport(HandlerCompose, ActiveStockData):
         ActiveStockData.__init__(self, **kwargs)
 
 
-
 if __name__ == '__main__':
     mh = MongoHandler('192.168.0.103', 30000, db='TradeStock')
 
     asd = ActiveStockData(external=mh)
-    print asd.history('sh600000', frequency='30min', length=20)
+    print asd.current(['sh600036', 'sh600000'])
