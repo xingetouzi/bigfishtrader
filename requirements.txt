@@ -1,0 +1,10 @@
+click==6.7
+dictproxyhack==1.1
+enum34==1.1.6
+numpy==1.12.1
+pandas==0.19.2
+pymongo==3.3.0
+python-dateutil==2.6.0
+pytz==2017.2
+redis==2.10.5
+six==1.10.0

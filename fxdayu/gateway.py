@@ -26,7 +26,6 @@ class Gateway(HandlerCompose, InitializeMixin):
         InitializeMixin.__init__(self)
         self.eventEngine = eventEngine
         self._handlers = {
-            "on_order": Handler(self.send_order, EVENTS.ORDER, topic="", priority=0),
             "on_init": Handler(self.on_init, EVENTS.INIT, topic="", priority=0)
         }
         self.gatewayName = gatewayName
@@ -38,7 +37,7 @@ class Gateway(HandlerCompose, InitializeMixin):
         市场深度行情推送
 
         Args:
-            tick(fxdayu.vt.vtGateway.VtTickData)
+            tick(fxdayu.vt.vtData.VtTickData)
 
         Returns:
             None
@@ -52,7 +51,7 @@ class Gateway(HandlerCompose, InitializeMixin):
         订单执行回报
 
         Args:
-            trade(fxdayu.vt.vtGateway.VtTradeData):
+            trade(fxdayu.vt.vtData.VtTradeData):
         """
         execution = VtAdapter.transform(trade)
         execution.account = self.context.account.id
@@ -64,7 +63,7 @@ class Gateway(HandlerCompose, InitializeMixin):
         订单回报
 
         Args:
-            order(fxdayu.vt.vtGateway.VtOrderData):
+            order(fxdayu.vt.vtData.VtOrderData):
         """
         order_status = VtAdapter.transform(order)
         order_status.account = self.context.account.id
@@ -76,7 +75,7 @@ class Gateway(HandlerCompose, InitializeMixin):
         仓位信息回报
 
         Args:
-            position(fxdayu.vt.vtGateway.VtPositionData):
+            position(fxdayu.vt.vtData.VtPositionData):
         """
         position_ = VtAdapter.transform(position)
         event = PositionEvent(position_, topic=position_.symbol)
@@ -87,7 +86,7 @@ class Gateway(HandlerCompose, InitializeMixin):
         账户信息回报
 
         Args:
-            account(fxdayu.vt.vtGateway.VtAccountData):
+            account(fxdayu.vt.vtData.VtAccountData):
 
         Returns:
             None
@@ -101,7 +100,7 @@ class Gateway(HandlerCompose, InitializeMixin):
         错误回报
 
         Args:
-            error(fxdayu.vt.vtGateway.VtErrorData):
+            error(fxdayu.vt.vtData.VtErrorData):
 
         Returns:
             None
@@ -114,7 +113,7 @@ class Gateway(HandlerCompose, InitializeMixin):
         记录日志
 
         Args:
-            log(fxdayu.vt.vtGateway.VtLogData):
+            log(fxdayu.vt.vtData.VtLogData):
 
         Returns:
             None
@@ -136,6 +135,9 @@ class Gateway(HandlerCompose, InitializeMixin):
         """
         raise NotImplementedError
 
+    def cancelOrder(self, orderReq):
+        raise NotImplementedError
+
     def subscribe(self, subscribeReq):
         """
 
@@ -146,6 +148,15 @@ class Gateway(HandlerCompose, InitializeMixin):
 
         """
         raise NotImplementedError
+
+    def qryAccount(self):
+        pass
+
+    def qryPosition(self):
+        pass
+
+    def close(self):
+        pass
 
     def subscribe_contract(self, contract):
         """
@@ -159,16 +170,15 @@ class Gateway(HandlerCompose, InitializeMixin):
         req = VtAdapter.transform(contract)
         return self.subscribe(req)
 
-    def send_order(self, event, kwargs=None):
+    def send_order(self, order, kwargs=None):
         """
 
         Args:
-            event(fxdayu.event.OrderEvent):
+            order(fxdayu.models.order.OrderReq):
             kwargs:
         Returns:
 
         """
-        order = event.data
         vt_order = VtAdapter.transform(order)
         vt_order_id = self.sendOrder(vt_order)
         order.gateway, order.clOrdID = vt_order_id.split(".")
@@ -179,13 +189,4 @@ class Gateway(HandlerCompose, InitializeMixin):
         self.environment["subscribe"] = self.subscribe_contract
 
     def cancel_order(self, event):
-        pass
-
-    def qryAccount(self):
-        pass
-
-    def qryPosition(self):
-        pass
-
-    def close(self):
         pass

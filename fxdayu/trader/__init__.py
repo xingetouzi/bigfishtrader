@@ -1,2 +1,2 @@
-from fxdayu.trader.trader import Trader, Optimizer
+from fxdayu.trader.trader import Trader
 

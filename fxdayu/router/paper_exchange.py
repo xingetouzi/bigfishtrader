@@ -1,11 +1,11 @@
 # encoding: utf-8
-
-from collections import OrderedDict
 import copy
+from collections import OrderedDict
 
+import numpy as np
 from enum import Enum
 
-from fxdayu.const import OrderType, OrderAction, OrderStatus
+from fxdayu.const import OrderType, OrderAction, OrderStatus, Direction
 from fxdayu.engine.handler import Handler
 from fxdayu.event import EVENTS, ExecutionEvent, OrderStatusEvent
 from fxdayu.models.data import ExecutionData
@@ -26,62 +26,39 @@ class PaperExchange(AbstractRouter, ContextMixin):
     generate FillEvent which then be put into the event_queue
     """
 
-    EVENT_TO_ENGINE = True
-    # To decide whether put event to engine or schedule it manually.
-    # manually schedule it may make back test faster.
-
     def __init__(self, engine, context, environment, data, exchange_name=None,
-                 deal_model=BACKTESTDEALMODE.NEXT_BAR_OPEN,
-                 **ticker_information):
+                 deal_model=BACKTESTDEALMODE.NEXT_BAR_OPEN):
         """
-        :param event_queue:
-        :param exchange_name:
-        :param ticker_information: ticker={'lever':10000,'deposit_rate':0.02}
-        :return:
+        Args:
+            engine:
+            context:
+            environment:
+            data:
+            exchange_name:
+            deal_model:
         """
         super(PaperExchange, self).__init__(engine)
         ContextMixin.__init__(self, context, environment, data)
-        self.ticker_info = ticker_information
         self.exchange_name = exchange_name
         self.deal_mode = deal_model
         self._orders = OrderedDict()
         self._handlers = {
             "on_order": Handler(self.on_order, EVENTS.ORDER, topic="", priority=0),
             "on_time": Handler(self.on_time, EVENTS.TIME, topic="bar.open", priority=200),
-            "on_execution": Handler(self.on_execution, EVENTS.EXECUTION, priority=0)
+            "on_execution": Handler(self.on_execution, EVENTS.EXECUTION, priority=0),
+            "on_cancel": Handler(self.on_cancel, EVENTS.CANCEL, priority=0)
         }
         self.handle_order = {
-            OrderType.MARKET: self._execute_market,
-            OrderType.LIMIT: self._execute_limit,
-            OrderType.STOP: self._execute_stop
+            OrderType.MARKET.value: self._execute_market,
+            OrderType.LIMIT.value: self._execute_limit,
+            OrderType.STOP.value: self._execute_stop
         }
         self._order_id = 0
-        self.account = "BACK_TEST"
-        self.gateway = "BACK_TEST"
 
     @property
     def next_order_id(self):
         self._order_id += 1
         return self._order_id
-
-    def handle_price(self, price, timestamp):
-        for order in self._orders.values():
-            self.handle_order[OrderType(order.ordType)](order, price, timestamp)
-
-    def _execute_market(self, order, price, timestamp):
-        return self._make_execution(order, price, timestamp)
-
-    def _execute_limit(self, order, price, timestamp):
-        if order.orderQty > 0 and price < order.price:
-            return self._make_execution(order, order.price, timestamp)
-        elif order.orderQty < 0 and price > order.price:
-            return self._make_execution(order, order.price, timestamp)
-
-    def _execute_stop(self, order, price, timestamp):
-        if order.orderQty > 0 and price > order.price:
-            return self._make_execution(order, order.price, timestamp)
-        elif order.orderQty < 0 and price < order.price:
-            return self._make_execution(order, order.price, timestamp)
 
     @staticmethod
     def calculate_commission(order, price):
@@ -152,28 +129,61 @@ class PaperExchange(AbstractRouter, ContextMixin):
         execution.exchange = order.exchange
         execution.gateway = order.gateway
         execution.position_id = order.clOrdID
-        for k, v in self.ticker_info.get(order.symbol, {}):
-            setattr(execution, k, v)
-        self._orders.pop(order.clOrdID, None)
         event = ExecutionEvent(execution, timestamp=timestamp, topic=order.symbol)
         return event
 
     def on_cancel(self, event, kwargs=None):
         """
-        When a CancelEvent arrives, remove the orders that satisfy the event's condition
-        :param event:
-        :return:
         """
-        pass
+        cancel = event.data
+        order_id = cancel.orderID
+        cl_ord_id = order_id.split(".")[-1]
+        if self._orders.pop(cl_ord_id, None):
+            self.put(self._make_status(order_id, canceled=True))
 
-    def _put(self, event):
-        if event:
-            if self.EVENT_TO_ENGINE:
-                self.engine.put(event)
+    def _execute_market(self, order, bar):
+        return self._make_execution(order, bar.open, bar.name)
+
+    def _execute_limit(self, order, bar):
+        """
+        deal with limit order
+
+        Args:
+            order(fxdayu.models.OrderReq):
+            bar:
+
+        Returns:
+            None
+        """
+        side = Direction(order.side)
+        if side == Direction.LONG and bar.low < order.price:
+            price = order.price if bar.open > order.price else bar.open
+            return self._make_execution(order, price, bar.name)
+        elif side == Direction.SHORT and bar.high > order.price:
+            price = order.price if bar.open < order.price else bar.open
+            return self._make_execution(order, price, bar.name)
+
+    def _execute_stop(self, order, bar):
+        side = Direction(order.side)
+        if side == Direction.LONG and bar.high > order.price:
+            price = order.price if bar.open <= order.price else bar.open
+            return self._make_execution(order, price, bar.name)
+        elif side == Direction.SHORT and bar.low < order.price:
+            price = order.price if bar.open >= order.price else bar.open
+            return self._make_execution(order, price, bar.name)
+
+    def _put_execution(self, event):
+        self.engine.put(event)
 
     def on_time(self, event, kwargs=None):
+        executed = []
         for order in self._orders.values():
-            self._put(self.handle_order[order.ordType](order, self.data.current(order.symbol)))
+            event = self.handle_order[order.ordType](order, self.data.current(order.symbol))
+            if event:
+                executed.append(order.clOrdID)
+                self._put_execution(event)
+        for order in executed:
+            self._orders.pop(order, None)
 
     def on_order(self, event, kwargs=None):
         """
@@ -186,14 +196,12 @@ class PaperExchange(AbstractRouter, ContextMixin):
 
         """
         order = event.data
-        order.clOrdID = str(self.next_order_id)  # 由于VNPY的设计，id由ROUTER设定，故这里由exchange分配order id
-        order.account = self.account
-        order.gateway = self.gateway
         if order.ordType == OrderType.MARKET.value and self.deal_mode == BACKTESTDEALMODE.THIS_BAR_CLOSE:
+            self._orders.pop(order.clOrdID, None)  # modify order
             current = self.data.current(order.symbol)
             self._put(self._make_execution(order, current.close, current.name))  # 直接成交
         else:
-            self._orders[order.clOrdID] = order  # 放入交易所blotter留给on_bar函数去处理成交
+            self._orders[order.clOrdID] = order  # 放入交易所orderbook留给on_bar函数去处理成交
 
     def on_execution(self, event, kwargs=None):
         execution = event.data

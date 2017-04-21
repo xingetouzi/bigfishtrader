@@ -7,7 +7,6 @@ from datetime import datetime
 
 
 class RealTimer(ContextMixin, HandlerCompose):
-
     def __init__(self, engine, context, environment, data):
         super(RealTimer, self).__init__(context, environment, data)
         HandlerCompose.__init__(self, engine)
@@ -27,7 +26,7 @@ class RealTimer(ContextMixin, HandlerCompose):
             self.put_schedule(self._behind, time)
 
         except Exception as e:
-            print e
+            print(e)
 
     def link_context(self):
         pass
