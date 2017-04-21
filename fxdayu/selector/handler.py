@@ -6,7 +6,10 @@ from fxdayu.event import EVENTS
 class SelectorHandler(HandlerCompose, ContextMixin):
     def __init__(self, engine, context, environment, data, selector_admin, executor_admin):
         super(SelectorHandler, self).__init__(engine)
-        ContextMixin.__init__(self, context, environment, data)
+        ContextMixin.__init__(self)
+        self.set_context(context)
+        self.set_environment(environment)
+        self.set_data(data)
         self._handlers['on_time'] = Handler(self.initialize, EVENTS.TIME, 'bar.open')
         self.selectors = []
         self.executors = []

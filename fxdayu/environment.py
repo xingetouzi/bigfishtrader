@@ -3,7 +3,6 @@ class Environment(object):
         self._public = set()
         self._d = {}
 
-
     def __getattr__(self, item):
         if item in self._d:
             return self._d[item]

@@ -17,11 +17,11 @@ from fxdayu.utils.api_support import api_method
 
 
 class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
-    def __init__(self, engine, context, environment, data):
+    def __init__(self, engine):
         super(OrderStatusHandler, self).__init__(engine)
-        ContextMixin.__init__(self, context, environment, data)
+        ContextMixin.__init__(self)
         OrderSenderMixin.__init__(self)
-        self._adapter = OrderReqAdapter(context, environment)
+        self._adapter = None
         self._orders = {}
         self._open_orders = {}
         self._order_proxies = {}
@@ -31,6 +31,10 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
         self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-100)
         self._handlers["on_execution"] = Handler(self.on_execution, EVENTS.EXECUTION, topic=".", priority=-100)
         self._handlers["on_order_status"] = Handler(self.on_order_status, EVENTS.ORD_STATUS, topic=".", priority=-100)
+
+    def init(self):
+        super(OrderStatusHandler, self).init()
+        self._adapter = OrderReqAdapter(self.context, self.environment)
 
     @property
     def next_ord_id(self):

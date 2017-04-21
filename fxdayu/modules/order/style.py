@@ -54,7 +54,9 @@ class OrderReqAdapter(ContextMixin):
     }
 
     def __init__(self, context, environment):
-        ContextMixin.__init__(self, context, environment)
+        ContextMixin.__init__(self)
+        self.set_context(context)
+        self.set_environment(environment)
 
     def parse(self, security, amount, style=None):
         """

@@ -153,9 +153,9 @@ class IBAccountGroup(AccountGroup):
 
 # TODO 目前支持单账户，若要支持多账户，则AccountManager要管理所有的context，并将每个账户映射到每个context
 class AccountHandler(HandlerCompose, ContextMixin):
-    def __init__(self, engine, context, environment, data):
+    def __init__(self, engine):
         super(AccountHandler, self).__init__(engine)
-        ContextMixin.__init__(self, context, environment, data)
+        ContextMixin.__init__(self)
         self._account = None
         self._handlers = {
             "on_account_ib": Handler(self.on_account_ib, EVENTS.ACCOUNT, topic=GatewayType.IB.value, priority=0)

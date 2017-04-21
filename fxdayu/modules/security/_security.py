@@ -12,6 +12,8 @@ _PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "security.csv")
 
 class SecurityPool(ContextMixin):
     DF = None
+    DICT_SID = {}
+    DICT_STR = {}
     count = 0
 
     def __new__(cls, *args):
@@ -21,9 +23,8 @@ class SecurityPool(ContextMixin):
             cls.DICT_STR = {s.symbol: s for s in cls.DICT_SID.values()}
         return object.__new__(cls)
 
-    def __init__(self, context, environment, data):
-        ContextMixin.__init__(self, context, environment, None)
-        self.columns = self.DF.reset_index().columns
+    def __init__(self):
+        ContextMixin.__init__(self)
 
     @classmethod
     def _to_security(cls, series):
@@ -110,9 +111,9 @@ class SecurityPool(ContextMixin):
 
 
 if __name__ == "__main__":
-    security = SecurityPool(object(), {}, None).symbol("000003")
+    security = SecurityPool().symbol("000003")
     print(security.to_dict())
-    security = SecurityPool(object(), {}, None).symbol("000651")
+    security = SecurityPool().symbol("000651")
     print(security.to_dict())
     for security in SecurityPool.DICT_SID.values():
         if len(security.symbol) != 6 or len(security.localSymbol) != 6:

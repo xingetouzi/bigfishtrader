@@ -7,9 +7,9 @@ from .factory import OrderGroupFactory
 
 
 class OrderGroupHandler(HandlerCompose, ContextMixin):
-    def __init__(self, engine, context, environment, data):
+    def __init__(self, engine):
         super(OrderGroupHandler, self).__init__(engine)
-        ContextMixin.__init__(self, context, environment, data)
+        ContextMixin.__init__(self)
         self._valid_group_id = 0
         self._groups = {}
         self._order_group_map = {}

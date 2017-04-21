@@ -2,7 +2,6 @@
 
 
 class Executor(object):
-
     __name__ = 'executor'
 
     def __init__(self, weight=1):
@@ -46,7 +45,6 @@ class Executor(object):
 
 
 class ExecutorAdmin(object):
-
     def __init__(self, *executors):
         self.executors = executors
 
@@ -59,17 +57,16 @@ class ExecutorAdmin(object):
 
 
 class EqualWeightAdmin(ExecutorAdmin):
-
     def __init__(self, *executors):
         super(EqualWeightAdmin, self).__init__(*executors)
-        self.weight = 1/len(executors)
+        self.weight = 1 / len(executors)
 
     def on_time(self, context, data, environment, pool):
         target = {}
         self.executors[0].start(pool, context, data)
         for executor in self.executors:
             for code, pct in executor.execute(pool, context, data).items():
-                target[code] = target.get(code, 0) + pct*self.weight
+                target[code] = target.get(code, 0) + pct * self.weight
         self.executors[-1].end(pool, context, data)
         self.send_order(context, data, environment, target)
 
@@ -83,7 +80,10 @@ def executor_wrapper(**k):
         class ExecutorHandler(HandlerCompose, ContextMixin, cls):
             def __init__(self, engine, context, environment, data, *args, **kwargs):
                 super(ExecutorHandler, self).__init__(engine)
-                ContextMixin.__init__(self, context, environment, data)
+                ContextMixin.__init__(self)
+                self.set_context(context)
+                self.set_environment(environment)
+                self.set_data(data)
                 cls.__init__(self, *args, **kwargs)
                 self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, **k)
 
@@ -94,4 +94,5 @@ def executor_wrapper(**k):
                 pass
 
         return ExecutorHandler
+
     return wrapper

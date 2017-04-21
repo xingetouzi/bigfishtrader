@@ -136,7 +136,10 @@ def selector_wrapper(**k):
         class SelectorHandler(HandlerCompose, ContextMixin, cls):
             def __init__(self, engine, context, environment, data, *args, **kwargs):
                 super(SelectorHandler, self).__init__(engine)
-                ContextMixin.__init__(self, context, environment, data)
+                ContextMixin.__init__(self)
+                self.set_context(context)
+                self.set_environment(environment)
+                self.set_data(data)
                 cls.__init__(self, *args, **kwargs)
                 self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, **k)
                 context.selector_pool = []

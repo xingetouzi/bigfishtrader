@@ -11,7 +11,9 @@ setup(
     name="fxdayu",
     version="0.1",
     packages=find_packages(exclude=["examples", "examples.*"]),
-    include_package_data=True,
+    package_data={
+        "": ["*.so", "*.dll", "*.csv", "*.pyd", "*.json"]
+    },
     author="xinge.BurdenBear;xinge.CaiMeng",
     author_email="public@fxdayu.com",
     description="This is an python event-driven trader engine",

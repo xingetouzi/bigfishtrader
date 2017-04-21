@@ -41,10 +41,9 @@ class PortfolioHandler(HandlerCompose, ContextMixin, InitializeMixin):
     SYNC_FREQUENCY = 1000  # in millisecond
     DEFAULT_CAPITAL_BASE = 100000
 
-    def __init__(self, engine, context, environment, data, mode=None, sync_policy=None, execution_mode=None,
-                 has_frozen=False):
+    def __init__(self, engine, mode=None, sync_policy=None, execution_mode=None, has_frozen=False):
         super(PortfolioHandler, self).__init__(engine)
-        ContextMixin.__init__(self, context, environment, data, use_proxy=True)
+        ContextMixin.__init__(self, use_proxy=True)
         InitializeMixin.__init__(self)
         # setting
         if mode is None:

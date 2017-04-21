@@ -26,7 +26,7 @@ class DummyExchange(AbstractRouter, ContextMixin):
     generate FillEvent which then be put into the event_queue
     """
 
-    def __init__(self, engine, context, environment, data, exchange_name=None,
+    def __init__(self, engine, exchange_name=None,
                  deal_model=BACKTESTDEALMODE.NEXT_BAR_OPEN,
                  **ticker_information):
         """
@@ -36,7 +36,7 @@ class DummyExchange(AbstractRouter, ContextMixin):
         :return:
         """
         super(DummyExchange, self).__init__(engine)
-        ContextMixin.__init__(self, context, environment, data)
+        ContextMixin.__init__(self)
         self.ticker_info = ticker_information
         self.exchange_name = exchange_name
         self.deal_mode = deal_model
