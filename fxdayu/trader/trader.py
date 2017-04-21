@@ -200,25 +200,7 @@ class Trader(object):
 
         return self.modules['portfolio']
 
-    def back_test(self, filename, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False,
-                  raw_code=False):
-        """
-        运行一个策略, 完成后返回一个账户对象
-
-        Args:
-            filename:
-            symbols:
-            frequency:
-            start:
-            end:
-            ticker_type:
-            params:
-            save:
-            raw_code:
-        """
-        if not self.initialized:
-            self.initialize()
-
+    def use_file(self, filename, raw_code=False, params=None):
         context, data = self.context, self.modules["data"]
         strategy = self.environment.public.copy()
 
@@ -232,10 +214,7 @@ class Trader(object):
             for key, value in params.items():
                 strategy[key] = value
 
-        data.init(symbols, frequency, start, end, ticker_type)
-        #
         # TODO XXX
-
         handle_data = strategy.get("handle_data", None)
 
         def on_time(event, kwargs=None):
@@ -247,8 +226,37 @@ class Trader(object):
         with self.environment_context:
             strategy["initialize"](context, data)
 
-        self.modules['timer'].put_time()
+        return strategy
 
+    def real_trade(self, filename, **kwargs):
+        if not self.initialized:
+            self.initialize()
+
+        self.use_file(filename, **kwargs)
+        self.activate()
+
+    def back_test(self, filename, symbols, frequency,
+                  start=None, end=None, ticker_type=None, params=None, save=False, raw_code=False):
+        """
+        运行一个策略, 完成后返回一个账户对象
+
+        Args:
+            filename:
+            symbols:
+            frequency:
+            start:
+            end:
+            ticker_type:
+            params:
+            save:
+        """
+        if not self.initialized:
+            self.initialize()
+
+        context, data = self.context, self.modules["data"]
+        data.init(symbols, frequency, start, end, ticker_type)
+        self.use_file(filename, raw_code, params)
+        self.modules['timer'].put_time()
         self.activate()
         if save:
             name = os.path.basename(filename).split(".")[0]

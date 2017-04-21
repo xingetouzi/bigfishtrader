@@ -29,7 +29,13 @@ DEVELOP_MODE = OrderedDict([
 TRADING_MODE = OrderedDict([
     ("data", Component("data", ActiveDataSupport, (),
                        {'external': {'host': '192.168.0.103', 'port': 30000, 'db': 'TradeStock'}})),
-    ('timer', Component("timer", RealTimer, (), {}))
+    ('timer', Component("timer", RealTimer, (), {})),
+    ("portfolio", Component("PortfolioHandler", PortfolioHandler, (), {})),
+    ("router", Component("router", DummyExchange, (Component.Lazy('engine'),), {})),
+    ("security_pool", Component("security_pool", SecurityPool, (), {})),
+    ("account_handler", Component("account_handler", AccountHandler, (), {})),
+    ("order_book_handler", Component("order_book_handler", OrderStatusHandler, (), {})),
+    ("portfolio", Component("portfolio_handler", PortfolioHandler, (), {}))
 ])
 
 
