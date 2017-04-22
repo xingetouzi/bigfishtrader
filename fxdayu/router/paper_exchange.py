@@ -38,7 +38,7 @@ class PaperExchange(AbstractRouter, ContextMixin):
             deal_model:
         """
         super(PaperExchange, self).__init__(engine)
-        ContextMixin.__init__(self, context, environment, data)
+        ContextMixin.__init__(self)
         self.exchange_name = exchange_name
         self.deal_mode = deal_model
         self._orders = OrderedDict()

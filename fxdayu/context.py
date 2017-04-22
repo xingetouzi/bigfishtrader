@@ -38,17 +38,33 @@ class Context(HandlerCompose):
 
 
 class ContextMixin(object):
-    def __init__(self, context, environment, data=None, use_proxy=False):
-        if use_proxy:
+    def __init__(self, use_proxy=False):
+        self.context = None
+        self.environment = None
+        self.data = None
+        self.__use_proxy = use_proxy
+
+    def init(self):
+        # TODO 和initializedMixin做统一
+        self.link_context()
+
+    def set_context(self, context):
+        if self.__use_proxy:
             self.context = proxy(context)
-            self.environment = proxy(environment)
-            if data:
-                self.data = proxy(data)
         else:
             self.context = context
+
+    def set_environment(self, environment):
+        if self.__use_proxy:
+            self.environment = proxy(environment)
+        else:
             self.environment = environment
+
+    def set_data(self, data):
+        if self.__use_proxy:
+            self.data = proxy(data)
+        else:
             self.data = data
-        self.link_context()
 
     def link_context(self):
         raise NotImplementedError

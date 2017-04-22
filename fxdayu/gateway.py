@@ -1,13 +1,12 @@
 # encoding:utf-8
 
-from fxdayu.engine.handler import HandlerCompose, Handler
-from fxdayu.event import *
 from fxdayu.adapter import VtAdapter
-from fxdayu.context import InitializeMixin
-from fxdayu.const import GatewayType
+from fxdayu.context import ContextMixin, InitializeMixin
+from fxdayu.engine.handler import HandlerCompose
+from fxdayu.event import *
 
 
-class Gateway(HandlerCompose, InitializeMixin):
+class Gateway(HandlerCompose, ContextMixin, InitializeMixin):
     """
     信息交换网关
     """
@@ -24,13 +23,12 @@ class Gateway(HandlerCompose, InitializeMixin):
         """
         super(Gateway, self).__init__()
         InitializeMixin.__init__(self)
+        ContextMixin.__init__(self)
         self.eventEngine = eventEngine
-        self._handlers = {
-            "on_init": Handler(self.on_init, EVENTS.INIT, topic="", priority=0)
-        }
+        self._handlers = {}
         self.gatewayName = gatewayName
-        self.context = None
-        self.environment = None
+        self._order_map_fx2vn = {}
+        self._order_map_vn2fx = {}
 
     def onTick(self, tick):
         """
@@ -66,6 +64,8 @@ class Gateway(HandlerCompose, InitializeMixin):
             order(fxdayu.vt.vtData.VtOrderData):
         """
         order_status = VtAdapter.transform(order)
+        order_status.clOrdID = self._order_map_vn2fx.get(order_status.clOrdID, "")
+        # TODO 过滤掉不在本次发出的订单
         order_status.account = self.context.account.id
         event = OrderStatusEvent(order_status, topic=order_status.gClOrdID)
         self.eventEngine.event_queue.put(event)
@@ -170,23 +170,38 @@ class Gateway(HandlerCompose, InitializeMixin):
         req = VtAdapter.transform(contract)
         return self.subscribe(req)
 
-    def send_order(self, order, kwargs=None):
+    def send_order(self, order):
         """
 
         Args:
             order(fxdayu.models.order.OrderReq):
-            kwargs:
         Returns:
 
         """
         vt_order = VtAdapter.transform(order)
         vt_order_id = self.sendOrder(vt_order)
-        order.gateway, order.clOrdID = vt_order_id.split(".")
+        self._order_map_fx2vn[order.clOrdID] = vt_order_id
+        self._order_map_vn2fx[vt_order_id] = order.clOrdID
+        order.gateway, _ = vt_order_id.split(".")
 
-    def on_init(self, event, kwargs=None):
-        self.context = kwargs["context"]
-        self.environment = kwargs["environment"]
+    def cancel_order(self, cancel):
+        """
+
+        Args:
+            cancel(fxdayu.models.order.CancelReq):
+
+        Returns:
+
+        """
+        cancel.orderID = self._order_map_fx2vn.get(cancel.orderID, "")
+        if cancel.orderID:
+            gateway, cancel.orderID = cancel.orderID.split(".")
+            cancel_req = VtAdapter.transform(cancel)
+            self.cancelOrder(cancel_req)
+        else:
+            pass  # warning
+
+    def link_context(self):
+        self.environment.set_private("real_send_order", self.send_order)
+        self.environment.set_private("real_cancel_order", self.cancel_order)
         self.environment["subscribe"] = self.subscribe_contract
-
-    def cancel_order(self, event):
-        pass

@@ -4,8 +4,8 @@ from fxdayu.utils.api_support import api_method
 
 
 class TimeSimulation(ContextMixin):
-    def __init__(self, context, environment, data, engine):
-        super(TimeSimulation, self).__init__(context, environment, data)
+    def __init__(self, engine):
+        ContextMixin.__init__(self)
         self.engine = engine
         self._ahead = []
         self._behind = []

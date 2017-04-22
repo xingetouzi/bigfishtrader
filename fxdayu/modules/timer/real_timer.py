@@ -6,10 +6,10 @@ from fxdayu.engine.handler import HandlerCompose
 from datetime import datetime
 
 
-class RealTimer(ContextMixin, HandlerCompose):
-    def __init__(self, engine, context, environment, data):
-        super(RealTimer, self).__init__(context, environment, data)
-        HandlerCompose.__init__(self, engine)
+class RealTimer(HandlerCompose, ContextMixin):
+    def __init__(self, engine):
+        super(RealTimer, self).__init__(engine)
+        ContextMixin.__init__(self)
 
         self._ahead = []
         self._behind = []

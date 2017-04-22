@@ -135,7 +135,7 @@ class Trader(object):
         else:
             raise TypeError("settings‘s value should be Component or tuple, not: %s" % type(value))
 
-    def _register_models(self):
+    def _register_modules(self):
         for name, module in self.modules.items():
             if hasattr(module, "register"):
                 try:
@@ -155,12 +155,17 @@ class Trader(object):
             args = [self.modules[para.name] if isinstance(para, Component.Lazy) else para for para in co.args]
             kwargs = {key: self.modules[para.name] if isinstance(para, Component.Lazy) else para for key, para in
                       co.kwargs.items()}
-            if issubclass(co.constructor, ContextMixin):
-                args[:0] = [self.context, self.environment, self.modules["data"]]
             if issubclass(co.constructor, HandlerCompose):
                 args[:0] = [self.engine]
             self.modules[name] = co.constructor(*args, **kwargs)
-        self._register_models()
+        for name, co in self.settings.items():
+            if issubclass(co.constructor, ContextMixin):
+                module = self.modules[name]
+                module.set_context(self.context)
+                module.set_environment(self.environment)
+                module.set_data(self.modules["data"])
+                module.init()
+        self._register_modules()
         self.context.link(**self.modules)
         self.initialized = True
         return self

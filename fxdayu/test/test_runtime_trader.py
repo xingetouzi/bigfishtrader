@@ -1,16 +1,10 @@
 import logging
 import time
 
-from fxdayu.context import ContextMixin, Context
-from fxdayu.environment import Environment
 from fxdayu.event import EVENTS, InitEvent
-from fxdayu.modules.account.handlers import AccountHandler
-from fxdayu.modules.order.handlers import OrderStatusHandler
-from fxdayu.modules.security import SecurityPool
-from fxdayu.modules.portfolio.handlers import PortfolioHandler
+from fxdayu.router.paper_exchange import PaperExchange
 from fxdayu.trader.trader import Trader, Component
-from fxdayu.utils.api_support import EnvironmentContext
-from fxdayu.vt.gateway import GATEWAY_DICT
+from fxdayu.vnpy.gateway import GATEWAY_DICT
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)
 
@@ -20,49 +14,15 @@ last_time = time.time()
 class RuntimeTrader(Trader):
     def __init__(self):
         super(RuntimeTrader, self).__init__()
-        self.context = Context()
-        self.environment = Environment()
-        self.environment_context = EnvironmentContext(self.environment)
-
-    def initialize(self):
-        """
-        """
-        for name, co in self.settings.items():
-            args = [self.modules[para.name] if isinstance(para, Component.Lazy) else para for para in co.args]
-            kwargs = {key: self.modules[para.name] if isinstance(para, Component.Lazy) else para for key, para in
-                      co.kwargs.items()}
-            if issubclass(co.constructor, ContextMixin):
-                self.modules[name] = co.constructor(self.context, self.environment, *args, **kwargs)
-                self.modules[name].link_context()
-            else:
-                self.modules[name] = co.constructor(*args, **kwargs)
-        self._register_modules()
-        # self.context.link(**self.modules)
-        self.initialized = True
-        return self
 
     def _init_settings(self):
         super(RuntimeTrader, self)._init_settings()
-        self.settings["security_pool"] = Component(
-            "security_pool", SecurityPool, (), {}
+        self.settings[""] = Component(
+            "router", PaperExchange, (), {}
         )
-        self.settings["router"] = Component(
-            "router", GATEWAY_DICT["IB"].gateway, (Component.Lazy("engine"),), {}
+        self.settings["ib_router"] = Component(
+            "ib_router", GATEWAY_DICT["IB"].gateway, (), {}
         )
-        self.settings["account_handler"] = Component(
-            "account_handler", AccountHandler, (), {}
-        )
-        self.settings["order_book_handler"] = Component(
-            "order_book_handler", OrderBookHandler,
-            (Component.Lazy("data"), Component.Lazy("event_queue")), {}
-        )
-        self.settings["portfolio_handler"] = Component(
-            "portfolio_handler", PortfolioHandler, (), {}
-        )
-
-    def on_init(self, event, kwargs=None):
-        kwargs["context"] = self.context
-        kwargs["environment"] = self.environment
 
     def connect(self):
         self.modules["router"].connect()
@@ -71,7 +31,6 @@ class RuntimeTrader(Trader):
         if not self.initialized:
             raise Exception('Models not initialized, please call initialize()')
         context, data, engine = self.context, self.modules['data'], self.modules['engine']
-        self.modules["engine"].register(self.on_init, EVENTS.INIT, topic="", priority=1000)
         strategy = execfile(filename, self.environment.public)
 
         def on_time(event, kwargs=None):
@@ -135,8 +94,6 @@ class RuntimeTrader(Trader):
         # self.modules["engine"].register(on_tick, EVENTS.TICK, topic="")
         engine.start()
         self.connect()
-        time.sleep(5)
-        self.modules["event_queue"].put(InitEvent())
         time.sleep(5)
         self.environment.initialize(self.context, data)
         self.modules["router"].subscribe_contract(self.environment.symbol("EUR.USD"))

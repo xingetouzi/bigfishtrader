@@ -77,10 +77,11 @@ class OrderReq(BaseData):
 
 
 class CancelReq(BaseData):
-    __slots__ = ["orderID"]
+    __slots__ = ["orderID", "secondaryClOrdID"]
 
     def __init__(self, order_id):
         self.orderID = order_id
+        self.secondaryClOrdID = EMPTY_STRING
 
 
 class OrderGroupData(BaseData):
