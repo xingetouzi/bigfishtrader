@@ -10,7 +10,7 @@ def reshape(data):
     if isinstance(data, pd.DataFrame):
         if len(data) == 1:
             return data.iloc[0]
-        elif len(data.columns):
+        elif len(data.columns) == 1:
             return data.iloc[:, 0]
         else:
             return data
@@ -30,6 +30,15 @@ def shaper(function):
         return reshape(function(*args, **kwargs))
 
     return shaped
+
+
+def coder(code):
+    if code.startswith('6'):
+        return 'sh%s' % code
+    elif code.startswith('3') or code.startswith('0'):
+        return 'sz%s' % code
+    else:
+        return code
 
 
 class ActiveStockData(object):
@@ -112,6 +121,7 @@ class ActiveStockData(object):
 
     def _history(self, symbol, fields=None, start=None, end=None, length=None):
         how, reconsider = self.range(start, end, length)
+        symbol = coder(symbol)
         data = self.reader[how](symbol, fields, start, end, length)
         if reconsider:
             if len(data) < length:
@@ -172,3 +182,10 @@ class ActiveDataSupport(HandlerCompose, ActiveStockData):
         super(ActiveDataSupport, self).__init__(engine)
         ActiveStockData.__init__(self, **kwargs)
 
+
+if __name__ == '__main__':
+    ads = ActiveStockData()
+    rsl = Resampler()
+    his = ads.history('600000', length=240)
+    print his.iloc[100:200]
+    print rsl.resample(his, 'H')

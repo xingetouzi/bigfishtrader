@@ -87,21 +87,19 @@ class Optimizer(object):
         print(result)
         return result
 
-    def exhaustion(self, **kwargs):
+    @staticmethod
+    def exhaustion(**kwargs):
         """
         generator, 穷举所有的参数组合
 
         :param kwargs:
         :return: dict
         """
-        if kwargs:
-            key, values = kwargs.popitem()
-            for value in values:
-                for d in self.exhaustion(**kwargs):
-                    d[key] = value
-                    yield d
-        else:
-            yield {}
+        from itertools import product
+
+        keys, values = kwargs.keys(), kwargs.values()
+        for prod in product(*values):
+            yield dict(zip(keys, prod))
 
 
 class ParallelOptimizer(Optimizer):

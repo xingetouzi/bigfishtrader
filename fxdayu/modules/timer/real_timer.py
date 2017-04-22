@@ -22,6 +22,7 @@ class RealTimer(ContextMixin, HandlerCompose):
             time = datetime.strptime(time, "%Y-%m-%d %H:%M:%S.%f")
 
             self.put_schedule(self._ahead, time)
+            self.engine.put(TimeEvent(time, topic="bar.open"))
             self.engine.put(TimeEvent(time, topic="bar.close"))
             self.put_schedule(self._behind, time)
 
