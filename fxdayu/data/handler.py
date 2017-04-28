@@ -236,7 +236,6 @@ class RedisHandler(DataHandler):
             fields = list(self.fields)
             fields.remove(index)
         loc, main_index = self._read_index(self.join(name, index), self.transformer[index], start, end, length)
-        self.locate_read(name, loc, fields)
 
         return pd.DataFrame(self.locate_read(name, loc, fields), self.trans(index, main_index))
 
@@ -272,7 +271,10 @@ class RedisHandler(DataHandler):
             else:
                 e = self.search_sorted(index, end, transform, True)
                 if length:
-                    return [e-length+1, e], index[e-length+1:e+1]
+                    s = e-length+1
+                    if s < 0:
+                        s = 0
+                    return [s, e], index[s:e+1]
                 else:
                     return [0, e], index[0:e+1]
         else:
@@ -355,7 +357,6 @@ class RedisHandler(DataHandler):
     def locate_read(self, name, loc, fields=None):
         if fields is None:
             fields = self.fields
-
         if isinstance(loc, int):
             return {f: self.trans(f, self.client.lindex(self.join(name, f), loc)) for f in fields}
         elif isinstance(loc, slice):
@@ -376,3 +377,6 @@ class RedisHandler(DataHandler):
     def listen(self, function):
         for data in self.pubsub.listen():
             function(data['data'])
+
+    def execute(self, command, *args, **kwargs):
+        return self.client.__getattribute__(command)(*args, **kwargs)

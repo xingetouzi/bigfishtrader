@@ -14,6 +14,8 @@ class RealTimer(HandlerCompose, ContextMixin):
         self._ahead = []
         self._behind = []
 
+    def init(self):
+        super(RealTimer, self).init()
         self.data.subscribe('tick')
         self.data.listen(self.put_time)
 
@@ -22,6 +24,7 @@ class RealTimer(HandlerCompose, ContextMixin):
             time = datetime.strptime(time, "%Y-%m-%d %H:%M:%S.%f")
 
             self.put_schedule(self._ahead, time)
+            self.engine.put(TimeEvent(time, topic="bar.open"))
             self.engine.put(TimeEvent(time, topic="bar.close"))
             self.put_schedule(self._behind, time)
 
@@ -29,7 +32,7 @@ class RealTimer(HandlerCompose, ContextMixin):
             print(e)
 
     def link_context(self):
-        pass
+        self.environment['time_schedule'] = self.time_schedule
 
     @api_method
     def time_schedule(self, func, time_rule, ahead=True):
