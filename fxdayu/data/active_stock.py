@@ -1,4 +1,5 @@
 from fxdayu.data.handler import MongoHandler, RedisHandler
+from itertools import compress
 from fxdayu.engine.handler import HandlerCompose
 from threading import Thread
 from fxdayu.data.resampler import Resampler
@@ -52,6 +53,9 @@ class ActiveStockData(object):
             self.cache = RedisHandler(**cache)
         elif isinstance(cache, RedisHandler):
             self.cache = cache
+        elif isinstance(cache, str):
+            import json
+            self.cache = RedisHandler(**json.load(open(cache)))
         else:
             self.cache = RedisHandler()
 
@@ -59,6 +63,9 @@ class ActiveStockData(object):
             self.external = MongoHandler(**external)
         elif isinstance(external, MongoHandler):
             self.external = external
+        elif isinstance(external, str):
+            import json
+            self.external = MongoHandler(**json.load(open(external)))
         else:
             self.external = MongoHandler()
 
@@ -75,7 +82,9 @@ class ActiveStockData(object):
         return pd.concat((external, cache))
 
     def _read_cache(self, symbol, fields, start, end, length):
-        return self.cache.read(symbol, start=start, end=end, length=length, fields=fields)
+        cache = self.cache.read(symbol, start=start, end=end, length=length, fields=fields)
+        index = cache.index.searchsorted(datetime.today().replace(minute=30, hour=9))
+        return cache.iloc[index:]
 
     def _read_external(self, symbol, fields, start, end, length):
         if 'datetime' not in fields:
@@ -129,14 +138,10 @@ class ActiveStockData(object):
                     cache = self._read_cache(symbol, fields, start, end, length - len(data))
                     return pd.concat([data, cache])
                 elif how == self.CACHE:
-                    external = self._read_external(symbol, fields, start, end, length - len(data))
-                    return pd.concat([external, data])
-                else:
-                    return data
-            else:
-                return data
-        else:
-            return data
+                    if len(data):
+                        external = self._read_external(symbol, fields, start, end, length - len(data))
+                        return pd.concat([external, data])
+        return data
 
     def current(self, symbols, frequency=None):
         return self.history(symbols, frequency, length=1)
@@ -176,6 +181,12 @@ class ActiveStockData(object):
         self._listen = Thread(target=self.cache.listen, args=(function,))
         self._listen.start()
 
+    def can_trade(self, *codes):
+        if len(codes):
+            return list(compress(codes, [self.cache.client.sismember('index', code) for code in codes]))
+        else:
+            return list(self.cache.client.smembers('index'))
+
 
 class ActiveDataSupport(HandlerCompose, ActiveStockData):
     def __init__(self, engine, *args, **kwargs):
@@ -184,8 +195,10 @@ class ActiveDataSupport(HandlerCompose, ActiveStockData):
 
 
 if __name__ == '__main__':
-    ads = ActiveStockData()
-    rsl = Resampler()
-    his = ads.history('600000', length=240)
-    print his.iloc[100:200]
-    print rsl.resample(his, 'H')
+    import json
+    from numpy import NaN
+    ads = ActiveStockData(cache='remote_redis.json', external='local_mongo.json')
+    for name, s in ads.history(ads.can_trade(), length=10, fields=['close']).iteritems():
+        s = s.iloc[:10]
+        print name
+        print s[s != NaN]

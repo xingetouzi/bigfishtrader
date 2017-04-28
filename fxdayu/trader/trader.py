@@ -180,7 +180,6 @@ class Trader(object):
         engine.join()
         engine.stop()
         self.perform()
-        self.initialized = False
 
     def run(self, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False):
         if not self.initialized:

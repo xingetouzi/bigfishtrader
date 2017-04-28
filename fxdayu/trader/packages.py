@@ -28,7 +28,8 @@ DEVELOP_MODE = OrderedDict([
 
 TRADING_MODE = OrderedDict([
     ("data", Component("data", ActiveDataSupport, (),
-                       {'external': {'host': '192.168.0.103', 'port': 30000, 'db': 'TradeStock'}})),
+                       {'external': "E:\\bigfishtrader\\fxdayu\data\local_mongo.json",
+                        'cache': "E:\\bigfishtrader\\fxdayu\data\\remote_redis.json"})),
     ('timer', Component("timer", RealTimer, (), {})),
     ("portfolio", Component("PortfolioHandler", PortfolioHandler, (), {})),
     ("router", Component("router", DummyExchange, (Component.Lazy('engine'),), {})),
