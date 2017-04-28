@@ -98,6 +98,8 @@ class ActiveStockData(object):
     def history(self, symbols, frequency=None, fields=None, start=None, end=None, length=None):
         if not fields:
             fields = self.FIELDS
+        elif isinstance(fields, (str, unicode)):
+            fields = [fields]
 
         if frequency:
             if length:
@@ -194,11 +196,23 @@ class ActiveDataSupport(HandlerCompose, ActiveStockData):
         ActiveStockData.__init__(self, **kwargs)
 
 
+def get_fit(codes, data):
+    for code in codes:
+        try:
+            his = data.history(code, frequency='5min', length=21, fields='close')
+        except Exception as e:
+            print e
+            continue
+
+        fast = pd.Series(talib.MA(his.values, timeperiod=10), his.index)
+        slow = pd.Series(talib.MA(his.values, timeperiod=20), his.index)
+        if fast[-1] > slow[-1] and (fast[-2] < slow[-2]):
+            yield code
+
+
 if __name__ == '__main__':
     import json
-    from numpy import NaN
+    import talib
     ads = ActiveStockData(cache='remote_redis.json', external='local_mongo.json')
-    for name, s in ads.history(ads.can_trade(), length=10, fields=['close']).iteritems():
-        s = s.iloc[:10]
-        print name
-        print s[s != NaN]
+    for code in get_fit(ads.can_trade(), ads):
+        print code

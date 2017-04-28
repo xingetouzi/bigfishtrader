@@ -49,10 +49,11 @@ class Resampler(object):
 
     def resample(self, data, how):
         grouper = self.grouper.get(how, None)
+        mapper = {key: RESAMPLE_MAP[key] for key in data.columns}
         if grouper:
-            return data.groupby(grouper).agg(RESAMPLE_MAP)
+            return data.groupby(grouper).agg(mapper)
         else:
-            return data.resample(how, label='right', closed='right').agg(RESAMPLE_MAP).dropna()
+            return data.resample(how, label='right', closed='right').agg(mapper).dropna()
 
     @staticmethod
     def f_period(frequency):

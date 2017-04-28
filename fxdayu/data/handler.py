@@ -235,6 +235,7 @@ class RedisHandler(DataHandler):
         if not fields:
             fields = list(self.fields)
             fields.remove(index)
+
         loc, main_index = self._read_index(self.join(name, index), self.transformer[index], start, end, length)
 
         return pd.DataFrame(self.locate_read(name, loc, fields), self.trans(index, main_index))
