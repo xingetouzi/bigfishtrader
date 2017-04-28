@@ -259,6 +259,7 @@ class Trader(object):
         self.modules['timer'].put_time()
         self.activate()
         if save:
+            params = {} if not params else params
             name = os.path.basename(filename).split(".")[0]
             dt = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
             pa = "&".join(map(lambda item: item[0] + "_" + str(item[1]), params.items()))
@@ -268,8 +269,8 @@ class Trader(object):
         return self.modules["portfolio"]
 
     def _save_origin(self, path):
-        if not self.initialized:
-            raise ValueError("trader not initialized, no data to perform")
+        # if not self.initialized:
+        #     raise ValueError("trader not initialized, no data to perform")
 
         writer = ExcelWriter(path, encoding="utf-8")
         pd.DataFrame(self.performance.equity).to_excel(writer, "净值")
@@ -285,7 +286,8 @@ class Trader(object):
                 .reindex(columns=OUTPUT_COLUMN_MAP[key].values())
 
         def cal_avg_price(x):
-            return (x["成交数"] * x["成交均价"]).sum() / x["成交数"].sum()
+            avg_price = (x["成交数"] * x["成交均价"]).sum() / x["成交数"].sum()
+            return pd.Series(avg_price, index=["avg_price"])
 
         eqt = pd.DataFrame(self.modules["portfolio"].info)
         eqt = pd.Series(eqt["equity"].values, index=eqt["datetime"])
@@ -293,9 +295,10 @@ class Trader(object):
         orders = self.modules["order_book_handler"].get_status(method="df")
         execs = reorganize(execs, "execution")
         orders = reorganize(orders, "order")
+        print execs
         execs_group = execs.groupby("报单编号")
         temp = pd.DataFrame()
-        temp["成交均价"] = execs_group[["成交数", "成交均价"]].apply(cal_avg_price)
+        temp["成交均价"] = execs_group[["成交数", "成交均价"]].apply(cal_avg_price)["avg_price"]
         temp["成交数"] = execs_group["成交数"].sum()
         temp["手续费"] = execs_group["手续费"].sum()
         temp["最后成交时间"] = execs_group["最后成交时间"].last()
