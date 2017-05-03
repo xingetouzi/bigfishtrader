@@ -181,7 +181,7 @@ class Trader(object):
         engine.stop()
         self.perform()
 
-    def run(self, symbols, frequency, start=None, end=None, ticker_type=None, params=None, save=False):
+    def run(self, symbols, frequency=None, start=None, end=None, ticker_type=None, params=None, save=False):
         if not self.initialized:
             self.initialize()
 
@@ -234,8 +234,8 @@ class Trader(object):
         self.use_file(filename, **kwargs)
         self.activate()
 
-    def back_test(self, filename, symbols, frequency,
-                  start=None, end=None, ticker_type=None, params=None, save=False, raw_code=False):
+    def back_test(self, filename, symbols, frequency=None,
+                  start=None, end=None, db=None, params=None, save=False, raw_code=False):
         """
         运行一个策略, 完成后返回一个账户对象
 
@@ -253,7 +253,7 @@ class Trader(object):
             self.initialize()
 
         context, data = self.context, self.modules["data"]
-        data.init(symbols, frequency, start, end, ticker_type)
+        data.init(symbols, frequency, start, end, db)
         self.use_file(filename, raw_code, params)
         self.modules['timer'].put_time()
         self.activate()

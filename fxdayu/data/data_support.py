@@ -254,7 +254,7 @@ class MarketDataFreq(object):
         self.initialized = False
         self.frequency = None
         self._panels = {}
-        self.mapper = {}
+        self.name_map = {}
         self._db = self.client.db
         self.sample_factor = {'min': 1, 'H': 60, 'D': 240, 'W': 240*5, 'M': 240*5*31}
         self.grouper = {
@@ -268,11 +268,11 @@ class MarketDataFreq(object):
     def time(self):
         return datetime.now()
 
-    def init(self, symbols, frequency, start=None, end=None, db=None):
+    def init(self, symbols, frequency=None, start=None, end=None, db=None):
         self._db = defaultdict(lambda: db)
 
         def initialize(_symbol, _db):
-            result = self._read_db(_symbol, frequency, ['open', 'high', 'low', 'close', 'volume'], start, end, None, _db)
+            result = self._read_db(_symbol, ['open', 'high', 'low', 'close', 'volume'], start, end, None, _db)
             if len(result):
                 self._panels[_symbol] = result
                 self._db[_symbol] = _db
@@ -290,7 +290,7 @@ class MarketDataFreq(object):
         self.frequency = frequency
         self.initialized = True
 
-    def _read_db(self, symbol, frequency, fields, start, end, length, db):
+    def _read_db(self, symbol, fields, start, end, length, db):
         if fields is None:
             fields = ['datetime', 'open', 'high', 'low', 'close', 'volume']
         elif isinstance(fields, str):
@@ -299,19 +299,14 @@ class MarketDataFreq(object):
             fields = list(fields)
             fields.append('datetime')
 
-        mapper = self.mapper.get(db, {})
-        trans_map = {item[1]: item[0] for item in mapper.items()}
-
         try:
-            result = self.client.read(
-                '.'.join((symbol, frequency)),
-                db, 'datetime', start, end, length,
+            return self.client.read(
+                symbol, db, 'datetime',
+                start, end, length,
                 projection=fields
             )
         except KeyError:
             return pd.DataFrame()
-
-        return result.rename_axis(trans_map, axis=1)
 
     def current(self, symbol=None):
         return self.history(symbol, length=1)
@@ -403,9 +398,9 @@ class MarketDataFreq(object):
             if not end or end > self.time:
                 end = self.time
             if isinstance(fields, str):
-                result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db[symbol])[fields]
+                result = self._read_db(symbol, fields, start, end, length, self._db[symbol])[fields]
             else:
-                result = self._read_db(symbol, self.frequency, fields, start, end, length, self._db[symbol])
+                result = self._read_db(symbol, fields, start, end, length, self._db[symbol])
 
             if length != -1:
                 return result
@@ -473,6 +468,4 @@ class DataSupport(HandlerCompose, MarketDataFreq):
 
 
 if __name__ == '__main__':
-    mdf = MarketDataFreq(db='CN')
-    mdf.init({'HS': ['000001']}, 'D', datetime(2016, 1, 1))
-    print(mdf.history('000001', length=5))
+    mdf = MarketDataFreq()
