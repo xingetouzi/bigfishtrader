@@ -2,18 +2,26 @@
 
 
 class TimeRule(object):
-    def __init__(self, tag=None, **rules):
-        self.rules = rules
+    def __init__(self, tag):
         self.tag = tag
 
     def __hash__(self):
         return hash(self.tag)
 
     def __eq__(self, other):
-        if isinstance(other, TimeRule):
+        if isinstance(other, SimpleRule):
             return self.tag == other.tag
         else:
             return False
+
+    def match(self, time):
+        return True
+
+
+class SimpleRule(TimeRule):
+    def __init__(self, tag=None, **rules):
+        super(SimpleRule, self).__init__(tag)
+        self.rules = rules
 
     def match(self, time):
         for key, value in self.rules.items():
@@ -27,9 +35,17 @@ class TimeRule(object):
         return True
 
 
+class CustomRule(TimeRule):
+    def __init__(self, tag=None, func=lambda t: True):
+        super(CustomRule, self).__init__(tag)
+        self.match = func
+
+
 class Selector(object):
 
     __name__ = 'selector'
+
+    frequency = None
 
     def __init__(self, rule=None, priority=0):
         """
@@ -81,79 +97,3 @@ class Selector(object):
         """
         pass
 
-
-from collections import OrderedDict
-
-
-def sort_selector(selectors):
-    dct = OrderedDict()
-
-    for s in sorted(selectors):
-        dct.setdefault(s.rule, []).append(s)
-
-    return dct
-
-
-class SelectorAdmin(object):
-    def __init__(self, *selectors):
-        self.selectors = sort_selector(selectors)
-
-    def on_time(self, time, context, data):
-        pass
-
-
-class IntersectionAdmin(SelectorAdmin):
-    def on_time(self, time, context, data):
-        for rule, selectors in self.selectors.items():
-            if rule.match(time):
-                pool = data.can_trade()
-                selectors[0].start(pool, context, data)
-                for selector in selectors:
-                    pool = selector.execute(pool, context, data)
-                selectors[0].end(pool, context, data)
-                context.selector_pool = pool
-                return pool
-        return []
-
-
-class UnionAdmin(SelectorAdmin):
-    def on_time(self, time, context, data):
-        for rule, selectors in self.selectors.items():
-            if rule.match(time):
-                pool = data.can_trade()
-                result = []
-                selectors[0].start(pool, context, data)
-                for selector in selectors:
-                    result.extend(filter(lambda x: x not in result, selector.execute(pool, context, data)))
-                selectors[0].end(pool, context, data)
-                context.selector_pool = result
-                return result
-        return []
-
-
-def selector_wrapper(**k):
-    def wrapper(cls):
-        from fxdayu.engine.handler import HandlerCompose, Handler
-        from fxdayu.event import EVENTS
-        from fxdayu.context import ContextMixin
-
-        class SelectorHandler(HandlerCompose, ContextMixin, cls):
-            def __init__(self, engine, context, environment, data, *args, **kwargs):
-                super(SelectorHandler, self).__init__(engine)
-                ContextMixin.__init__(self)
-                self.set_context(context)
-                self.set_environment(environment)
-                self.set_data(data)
-                cls.__init__(self, *args, **kwargs)
-                self._handlers['on_time'] = Handler(self.on_time, EVENTS.TIME, **k)
-                context.selector_pool = []
-
-            def on_time(self, event, kwargs=None):
-                cls.on_time(self, event.time, self.context, self.data)
-
-            def link_context(self):
-                pass
-
-        return SelectorHandler
-
-    return wrapper

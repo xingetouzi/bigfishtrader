@@ -319,7 +319,7 @@ class MarketDataFreq(object):
             fields = self.fields
 
         if frequency is None or (frequency == self.frequency):
-            if isinstance(symbol, str):
+            if isinstance(symbol, (str, unicode)):
                 return self._find_candle(symbol, fields, start, end, length)
             else:
                 return self._dimension({s: self._find_candle(s, fields, start, end, length) for s in symbol},
