@@ -9,9 +9,6 @@ from fxdayu.modules.security import SecurityPool
 from fxdayu.router import DummyExchange
 from fxdayu.modules.account.handlers import AccountHandler
 from fxdayu.modules.order.handlers import OrderStatusHandler
-from fxdayu.context import ContextMixin
-from fxdayu.engine.handler import HandlerCompose, Handler
-from fxdayu.event import EVENTS
 
 
 DEVELOP_MODE = OrderedDict([
@@ -22,8 +19,16 @@ DEVELOP_MODE = OrderedDict([
     ("security_pool", Component("security_pool", SecurityPool, (), {})),
     ("account_handler", Component("account_handler", AccountHandler, (), {})),
     ("order_book_handler", Component("order_book_handler", OrderStatusHandler, (), {})),
-    ("portfolio", Component("portfolio_handler", PortfolioHandler, (), {}))
 ])
+
+
+from fxdayu.modules.portfolio.real_trade import TradingPortfolio
+
+
+PORTFOLIO_CONFIG = {"host": "localhost",
+                    "port": 27017,
+                    "db": "portfolios",
+                    "collection": "TradeDemo"}
 
 
 TRADING_MODE = OrderedDict([
@@ -31,12 +36,11 @@ TRADING_MODE = OrderedDict([
                        {'external': "E:\\bigfishtrader\\fxdayu\data\local_mongo.json",
                         'cache': "E:\\bigfishtrader\\fxdayu\data\\remote_redis.json"})),
     ('timer', Component("timer", RealTimer, (), {})),
-    ("portfolio", Component("PortfolioHandler", PortfolioHandler, (), {})),
+    ("portfolio", Component("PortfolioHandler", TradingPortfolio, (), {"db_config": PORTFOLIO_CONFIG})),
     ("router", Component("router", DummyExchange, (Component.Lazy('engine'),), {})),
     ("security_pool", Component("security_pool", SecurityPool, (), {})),
     ("account_handler", Component("account_handler", AccountHandler, (), {})),
     ("order_book_handler", Component("order_book_handler", OrderStatusHandler, (), {})),
-    ("portfolio", Component("portfolio_handler", PortfolioHandler, (), {}))
 ])
 
 

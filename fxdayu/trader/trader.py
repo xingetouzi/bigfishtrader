@@ -294,7 +294,6 @@ class Trader(object):
         orders = self.modules["order_book_handler"].get_status(method="df")
         execs = reorganize(execs, "execution")
         orders = reorganize(orders, "order")
-        print execs
         execs_group = execs.groupby("报单编号")
         temp = pd.DataFrame()
         temp["成交均价"] = execs_group[["成交数", "成交均价"]].apply(cal_avg_price)["avg_price"]
