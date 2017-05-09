@@ -375,6 +375,8 @@ class MarketDataFreq(object):
             if length == 1:
                 return end
             elif start:
+                start = self.search_axis(axis, start)
+                print start
                 if start + length <= end+1:
                     return slice(start, start+length)
                 else:
@@ -385,6 +387,7 @@ class MarketDataFreq(object):
                     raise KeyError("data required out of range")
                 return slice(end-length, end)
         elif start:
+            start = self.search_axis(axis, start)
             return slice(start, end+1)
         else:
             return slice(0, end+1)
@@ -469,3 +472,7 @@ class DataSupport(HandlerCompose, MarketDataFreq):
 
 if __name__ == '__main__':
     mdf = MarketDataFreq()
+
+    mdf.init({'HS': ['000001', '600016']}, start=datetime(2016, 1, 1))
+
+    print mdf.history('000001', start=datetime(2016, 5, 1))
