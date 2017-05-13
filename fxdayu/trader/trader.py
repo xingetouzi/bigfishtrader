@@ -1,25 +1,22 @@
 # encoding:utf-8
+from __future__ import unicode_literals
+
+import os
 from collections import OrderedDict
 from datetime import datetime
-import os
 
 import pandas as pd
 from pandas import ExcelWriter
 
 from fxdayu.context import Context, ContextMixin
 from fxdayu.engine import Engine
-from fxdayu.event import EVENTS
 from fxdayu.engine.handler import HandlerCompose
-from fxdayu.modules.account.handlers import AccountHandler
-from fxdayu.modules.order.handlers import OrderStatusHandler
-from fxdayu.modules.portfolio.handlers import PortfolioHandler
-from fxdayu.modules.security import SecurityPool
 from fxdayu.environment import *
-from fxdayu.router import DummyExchange
-from fxdayu.utils.api_support import EnvironmentContext
+from fxdayu.event import EVENTS
 from fxdayu.performance import OrderAnalysis
-from fxdayu.modules.timer.simulation import TimeSimulation
-from fxdayu.data.data_support import DataSupport
+from fxdayu.trader.component import Component
+from fxdayu.trader.packages import DEVELOP_MODE
+from fxdayu.utils.api_support import EnvironmentContext
 
 OUTPUT_COLUMN_MAP = {
     "equity": OrderedDict([("datetime", "时间"), ("equity", "净值")]),
@@ -40,26 +37,10 @@ OUTPUT_COLUMN_MAP = {
         ("price", "报单价格"),
         ("leavesQty", "未成交数"),
         ("orderTime", "报单时间"),
-        ("exchange", "交易所")
+        ("cancelTime", "撤销时间"),
+        ("exchange", "交易所"),
     ])
 }
-
-
-class Component(object):
-    __slots__ = ["name", "constructor", "args", "kwargs"]
-
-    class Lazy(object):
-        def __init__(self, name):
-            self.name = name
-
-    def __init__(self, name, constructor, args, kwargs):
-        self.name = name
-        self.constructor = constructor
-        self.args = args
-        self.kwargs = kwargs
-
-    def get(self, item):
-        return self.Lazy(item)
 
 
 class Trader(object):
@@ -80,49 +61,8 @@ class Trader(object):
         if settings:
             self.settings = settings
         else:
-            self._init_settings()
+            self.settings = DEVELOP_MODE
         self.initialized = False
-
-    def _init_settings(self):
-        self.settings = OrderedDict([
-            ("data", Component(
-                "data",
-                DataSupport,
-                (self.context,),
-                {}
-            )),
-            ("timer", Component(
-                "timer",
-                TimeSimulation,
-                (),
-                {'engine': self.engine}
-            )),
-            ("portfolio", Component(
-                "PortfolioHandler",
-                PortfolioHandler,
-                (),
-                {}
-            )),
-            ("router", Component(
-                "router",
-                DummyExchange,
-                (self.engine,),
-                {}
-            )),
-        ])
-        self.settings["security_pool"] = Component(
-            "security_pool", SecurityPool, (), {}
-        )
-        self.settings["account_handler"] = Component(
-            "account_handler", AccountHandler, (), {}
-        )
-        self.settings["order_book_handler"] = Component(
-            "order_book_handler", OrderStatusHandler,
-            (), {}
-        )
-        self.settings["portfolio"] = Component(
-            "portfolio_handler", PortfolioHandler, (), {}
-        )
 
     def __getitem__(self, item):
         return self.settings[item]
@@ -157,16 +97,24 @@ class Trader(object):
                       co.kwargs.items()}
             if issubclass(co.constructor, HandlerCompose):
                 args[:0] = [self.engine]
-            self.modules[name] = co.constructor(*args, **kwargs)
+            try:
+                self.modules[name] = co.constructor(*args, **kwargs)
+            except:
+                print("Component initialize Fail: %s %s %s" % (co.constructor, args, kwargs))
+                raise
         for name, co in self.settings.items():
             if issubclass(co.constructor, ContextMixin):
                 module = self.modules[name]
                 module.set_context(self.context)
                 module.set_environment(self.environment)
                 module.set_data(self.modules["data"])
-                module.init()
+                module.link_context()
         self._register_modules()
         self.context.link(**self.modules)
+        for name, co in self.settings.items():
+            if issubclass(co.constructor, ContextMixin):
+                module = self.modules[name]
+                module.init()
         self.initialized = True
         return self
 
@@ -179,7 +127,6 @@ class Trader(object):
         engine.start()
         engine.join()
         engine.stop()
-        self.perform()
 
     def run(self, symbols, frequency=None, start=None, end=None, ticker_type=None, params=None, save=False):
         if not self.initialized:
@@ -204,10 +151,10 @@ class Trader(object):
         strategy = self.environment.public.copy()
 
         if raw_code:
-            exec(filename, strategy, strategy)
+            exec (filename, strategy, strategy)
         else:
             with open(filename) as f:
-                exec(f.read(), strategy, strategy)
+                exec (f.read(), strategy, strategy)
 
         if params:
             for key, value in params.items():
@@ -252,11 +199,17 @@ class Trader(object):
         if not self.initialized:
             self.initialize()
 
+        def on_stop(event, kwargs=None):
+            self.perform
+            self.modules["persistence"].close()
+
         context, data = self.context, self.modules["data"]
         data.init(symbols, frequency, start, end, db)
         self.use_file(filename, raw_code, params)
         self.modules['timer'].put_time()
+        self.engine.register(on_stop, EVENTS.EXIT, priority=100)
         self.activate()
+
         if save:
             params = {} if not params else params
             name = os.path.basename(filename).split(".")[0]
@@ -276,6 +229,7 @@ class Trader(object):
         self.performance.order_details.to_excel(writer, "交易")
         writer.save()
 
+    @property
     def perform(self):
         if not self.initialized:
             raise ValueError("trader not initialized, no data to perform")
@@ -300,12 +254,14 @@ class Trader(object):
         temp["成交数"] = execs_group["成交数"].sum()
         temp["手续费"] = execs_group["手续费"].sum()
         temp["最后成交时间"] = execs_group["最后成交时间"].last()
+        # TODO 撤销和执行统一返回execution，最后成交时间和撤销时间统一
         temp.reset_index(inplace=True)
         temp = pd.merge(orders[["报单编号"]], temp, how="left", left_on=["报单编号"], right_on=["报单编号"])
         temp["成交均价"] = temp["成交均价"].fillna(0)
         temp["成交数"] = temp["成交数"].fillna(0).astype(int)
         temp["手续费"] = temp["手续费"].fillna(0)
         trades = pd.merge(orders, temp, how="left", left_on=["报单编号"], right_on=["报单编号"])
+        trades["撤销时间"] = trades["撤销时间"].fillna(pd.NaT)
         trades["报单编号"] = trades["报单编号"].astype(int)
         trades.sort_values("报单编号", inplace=True)
         self.performance.set_equity(eqt)

@@ -77,8 +77,7 @@ class DummyExchange(AbstractRouter, ContextMixin):
         Returns:
 
         """
-        old = self.environment.get_order_status(order_id)
-        status = copy.copy(old)
+        status = self.environment.get_order_status(order_id)
         if canceled:
             status.ordStatus = OrderStatus.CANCELLED.value
             status.leavesQty = 0
@@ -127,7 +126,6 @@ class DummyExchange(AbstractRouter, ContextMixin):
         execution.account = order.account
         execution.exchange = order.exchange
         execution.gateway = order.gateway
-        execution.position_id = order.clOrdID
         for k, v in self.ticker_info.get(order.symbol, {}):
             setattr(execution, k, v)
         event = ExecutionEvent(execution, timestamp=timestamp, topic=order.symbol)
@@ -215,7 +213,8 @@ class DummyExchange(AbstractRouter, ContextMixin):
         executed = []
         for order in self._orders.values():
             event = self.handle_order[order.ordType](order, self.data.current(order.symbol))
-            if event:   executed.append(order.clOrdID)
+            if event:
+                executed.append(order.clOrdID)
             self._put(event)
         for order in executed:
             self._orders.pop(order, None)

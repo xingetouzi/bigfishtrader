@@ -46,7 +46,7 @@ class ContextMixin(object):
 
     def init(self):
         # TODO 和initializedMixin做统一
-        self.link_context()
+        pass
 
     def set_context(self, context):
         if self.__use_proxy:

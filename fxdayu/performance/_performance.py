@@ -1,5 +1,5 @@
 # encoding: utf-8
-from __future__ import division
+from __future__ import division, unicode_literals
 
 import math
 from collections import OrderedDict
@@ -415,7 +415,7 @@ class OrderAnalysis(WindowFactorPerformance):
         self._orders["整点价值"] = self._orders.get("整点价值", default=1)
         self._orders["杠杆"] = self._orders.get("杠杆", default=1)
         df = self._orders[["报单编号", "合约", "买卖", "开平", "报单状态", "报单价格", "报单数", "未成交数",
-                           "成交数", "报单时间", "最后成交时间", "成交均价", "手续费", "整点价值", "杠杆", "交易所"]]
+                           "成交数", "报单时间", "最后成交时间", "撤销时间", "成交均价", "手续费", "整点价值", "杠杆", "交易所"]]
 
         return df
 

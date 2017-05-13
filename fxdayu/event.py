@@ -160,7 +160,7 @@ class ExecutionEvent(Event):
     """
     __slots__ = ["data"]
 
-    def __init__(self, execution, timestamp=None, topic=''):
+    def __init__(self, execution, priority=-1, timestamp=None, topic=''):
         """
 
         Args:
@@ -173,7 +173,7 @@ class ExecutionEvent(Event):
         """
         if timestamp is None:
             timestamp = datetime.now()
-        super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, 0, timestamp, topic)
+        super(ExecutionEvent, self).__init__(EVENTS.EXECUTION, priority, timestamp, topic)
         self.data = execution
 
 
@@ -243,7 +243,7 @@ class PositionEvent(Event):
 class OrderStatusEvent(Event):
     __slots__ = ["data"]
 
-    def __init__(self, ord_status, priority=0, timestamp=None, topic=""):
+    def __init__(self, ord_status, priority=-1, timestamp=None, topic=""):
         """
 
         Args:
@@ -299,7 +299,7 @@ class ErrorEvent(Event):
 
 
 class InitEvent(Event):
-    def __init__(self, priority=-1, timestamp=None):
+    def __init__(self, priority=-2, timestamp=None):
         if timestamp is None:
             timestamp = datetime.now()
         super(InitEvent, self).__init__(EVENTS.INIT, priority, timestamp)

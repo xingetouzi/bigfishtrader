@@ -12,9 +12,7 @@ class TickData(BaseData):
     """
     tick quotation data, namely market depth data
     """
-    __slots__ = ["gateway", "symbol", "exchange", "lastPrice", "lastVolume", "volume", "openInterest",
-                 "time", "date", "openPrice", "highPrice", "lowPrice", "preClose", "vwapPrice",
-                 "upperLimit", "lowerLimit", "depth", "askPrice", "bidPrice", "askVolume", "bidVolume"]
+
     MAX_DEPTH = 10
 
     def __init__(self, depth=MAX_DEPTH):
@@ -73,8 +71,6 @@ class AccountData(BaseData):
         closePnL(float): profit and loss of closed position
         positionPnL(float): profit and loss of holding position
     """
-    __slots__ = ["accountID", "preBalance", "balance", "available", "commission", "margin",
-                 "closePnL", "positionPnL", "exchangeRate", "gateway"]
 
     def __init__(self):
         super(AccountData, self).__init__()
@@ -104,8 +100,6 @@ class PositionData(BaseData):
     Attributes:
         symbol(str): symbol of position
     """
-    __slots__ = ["gateway", "account", "symbol", "sid", "exchange", "side", "volume", "frozenVolume", "avgPrice",
-                 "marketValue"]
 
     def __init__(self):
         self.gateway = EMPTY_STRING
@@ -115,7 +109,7 @@ class PositionData(BaseData):
         self.exchange = EMPTY_STRING
         self.side = EMPTY_UNICODE
         self.volume = EMPTY_INT
-        self.frozenVolume = EMPTY_UNICODE
+        self.frozenVolume = EMPTY_INT
         self.avgPrice = EMPTY_FLOAT
         self.marketValue = EMPTY_FLOAT
 
@@ -133,24 +127,22 @@ class PositionData(BaseData):
 
 
 class ExecutionData(BaseData):
-    __slots__ = ["time", "symbol", "action", "side", "leavesQty", "lastQty", "lastPx", "profit", "commission", "lever",
-                 "deposit_rate", "clOrdID", "clientID", "orderID", "position_id", "fill_type",
-                 "execID", "account", "exchange", "cumQty", "avgPx", "gateway"]
 
     def __init__(self):
-        self.time = datetime.now()
-        self.symbol = EMPTY_STRING
         self.gateway = EMPTY_STRING
+        self.account = EMPTY_STRING
         self.clOrdID = EMPTY_STRING
+
+        self.exchange = EMPTY_STRING
         self.clientID = EMPTY_STRING
         self.orderID = EMPTY_STRING
         self.execID = EMPTY_STRING
-        self.account = EMPTY_STRING
-        self.exchange = EMPTY_STRING
+        self.time = datetime.now()
 
+        self.symbol = EMPTY_STRING
         self.action = EMPTY_STRING
         self.side = EMPTY_STRING
-        self.profit = None
+        self.profit = EMPTY_FLOAT
 
         self.cumQty = EMPTY_INT
         self.leavesQty = EMPTY_INT
@@ -158,7 +150,6 @@ class ExecutionData(BaseData):
         self.avgPx = EMPTY_FLOAT
         self.lastPx = EMPTY_FLOAT
 
-        self.position_id = None
         self.fill_type = "position"
         self.lever = 1
         self.commission = EMPTY_FLOAT
@@ -178,7 +169,6 @@ class ExecutionData(BaseData):
 
 
 class LogData(BaseData):
-    __slots__ = ["logTime", "logContent", "gateway"]
 
     def __init__(self):
         self.logTime = EMPTY_STRING  # 日志生成时间
@@ -187,8 +177,6 @@ class LogData(BaseData):
 
 
 class ErrorData(BaseData):
-    __slots__ = ["errorID", "errorMsg", "additionalInfo", "errorTime", "requestID", "gateway"]
-
     def __init__(self):
         self.errorID = EMPTY_STRING  # 错误代码
         self.errorMsg = EMPTY_UNICODE  # 错误信息
@@ -199,9 +187,6 @@ class ErrorData(BaseData):
 
 
 class Security(BaseData):
-    __slots__ = ["name", "localSymbol", "sid", "gateway", "symbol", "exchange", "secType", "currency",
-                 "expiry", "right", "strike", "multiplier", ]
-
     def __init__(self):
         self.sid = EMPTY_STRING
         self.name = EMPTY_UNICODE

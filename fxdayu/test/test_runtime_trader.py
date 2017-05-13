@@ -1,9 +1,10 @@
 import logging
 import time
 
-from fxdayu.event import EVENTS, InitEvent
+from fxdayu.event import EVENTS
 from fxdayu.router.paper_exchange import PaperExchange
-from fxdayu.trader.trader import Trader, Component
+from fxdayu.trader.trader import Trader
+from fxdayu.trader.component import Component
 from fxdayu.vnpy.gateway import GATEWAY_DICT
 
 logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)

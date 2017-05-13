@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-requires = ["click", "pandas", "pymongo", "dictproxyhack", "python-dateutil", "redis"]
+requires = ["click", "pandas", "pymongo", "dictproxyhack", "python-dateutil", "redis", 'sqlalchemy']
 
 try:
     import enum

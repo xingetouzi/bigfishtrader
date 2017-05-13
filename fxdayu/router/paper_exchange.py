@@ -26,14 +26,11 @@ class PaperExchange(AbstractRouter, ContextMixin):
     generate FillEvent which then be put into the event_queue
     """
 
-    def __init__(self, engine, context, environment, data, exchange_name=None,
+    def __init__(self, engine, exchange_name=None,
                  deal_model=BACKTESTDEALMODE.NEXT_BAR_OPEN):
         """
         Args:
             engine:
-            context:
-            environment:
-            data:
             exchange_name:
             deal_model:
         """
@@ -43,7 +40,7 @@ class PaperExchange(AbstractRouter, ContextMixin):
         self.deal_mode = deal_model
         self._orders = OrderedDict()
         self._handlers = {
-            "on_order": Handler(self.on_order, EVENTS.ORDER, topic="", priority=0),
+            "on_order": Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-200),
             "on_time": Handler(self.on_time, EVENTS.TIME, topic="bar.open", priority=200),
             "on_execution": Handler(self.on_execution, EVENTS.EXECUTION, priority=0),
             "on_cancel": Handler(self.on_cancel, EVENTS.CANCEL, priority=0)
@@ -128,7 +125,6 @@ class PaperExchange(AbstractRouter, ContextMixin):
         execution.account = order.account
         execution.exchange = order.exchange
         execution.gateway = order.gateway
-        execution.position_id = order.clOrdID
         event = ExecutionEvent(execution, timestamp=timestamp, topic=order.symbol)
         return event
 
@@ -196,12 +192,13 @@ class PaperExchange(AbstractRouter, ContextMixin):
 
         """
         order = event.data
-        if order.ordType == OrderType.MARKET.value and self.deal_mode == BACKTESTDEALMODE.THIS_BAR_CLOSE:
+        if OrderType(order.ordType) == OrderType.MARKET and self.deal_mode == BACKTESTDEALMODE.THIS_BAR_CLOSE:
             self._orders.pop(order.clOrdID, None)  # modify order
             current = self.data.current(order.symbol)
-            self._put(self._make_execution(order, current.close, current.name))  # 直接成交
+            self._put_execution(self._make_execution(order, current.close, current.name))  # 直接成交
         else:
             self._orders[order.clOrdID] = order  # 放入交易所orderbook留给on_bar函数去处理成交
+            self.engine.put(self._make_status(order.gClOrdID))  # 发送报单成功回报
 
     def on_execution(self, event, kwargs=None):
         execution = event.data

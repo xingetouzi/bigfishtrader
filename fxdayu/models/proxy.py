@@ -1,6 +1,7 @@
 import copy
 
 from fxdayu.const import OrderStatus, OrderType
+from fxdayu.models.order import OrderReq
 
 
 class OrderSenderMixin(object):
@@ -31,7 +32,22 @@ class OrderProxy(object):
 
     def _copy(self):
         if self._new_order is None:
-            self._new_order = copy.copy(self._order_req)
+            self._new_order = OrderReq()
+            self._new_order.gateway = self._order_req.gateway
+            self._new_order.account = self._order_req.account
+            self._new_order.clOrdID = self._order_req.clOrdID
+            self._new_order.exchange = self._order_req.exchange
+            self._new_order.security = self._order_req.security
+            self._new_order.symbol = self._order_req.symbol
+            self._new_order.side = self._order_req.side
+            self._new_order.action = self._order_req.action
+            self._new_order.orderQty = self._order_req.orderQty
+            self._new_order.ordType = self._order_req.ordType
+            self._new_order.price = self._order_req.price
+            self._new_order.stopPx = self._order_req.stopPx
+            self._new_order.timeInForce = self._order_req.timeInForce
+            self._new_order.transactTime = self._order_req.transactTime
+            self._new_order.expireTime = self._order_req.expireTime
 
     @property
     def id(self):
@@ -81,7 +97,10 @@ class OrderProxy(object):
 
     @property
     def price(self):
-        return self._new_order.price
+        if self._new_order:
+            return self._new_order.price
+        else:
+            return self._order_req.price
 
     @price.setter
     def price(self, value):
@@ -90,9 +109,12 @@ class OrderProxy(object):
             self._new_order.price = value
 
     def send(self):
-        if self._new_order:
+        if self._new_order and self.status not in {OrderStatus.PARTTRADED, OrderStatus.ALLTRADED,
+                                                   OrderStatus.CANCELLED}:
+            # print("%s\n%s" % (self._new_order.to_dict(), self._order_req.to_dict()))
             self._sender.send_order(self._new_order)
             self._new_order = None
 
     def cancel(self):
-        self._sender.cancel_order(self._order_req.gClOrdID)
+        if self.status not in {OrderStatus.ALLTRADED, OrderStatus.CANCELLED}:
+            self._sender.cancel_order(self._order_req.gClOrdID)

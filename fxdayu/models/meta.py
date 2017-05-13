@@ -4,21 +4,8 @@ LAZY_DATA_ATTR = "_data"
 
 
 class BaseData(object):
-    __slots__ = []
-
-    def to_dict(self, ordered=False):
-        """
-
-        Args:
-            ordered: whether to use OrderedDict
-
-        Returns:
-            dict | OrderedDict : represent the data with dict
-        """
-        if ordered:
-            return OrderedDict([(attr, getattr(self, attr)) for attr in self.__slots__])
-        else:
-            return {attr: getattr(self, attr) for attr in self.__slots__}
+    def to_dict(self):
+        return self.__dict__
 
     def get_lazy(self):
         return LazyBaseData(self)
@@ -29,7 +16,7 @@ class LazyBaseData(object):
         self._data = data
 
     def __getattr__(self, item):
-        if item in self._data.__slots__:
+        if item in self._data.__dict__:
             return getattr(self._data, item)
 
 

@@ -1,4 +1,5 @@
-from fxdayu.trader.trader import Trader, Component, Optimizer
+from fxdayu.trader.trader import Trader, Optimizer
+from fxdayu.trader.component import Component
 from fxdayu.trader.packages import DEVELOP_MODE
 from datetime import datetime
 from fxdayu.router import BACKTESTDEALMODE

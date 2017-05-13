@@ -402,9 +402,10 @@ class MarketDataFreq(object):
                 end = self.time
             if isinstance(fields, str):
                 result = self._read_db(symbol, fields, start, end, length, self._db[symbol])[fields]
+
             else:
                 result = self._read_db(symbol, fields, start, end, length, self._db[symbol])
-
+            # print(result)
             if length != -1:
                 return result
             else:

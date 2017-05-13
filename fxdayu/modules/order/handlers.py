@@ -9,7 +9,7 @@ from fxdayu.const import OrderStatus
 from fxdayu.context import ContextMixin
 from fxdayu.engine.handler import HandlerCompose, Handler
 from fxdayu.event import EVENTS, OrderEvent, CancelEvent
-from fxdayu.models.data import Security
+from fxdayu.models.data import Security, ExecutionData
 from fxdayu.models.order import OrderStatusData, OrderReq, CancelReq
 from fxdayu.models.proxy import OrderProxy, OrderSenderMixin
 from fxdayu.modules.order.style import *
@@ -21,25 +21,37 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
         super(OrderStatusHandler, self).__init__(engine)
         ContextMixin.__init__(self)
         OrderSenderMixin.__init__(self)
+        self._execution_dao = None
+        self._persistence = None
         self._adapter = None
-        self._orders = {}
+        self._orders_dao = None
+        self._order_status_dao = None
         self._open_orders = {}
         self._order_proxies = {}
-        self._order_status = {}
-        self._executions = {}
         self._client_ord_id = 0
-        self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic=".", priority=-100)
+        self._handlers["on_order"] = Handler(self.on_order, EVENTS.ORDER, topic="", priority=0)
         self._handlers["on_execution"] = Handler(self.on_execution, EVENTS.EXECUTION, topic=".", priority=-100)
         self._handlers["on_order_status"] = Handler(self.on_order_status, EVENTS.ORD_STATUS, topic=".", priority=-100)
 
     def init(self):
-        super(OrderStatusHandler, self).init()
+        self._persistence = self.environment["persistence"]
+        self._orders_dao = self._persistence.get_dao(OrderReq)
+        self._order_status_dao = self._persistence.get_dao(OrderStatusData)
+        self._execution_dao = self._persistence.get_dao(ExecutionData)
         self._adapter = OrderReqAdapter(self.context, self.environment)
 
     @property
     def next_ord_id(self):
         self._client_ord_id += 1
         return self._client_ord_id
+
+    def _get_order(self, order):
+        gateway, account, ord_id = order.split(".")
+        return self._orders_dao.find(gateway, account, ord_id)
+
+    def _get_order_status(self, order):
+        gateway, account, ord_id = order.split(".")
+        return self._order_status_dao.find(gateway, account, ord_id)
 
     def on_order(self, event, kwargs=None):
         """
@@ -52,7 +64,6 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
         """
         order = event.data
         if order.clOrdID:
-            self._orders[order.gClOrdID] = order
             status = OrderStatusData()
             status.exchange = order.exchange
             status.symbol = order.symbol
@@ -66,7 +77,8 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
             status.gateway = order.gateway
             status.account = order.account
             status.orderTime = self.context.current_time
-            self._order_status[status.gClOrdID] = status
+            self._order_status_dao.insert(status)
+            self._orders_dao.insert(order)
             order_proxy = OrderProxy(order, status, self)
             self._order_proxies[order.gClOrdID] = order_proxy
             if order.symbol not in self._open_orders:
@@ -86,7 +98,7 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
 
         """
         execution = event.data
-        self._executions[execution.execID] = execution
+        self._execution_dao.insert(execution)
 
     def on_order_status(self, event, kwargs=None):
         """
@@ -99,12 +111,9 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
             None
         """
         status_new = event.data
-        status_old = self._order_status[status_new.gClOrdID]
-        status_old.ordStatus = status_new.ordStatus
-        status_old.cumQty = status_new.cumQty
-        status_old.leavesQty = status_new.leavesQty
-        status_old.orderTime = status_new.orderTime
-        status_old.cancelTime = status_new.cancelTime
+        self._order_status_dao.insert(status_new)
+        self._order_proxies[status_new.gClOrdID]._order_stat = status_new
+        # TODO patch of order proxies
         if status_new.ordStatus == OrderStatus.ALLTRADED.value or status_new.ordStatus == OrderStatus.CANCELLED.value:
             try:
                 self._open_orders[status_new.symbol].pop(status_new.gClOrdID, None)
@@ -120,7 +129,8 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
         Returns:
             fxdayu.models.order.OrderStatusData
         """
-        return self._order_status.get(order, None)
+
+        return self._get_order_status(order)
 
     @api_method
     def get_order(self, order_id):
@@ -151,23 +161,26 @@ class OrderStatusHandler(HandlerCompose, ContextMixin, OrderSenderMixin):
         event = OrderEvent(order)
         self.engine.put(event)
 
-    def _get_base_data(self, dct, index="time", method="df"):
+    def _get_base_data(self, data, index="time", method="df"):
         if method == "df":
-            df = pd.DataFrame(list(map(lambda x: x.to_dict(ordered=True), dct.values())))
+            if isinstance(data, dict):
+                df = pd.DataFrame([item.to_dict() for item in data.values()])
+            else:
+                df = pd.DataFrame([item.to_dict() for item in data])
             if not df.empty:
                 df = df.set_index(index, drop=False).sort_index()
             return df
-        elif method == "list":
-            return copy.deepcopy(dct)
+        elif method == "raw":
+            return copy.deepcopy(data)
 
     def get_status(self, method="df"):
-        return self._get_base_data(self._order_status, index="orderTime", method=method)
+        return self._get_base_data(self._order_status_dao.find_all(), index="orderTime", method=method)
 
     def get_orders(self, method="df"):
-        return self._get_base_data(self._orders, index="transactTime", method=method)
+        return self._get_base_data(self._orders_dao.find_all(), index="transactTime", method=method)
 
     def get_executions(self, method="df"):
-        return self._get_base_data(self._executions, index="time", method=method)
+        return self._get_base_data(self._execution_dao.find_all(), index="time", method=method)
 
     @api_method
     def order(self, security, amount, style=None, limit_price=None, stop_price=None):
