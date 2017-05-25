@@ -367,6 +367,16 @@ class RedisHandler(DataHandler):
         else:
             return {f: self.trans(f, self.client.lrange(self.join(name, f), 0, -1)) for f in fields}
 
+    def read_hash(self, name, keys=None, **kwargs):
+        if keys is None:
+            pipeline = self.client.pipeline()
+            pipeline.hkeys(name)
+            pipeline.hvals(name)
+            return pd.DataFrame(zip(*pipeline.execute()), **kwargs)
+        else:
+            values = self.client.hmget(name, keys)
+            return pd.DataFrame(zip(keys, values), **kwargs)
+
     def delete(self, name, fields=None):
         if fields is None:
             fields = self.fields

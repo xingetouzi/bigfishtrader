@@ -4,6 +4,7 @@ from fxdayu.engine.handler import HandlerCompose
 from threading import Thread
 from fxdayu.data.resampler import Resampler
 from datetime import datetime, date, time
+import numpy as np
 import pandas as pd
 
 
@@ -189,6 +190,16 @@ class ActiveStockData(object):
         else:
             return list(self.cache.client.smembers('index'))
 
+    LevelNames = ('price', 'volume')
+
+    def bid(self, symbol):
+        name = '%s:bid' % symbol
+        return self.cache.read_hash(name, columns=self.LevelNames, dtype=np.float64)
+
+    def ask(self, symbol):
+        name = '%s:ask' % symbol
+        return self.cache.read_hash(name, columns=self.LevelNames, dtype=np.float64)
+
 
 class ActiveDataSupport(HandlerCompose, ActiveStockData):
     def __init__(self, engine, *args, **kwargs):
@@ -213,6 +224,6 @@ def get_fit(codes, data):
 if __name__ == '__main__':
     import json
     import talib
-    ads = ActiveStockData(cache='remote_redis.json', external='local_mongo.json')
-    for code in get_fit(ads.can_trade(), ads):
-        print code
+    data = ActiveStockData(external='local_mongo.json')
+    print data.bid('000001')
+    print data.ask('000001')
