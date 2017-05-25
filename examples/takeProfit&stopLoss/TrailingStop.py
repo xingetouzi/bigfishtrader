@@ -70,21 +70,20 @@ def place_stop_order(context, data, s, price, n):
             od.send()
             # send_order(OrderReq())
     else:
-        print("send order: %s" % n)
-        print(context.stop_order)
         context.stop_order[s] = order(s, n, style=StopOrder(price))
 
 
 def trailing_stop(context, data, s, lot=LOT):
     position = context.portfolio.positions.get(s, None)
     if position:
-        print(context.current_time, position.volume - position.frozenVolume)
+        # print(context.current_time, position.volume - position.frozenVolume)
         if position > 0:
             place_stop_order(context, data, s, lowest(data, s, STOP_LEN), -lot)
         elif position < 0:
             place_stop_order(context, data, s, highest(data, s, STOP_LEN), lot)
     else:
-        print(context.current_time, 0)
+        pass
+        # print(context.current_time, 0)
 
 
 def handle_data(context, data):
